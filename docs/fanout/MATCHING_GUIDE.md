@@ -691,3 +691,19 @@ bounded loop; SifCallRpc with nine arguments). Improved and parked:
 func_001DF180 83.14, func_001CBC20 92.37, func_001172B8 98.21 (the voice
 allocator; see CURIOSITIES 32), func_00116598 99.80 (one constant gcc folds
 from a compare), func_001CC3B0 90.13 (old packet constants were wrong).
+
+### Queue batch 34 (2026-10-28)
+
+8 byte-matched. libsifrpc in the SDK's shape with SifRpcClientData_t-style
+records: func_0010E6F8 (SifBindRpc; the blocking path is the then-arm of
+`!(mode & 1)`; the rpc_id store precedes the packet-address store) and
+func_0010E4C0 (SifGetOtherData; rpc_id read into a local first, as in
+SifCallRpc). The two bind-retry loops func_00112E28 and func_00111F18 (a failed
+bind prints, delays and retries; a zero server word also retries; only a
+nonzero server word clears the latch; the old C did neither). libdma
+func_00102278 (MOD = 0; the old C had the MADR test inverted and returned
+CHCR). Sound: func_001177E8 (one `&&` chain; the selector's arm order),
+func_0011A2B0 (the voice-steal routine, see CURIOSITIES 32), func_001FD790 (the
++0x34 index is a 31-bit bitfield; the old C tested a flags byte the original
+never reads). Improved and parked: func_00119EA0 91.74 (the old C had the
+0x8000 test inverted), func_00117088 82.88.

@@ -1,8 +1,15 @@
 // NEARMISS func_00117088  (vram 0x00117088, 0x22C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 55.16% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc coloring/reg-alloc wall (confirmed s84). Function fully decoded to logically-correct C (leaf, returns 0/1, manipulates D_00281AC0 packet struct from D_0027C6C0[t3->0x24*12+4]). GPR coloring diverges at the very first instruction (expected puts the halfword at +36 in v1 and the constant 12 in a1; ours uses v0 and a0) and cascades through the ...
+// objdiff 82.88% via ee-gcc 2.9-991111-01 (-O2). Matching wave 2026-10-28 (was 55.16%):
+// rewritten with typed Event / Song / Bank / Tone records; fixes read from the original:
+// the event's data pointer (+0x0C) and cursor (+0x08) are read into locals once; a
+// running-status byte (no 0x80 bit) steps the cursor back and re-reads it from the event;
+// both arms share a single `return 1`; the f04 program pointer of the f32 == 1 arm is the
+// bank's array at +8 indexed from there.
+// Remaining differences: the original keeps `bank + 8` (f32 == 1 arm) and `bank->f10 + 8`
+// (other arm) as separate early values, while every spelling tried here lets the front
+// end fold the +8 to the end of the sum; plus the register colouring that follows (the
+// event pointer lands in a3 instead of t3).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -11,112 +18,116 @@
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern unsigned char D_0027C6C0[];
-extern unsigned char D_00281AC0[];
+// Sequencer event decode (leaf). Points the shared Song context D_00281AC0 at the
+// event's sound bank (D_0027C6C0[ev->f24].t04): f14 = event data, f10 = bank, f18 / f20 =
+// the bank's tables at its +0x14 offset and at the +0x10 offset of entry ev->f32. Reads
+// the status byte at data[cursor] (a byte without the 0x80 bit reuses the running status
+// ev->f01 and steps the cursor back) and the three following bytes into ev->f02..f04.
+// Mode 1 (ev->f32 == 1): selects the program from the bank's +0x24 table through the
+// 16-bit index at f20 + 0x312 + 2 * ev->f04, sets f08 / f0C from the bank's +0x20 table
+// and ev->f18. Otherwise: channel ev->f00 & 0xF; below 0xA0 the channel's program index
+// (data[ch * 16 + 0x12]) is checked (index entry 0xFFFF, beyond the table count, or the
+// bank's +0x10 offset -1: skip 3 bytes, return 0); then f00 / f04 come from the bank's
+// +0x10 table and f08 / f0C from the event data. Returns 1.
 
-int func_00117088(unsigned char *t3) {
-    unsigned char *t4;
-    unsigned char *a0p;
-    int t1, t2;
-    unsigned int a1b;
-    unsigned char v1c;
-    int base14;
+typedef struct {
+    int f00;                    /* 0x00 */
+    int f04;                    /* 0x04 */
+    unsigned char f08[8];       /* 0x08 */
+    int f10;                    /* 0x10 */
+    int f14;                    /* 0x14 */
+    char pad_18[0x08];
+    int f20;                    /* 0x20 */
+    int f24;                    /* 0x24 */
+} Bank;
 
-    t2 = *(int *)(t3 + 0xC);
-    t1 = *(int *)(t3 + 0x8);
-    *(int *)(D_00281AC0 + 0x14) = t2;
+typedef struct {
+    unsigned char *f00;         /* 0x00 */
+    unsigned char *f04;         /* 0x04 */
+    unsigned char *f08;         /* 0x08 */
+    unsigned char *f0C;         /* 0x0C */
+    Bank *f10;                  /* 0x10 */
+    unsigned char *f14;         /* 0x14 */
+    unsigned char *f18;         /* 0x18 */
+    unsigned char *f1C;         /* 0x1C */
+    unsigned char *f20;         /* 0x20 */
+} Song;
 
-    t4 = *(unsigned char **)(D_0027C6C0 + (*(unsigned short *)(t3 + 0x24)) * 0xC + 4);
-    a0p = (unsigned char *)((*(unsigned short *)(t3 + 0x32) << 4) + (int)t4);
+typedef struct {
+    unsigned char f00;          /* 0x00 */
+    unsigned char f01;          /* 0x01 */
+    unsigned char f02;          /* 0x02 */
+    unsigned char f03;          /* 0x03 */
+    unsigned char f04;          /* 0x04 */
+    char pad_05[0x03];
+    int f08;                    /* 0x08 */
+    unsigned char *f0C;         /* 0x0C */
+    char pad_10[0x08];
+    int f18;                    /* 0x18 */
+    char pad_1C[0x08];
+    unsigned short f24;         /* 0x24 */
+    char pad_26[0x0C];
+    unsigned short f32;         /* 0x32 */
+} Event;
 
-    *(unsigned char **)(D_00281AC0 + 0x10) = t4;
-    *(int *)(D_00281AC0 + 0x18) = (int)t4 + *(int *)(t4 + 0x14);
-    *(int *)(D_00281AC0 + 0x20) = (int)t4 + *(int *)(a0p + 0x10);
 
-    a1b = *(unsigned char *)(t2 + t1);
-    if (a1b & 0x80) {
-        t3[1] = a1b;
-        v1c = *(unsigned char *)(*(int *)(D_00281AC0 + 0x14) + t1);
+typedef struct { int t00; Bank *t04; int t08; } Tone;
+
+extern Song D_00281AC0;
+extern Tone D_0027C6C0[];
+
+int func_00117088(Event *ev)
+{
+    unsigned char *data;
+    int pos;
+    Bank *buf;
+    unsigned char b;
+    int ch;
+
+    data = ev->f0C;
+    pos = ev->f08;
+    D_00281AC0.f14 = data;
+    buf = D_0027C6C0[ev->f24].t04;
+    D_00281AC0.f10 = buf;
+    D_00281AC0.f18 = (unsigned char *)buf + buf->f14;
+    D_00281AC0.f20 = (unsigned char *)buf + *(int *)((unsigned char *)buf + ev->f32 * 16 + 0x10);
+
+    b = data[pos];
+    if (b & 0x80) {
+        ev->f01 = b;
+        ev->f00 = D_00281AC0.f14[pos];
     } else {
-        v1c = t3[1];
-        t1 = t1 - 1;
-        *(int *)(t3 + 0x8) = t1;
+        ev->f00 = ev->f01;
+        ev->f08 = pos - 1;
+        pos = ev->f08;
     }
-    t3[0] = v1c;
+    ev->f02 = D_00281AC0.f14[pos + 1];
+    ev->f03 = D_00281AC0.f14[pos + 2];
+    ev->f04 = D_00281AC0.f14[pos + 3];
 
-    base14 = *(int *)(D_00281AC0 + 0x14);
-    t3[2] = *(unsigned char *)(t1 + base14 + 1);
-    t3[3] = *(unsigned char *)(t1 + base14 + 2);
-    t3[4] = *(unsigned char *)(t1 + base14 + 3);
-
-    if (*(unsigned short *)(t3 + 0x32) == 1) {
-        unsigned char *t0 = *(unsigned char **)(D_00281AC0 + 0x10);
-        int base = *(int *)(D_00281AC0 + 0x14);
-        unsigned char *a1p = (unsigned char *)(t1 + base);
-        int a3 = (int)t4 + 8;
-        int t1g = *(int *)(D_00281AC0 + 0x20);
-        int t2g = *(int *)(t0 + 0x24);
-        int a0v = (*(int *)(t3 + 0x18) << 4) + 0x10;
-        int v0a;
-
-        v0a = (int)(*(unsigned char *)(a1p + 3) << 1) + t1g;
-        *(int *)(D_00281AC0 + 0x00) =
-            ((int)t4 + t2g) + *(unsigned short *)(v0a + 0x312);
-
-        v0a = (int)t4 + *(int *)(t0 + 0x20);
-        *(int *)(D_00281AC0 + 0x08) = v0a;
-        *(int *)(D_00281AC0 + 0x0C) = v0a + a0v;
-
-        v0a = (int)(*(unsigned char *)(a1p + 3) << 1) + t1g;
-        *(int *)(D_00281AC0 + 0x04) =
-            a3 + (*(unsigned short *)(v0a + 0x312) + t2g);
-        return 1;
+    if (ev->f32 == 1) {
+        D_00281AC0.f00 = ((unsigned char *)buf + D_00281AC0.f10->f24) +
+            *(unsigned short *)(D_00281AC0.f20 + D_00281AC0.f14[pos + 3] * 2 + 0x312);
+        D_00281AC0.f08 = (unsigned char *)buf + D_00281AC0.f10->f20;
+        D_00281AC0.f0C = D_00281AC0.f08 + (ev->f18 * 16 + 0x10);
+        D_00281AC0.f04 = buf->f08 +
+            (*(unsigned short *)(D_00281AC0.f20 + D_00281AC0.f14[pos + 3] * 2 + 0x312) +
+             D_00281AC0.f10->f24);
     } else {
-        unsigned int v0 = t3[0];
-        int a1h = (v0 & 0xF) << 4;
-        unsigned char *a3;
-        int base, t1i, t0v, a1v, p;
-        unsigned char *a2p, *v1p;
-
-        if (v0 < 0xA0) {
-            int b14 = *(int *)(D_00281AC0 + 0x14);
-            int a3v = *(int *)(D_00281AC0 + 0x20);
-            unsigned char *q = (unsigned char *)(a1h + b14);
-            int pp = (*(unsigned char *)(q + 0x12) << 1) + a3v;
-
-            if (*(unsigned short *)(pp + 2) == 0xFFFF) {
-                *(int *)(t3 + 0x8) = t1 + 3;
+        ch = (ev->f00 & 0xF) * 16;
+        if (ev->f00 < 0xA0) {
+            if (*(unsigned short *)(D_00281AC0.f20 + D_00281AC0.f14[ch + 0x12] * 2 + 2) == 0xFFFF ||
+                *(unsigned short *)D_00281AC0.f20 < D_00281AC0.f14[ch + 0x12] ||
+                D_00281AC0.f10->f10 == -1) {
+                ev->f08 = pos + 3;
                 return 0;
             }
-            if (*(unsigned short *)(a3v + 0) < *(unsigned char *)(q + 0x12)) {
-                *(int *)(t3 + 0x8) = t1 + 3;
-                return 0;
-            }
-            if (*(int *)(*(int *)(D_00281AC0 + 0x10) + 0x10) == -1) {
-                *(int *)(t3 + 0x8) = t1 + 3;
-                return 0;
-            }
-            a3 = D_00281AC0;
-        } else {
-            a3 = D_00281AC0;
         }
-
-        base = *(int *)(a3 + 0x14);
-        t1i = *(int *)(a3 + 0x20);
-        a2p = (unsigned char *)(a1h + base);
-        v1p = *(unsigned char **)(a3 + 0x10);
-        a1v = *(int *)(v1p + 0x10);
-        t0v = t2 + (a1h + 0x10);
-
-        p = (*(unsigned char *)(a2p + 0x12) << 1) + t1i;
-        *(int *)(D_00281AC0 + 0x00) =
-            (a1v + (int)t4) + *(unsigned short *)(p + 2);
-        *(int *)(a3 + 0x0C) = t0v;
-        *(int *)(a3 + 0x08) = t2;
-
-        p = (*(unsigned char *)(a2p + 0x12) << 1) + t1i;
-        *(int *)(a3 + 0x04) =
-            (a1v + 8) + (*(unsigned short *)(p + 2) + (int)t4);
-        return 1;
+        D_00281AC0.f00 = (D_00281AC0.f10->f10 + (unsigned char *)buf) +
+            *(unsigned short *)(D_00281AC0.f20 + D_00281AC0.f14[ch + 0x12] * 2 + 2);
+        D_00281AC0.f0C = data + (ch + 0x10);
+        D_00281AC0.f08 = data;
+        D_00281AC0.f04 = (unsigned char *)buf + D_00281AC0.f10->f10 + 8 + *(unsigned short *)(D_00281AC0.f20 + D_00281AC0.f14[ch + 0x12] * 2 + 2);
     }
+    return 1;
 }

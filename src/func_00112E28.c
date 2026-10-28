@@ -1,70 +1,84 @@
-// NEARMISS func_00112E28  (vram 0x00112E28, 0x170 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 51.49% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// Structurally identical sibling of func_00111F18 (semaphore re-init, different data symbols D_00241D0C/D_00241CFC/D_0027AF60/sema-id 0x80000593). Same two confirmed-s84 walls: eegcc forward-branch-likely wall (bgezl on func_0010E6F8(...) >= 0) and the 4-nop inline-asm delay-loop idiom unreproducible from plain C. Sam...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern int D_00241D0C;
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 51.49% NEARMISS).
+// Fixes read from the original instructions:
+//  - The RPC bind loop was wrong: a failed bind prints and delays, then retries;
+//    a successful bind with a zero server word delays and retries too; only a
+//    nonzero server word clears the bind latch (D_00241D2C = 0, inside the loop
+//    just before the break). Same shape as the byte-matched func_00113280.
+//  - The first debug print passes the argument first and D_00241CFC second.
+//  - ReferThreadStatus takes the status buffer's address; func_0010E088 takes 0.
+//  - The semaphore word is volatile (it is re-read after PollSema).
+//  - Not walls: ee-gcc emits the success test as branch-likely itself, and the
+//    delay loops need no inline nop (the r5900 assembler pads short loops).
+
+// SIF RPC client init (sibling of func_00111F18): takes the module semaphore
+// with PollSema (prints and returns 0 if it is busy), records the argument,
+// refreshes the thread status, then binds RPC server 0x80000593 once, retrying
+// with a busy-wait, and returns 1.
+
+extern volatile int D_00241D0C;
 extern int D_00241CF8;
 extern int D_00241CFC;
 extern int D_00241D2C;
 extern int D_00279B00;
-extern int D_00279B08;
-extern int D_0027AF60;
-extern char D_0026BCC0;
-extern char D_0026BCE8;
+extern int D_00279B08[];
+extern unsigned char D_0027AF60[];
+extern char D_0026BCC0[];
+extern char D_0026BCE8[];
 
 extern void func_001118B8(void);
-extern int PollSema(int sema);
-extern void func_00122B58(const char *fmt, int a1, int a2);
-extern void ReferThreadStatus(int a, int b);
-extern int func_00112DC0(int a0);
-extern int SignalSema(int param);
-extern void func_0010E088(void);
-extern int func_0010E6F8(void *a0, unsigned int a1, int a2);
+extern int PollSema(int semid);
+extern void func_00122B58(char *fmt, ...);
+extern void ReferThreadStatus(int tid, void *info);
+extern int func_00112DC0(int arg);
+extern void SignalSema(int semid);
+extern void func_0010E088(int arg);
+extern int func_0010E6F8(void *bd, unsigned int sid, unsigned int mode);
 
-int func_00112E28(int a0) {
-    int v0;
-    int *p;
+int func_00112E28(int a0)
+{
+    int i;
+    int r;
 
     func_001118B8();
-    v0 = PollSema(D_00241D0C);
-    if (D_00241D0C != v0) {
+    r = PollSema(D_00241D0C);
+    if (D_00241D0C != r) {
         if (D_00241CF8 > 0) {
-            func_00122B58((const char *)&D_0026BCC0, D_00241CFC, a0);
+            func_00122B58(D_0026BCC0, a0, D_00241CFC);
         }
         return 0;
     }
     D_00241CFC = a0;
     ReferThreadStatus(D_00279B00, D_00279B08);
-    if (func_00112DC0(1) != 0) {
+    if (func_00112DC0(1)) {
         SignalSema(D_00241D0C);
         return 0;
     }
-    func_0010E088();
-    if (D_00241D2C >= 0) {
-        return 1;
-    }
-    p = &D_0027AF60;
-    for (;;) {
-        v0 = func_0010E6F8(p, 0x80000593, 0);
-        if (v0 >= 0) {
-            break;
+    func_0010E088(0);
+
+    if (D_00241D2C < 0) {
+        for (;;) {
+            if (func_0010E6F8(D_0027AF60, 0x80000593, 0) < 0) {
+                if (D_00241CF8 > 0) {
+                    func_00122B58(D_0026BCE8);
+                }
+                i = 0x100000;
+                do {
+                    i--;
+                } while (i != -1);
+                continue;
+            }
+            if (*(int *)(D_0027AF60 + 0x24) != 0) {
+                D_00241D2C = 0;
+                break;
+            }
+            i = 0x100000;
+            do {
+                i--;
+            } while (i != -1);
         }
-        if (D_00241CF8 > 0) {
-            func_00122B58((const char *)&D_0026BCE8, 0, 0);
-        }
-        { int d = 0x100000; do { d--; } while (d != -1); }
-    }
-    if (*((int *)p + 9) == 0) {
-        D_00241D2C = 0;
     }
     return 1;
 }

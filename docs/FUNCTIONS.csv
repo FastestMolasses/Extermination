@@ -36,7 +36,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00101FE0,dma_kick,228,readable,4,lowmem
 0x001020C8,func_001020C8,228,readable,0,lowmem
 0x001021B0,func_001021B0,196,readable,0,lowmem
-0x00102278,func_00102278,236,nearmiss,0,lowmem
+0x00102278,func_00102278,236,readable,0,lowmem
 0x00102368,func_00102368,240,readable,0,lowmem
 0x00102458,func_00102458,12,readable,0,lowmem
 0x00102468,func_00102468,196,readable,5,lowmem
@@ -456,10 +456,10 @@ vram,name,size_bytes,status,callers,subsystem
 0x0010E368,func_0010E368,64,readable,1,lowmem
 0x0010E3A8,func_0010E3A8,180,word,0,lowmem
 0x0010E460,func_0010E460,96,readable,0,lowmem
-0x0010E4C0,func_0010E4C0,308,nearmiss,0,lowmem
+0x0010E4C0,func_0010E4C0,308,readable,0,lowmem
 0x0010E5F8,func_0010E5F8,76,readable,1,lowmem
 0x0010E648,func_0010E648,176,word,0,lowmem
-0x0010E6F8,func_0010E6F8,284,nearmiss,12,lowmem
+0x0010E6F8,func_0010E6F8,284,readable,12,lowmem
 0x0010E818,func_0010E818,140,readable,0,lowmem
 0x0010E8A8,func_0010E8A8,436,nearmiss,72,lowmem
 0x0010EA60,func_0010EA60,60,readable,5,lowmem
@@ -541,7 +541,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00111A80,func_00111A80,96,readable,0,lowmem
 0x00111AE0,func_00111AE0,328,readable,2,lowmem
 0x00111C28,func_00111C28,748,readable,3,lowmem
-0x00111F18,func_00111F18,368,nearmiss,10,lowmem
+0x00111F18,func_00111F18,368,readable,10,lowmem
 0x00112088,func_00112088,152,readable,7,lowmem
 0x00112120,func_00112120,48,readable,0,lowmem
 0x00112150,func_00112150,752,nearmiss,0,lowmem
@@ -554,7 +554,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00112C58,func_00112C58,192,readable,0,lowmem
 0x00112D18,func_00112D18,168,readable,6,lowmem
 0x00112DC0,func_00112DC0,100,readable,3,lowmem
-0x00112E28,func_00112E28,368,nearmiss,10,lowmem
+0x00112E28,func_00112E28,368,readable,10,lowmem
 0x00112F98,func_00112F98,744,nearmiss,1,lowmem
 0x00113280,func_00113280,504,readable,6,lowmem
 0x00113478,func_00113478,180,readable,1,lowmem
@@ -611,7 +611,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001172B8,func_001172B8,368,nearmiss,1,lowmem
 0x00117428,func_00117428,692,nearmiss,1,lowmem
 0x001176E0,func_001176E0,260,readable,1,lowmem
-0x001177E8,func_001177E8,216,nearmiss,2,lowmem
+0x001177E8,func_001177E8,216,readable,2,lowmem
 0x001178C0,func_001178C0,88,readable,1,lowmem
 0x00117918,func_00117918,200,nearmiss,4,lowmem
 0x001179E0,func_001179E0,448,readable,6,lowmem
@@ -673,7 +673,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0011A198,func_0011A198,124,readable,1,lowmem
 0x0011A218,func_0011A218,84,readable,3,lowmem
 0x0011A270,func_0011A270,60,readable,1,lowmem
-0x0011A2B0,func_0011A2B0,448,nearmiss,1,lowmem
+0x0011A2B0,func_0011A2B0,448,readable,1,lowmem
 0x0011A470,func_0011A470,72,readable,2,lowmem
 0x0011A4B8,func_0011A4B8,20,readable,1,lowmem
 0x0011A4D0,func_0011A4D0,20,readable,1,lowmem
@@ -2558,7 +2558,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001FD4C0,func_001FD4C0,180,readable,2,audio
 0x001FD580,func_001FD580,280,readable,1,audio
 0x001FD6A0,func_001FD6A0,228,readable,1,audio
-0x001FD790,func_001FD790,448,nearmiss,1,audio
+0x001FD790,func_001FD790,448,readable,1,audio
 0x001FD950,func_001FD950,556,nearmiss,1,audio
 0x001FDB80,func_001FDB80,548,readable,1,audio
 0x001FDDB0,func_001FDDB0,696,readable,1,audio

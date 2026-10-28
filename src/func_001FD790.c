@@ -1,109 +1,104 @@
-// NEARMISS func_001FD790  (vram 0x001FD790, 0x1C0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 57.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order swap: target colors idx->$s2 / frame->$s0, mwcc colors idx->$s0 / frame->$s2, offsetting nearly the whole function by one slot; plus reversed switch dispatch order on D_008106F5. Pure regalloc/dispatch-order permutation class -- permuter territory.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 57.64% NEARMISS).
+// Fixes read from the original instructions:
+//  - The index is a 31-bit bitfield read of the +0x34 word (the 64-bit shift
+//    pair the target uses is mwcc's bitfield extract), not a 64-bit local;
+//    the entry is indexed as an array of 8-byte records.
+//  - The +8 word is unsigned: that fixes the load order and add operand order
+//    of the position sum (+8 + +0x60).
+//  - The step==0 / mode-0 path calls func_001FD580 unconditionally; the old C
+//    wrongly tested the flags byte first.
+//  - Both D_008106F5 dispatches are switches with cases 0, 1, 2 in source order
+//    ending in `break`; the per-entry frame is read before the flags byte.
+//
+// Frame/clip stepping loop. Each iteration: arg0+0x34 = arg0+8 + arg0+0x60,
+// idx = its low 31 bits. If bit31 is set the entry table is D_00264DD0[0];
+// otherwise it is D_00264DD0[D_00810700 + 1]. frame = entry.frame (+0),
+// flags = entry.flags (+5). When bit31 is clear, D_008106F5 gates: mode 2
+// returns 0; when arg0+0x60 is still 0 and the mode is 0, a successful
+// func_001FD580(idx, arg0+0x70) (returns 1) also returns 0. Then, if both
+// flags and frame are zero, arg0+0x60 is incremented and the loop repeats.
+// Otherwise frame is committed to arg0+0x6C (arg0+0x68 is zeroed when
+// arg0+0x60 is 0), flags goes to arg0+0x50 and entry byte +4 to arg0+0x51,
+// and the function returns 1.
 
-//
-// Frame/clip stepping loop. Each iteration: arg0+0x34 = arg0+8 + arg0+0x60
-// (accumulated frame), idx = low 31 bits of that value. If bit31 is set, the
-// entry pointer is D_00264DD0[0]; otherwise it is D_00264DD0[D_00810700+1].
-// entry = base + idx*8; flags = entry[5] (byte), frame = entry[0] (half). When
-// bit31 is clear there is a state-machine gate on D_008106F5 (and whether
-// arg0+0x60 advanced): mode 2 returns 0; for the not-yet-advanced path with
-// mode 0 and flags==0 it tries func_001FD580(idx, arg0+0x70) and returns 0 on
-// success. Common tail: if both flags and frame are zero, increments arg0+0x60
-// and loops again when frame is still zero; otherwise commits frame to
-// arg0+0x6C (zeroing arg0+0x68 when arg0+0x60 is 0), writes flags to arg0+0x50
-// and entry[4] to arg0+0x51, and returns 1.
-//
-// Residual (dominant): a register-allocation-order swap -- the target colors
-// idx -> $s2 and frame -> $s0, while mwcc colors idx -> $s0 and frame -> $s2,
-// which offsets nearly every instruction by one slot. Secondary: the switch on
-// D_008106F5 dispatches in reverse case order under mwcc. Both are pure
-// regalloc/dispatch-order permutations -- permuter territory; idioms exhausted.
-/* m3-matching fix round: prototype corrected to func_001FD580's byte-matched
- * signature (unsigned 31-bit index, int *out); was (unsigned long long, int).
- * 57.38 -> 57.64%. */
 extern int func_001FD580(unsigned int idx, int *out);
 extern int D_00264DD0[];
 extern unsigned char D_008106F5;
 extern unsigned char D_00810700;
 
+/* The +0x34 position word: low 31 bits are the entry index, bit 31 selects
+ * the shared table 0 instead of the current state's table. */
+typedef struct {
+    unsigned int idx : 31;
+    unsigned int neg : 1;
+} Slot;
+
+/* 8-byte timeline entry (same layout func_001FD580 scans). */
+typedef struct {
+    unsigned short frame;   /* +0 */
+    short id;               /* +2 */
+    unsigned char f4;       /* +4: copied to arg0+0x51 */
+    unsigned char flags;    /* +5 */
+    unsigned char pad6[2];  /* +6 */
+} Entry8;
+
 int func_001FD790(int arg0) {
+    unsigned short frame;
+    unsigned char flags;
+    unsigned int idx;
+    Entry8 *base;
     int v;
-    unsigned long long idx;
-    int base;
-    int entry;
-    int flags;
-    unsigned int frame;
 
     for (;;) {
-        v = *(int *)(arg0 + 8) + *(int *)(arg0 + 0x60);
-        *(int *)(arg0 + 0x34) = v;
+        *(int *)(arg0 + 0x34) = *(unsigned int *)(arg0 + 8) + *(int *)(arg0 + 0x60);
         v = *(int *)(arg0 + 0x34);
-        idx = ((unsigned long long)v << 33) >> 33;
+        idx = ((Slot *)(arg0 + 0x34))->idx;
         if (v & 0x80000000) {
-            base = D_00264DD0[0];
-            entry = base + idx * 8;
-            flags = *(unsigned char *)(entry + 5);
-            frame = *(unsigned short *)(entry + 0);
+            base = (Entry8 *)D_00264DD0[0];
+            frame = base[idx].frame;
+            flags = base[idx].flags;
         } else {
-            base = D_00264DD0[D_00810700 + 1];
-            entry = base + idx * 8;
-            flags = *(unsigned char *)(entry + 5);
-            frame = *(unsigned short *)(entry + 0);
-            if (*(int *)(arg0 + 0x60) != 0) {
+            base = (Entry8 *)D_00264DD0[D_00810700 + 1];
+            frame = base[idx].frame;
+            flags = base[idx].flags;
+            if (*(int *)(arg0 + 0x60) == 0) {
                 switch (D_008106F5) {
+                case 0:
+                    if (func_001FD580(idx, (int *)(arg0 + 0x70)) == 1) {
+                        return 0;
+                    }
+                    break;
+                case 1:
+                    break;
                 case 2:
                     return 0;
-                case 1:
+                }
+            } else {
+                switch (D_008106F5) {
                 case 0:
                     break;
-                default:
+                case 1:
                     break;
-                }
-                goto common;
-            }
-            switch (D_008106F5) {
-            case 0:
-                if ((flags & 0xFF) != 0) {
-                    goto common;
-                }
-                if (func_001FD580(idx, (int *)(arg0 + 0x70)) == 1) {
+                case 2:
                     return 0;
                 }
-                goto common;
-            case 2:
-                return 0;
-            default:
-                break;
             }
         }
-    common:
-        if ((flags & 0xFF) == 0 && (frame & 0xFFFF) == 0) {
+        if (flags == 0 && frame == 0) {
             *(int *)(arg0 + 0x60) = *(int *)(arg0 + 0x60) + 1;
         }
-        if ((flags & 0xFF) == 0) {
-            if ((frame & 0xFFFF) == 0) {
-                continue;
-            }
+        if (flags != 0 || frame != 0) {
+            break;
         }
-        v = frame & 0xFFFF;
-        if (*(int *)(arg0 + 0x60) == 0) {
-            *(int *)(arg0 + 0x68) = 0;
-            v = frame & 0xFFFF;
-        }
-        *(int *)(arg0 + 0x6C) = v;
-        *(unsigned char *)(arg0 + 0x50) = flags;
-        *(unsigned char *)(arg0 + 0x51) = *(unsigned char *)((int)idx * 8 + base + 4);
-        return 1;
     }
+    if (*(int *)(arg0 + 0x60) == 0) {
+        *(int *)(arg0 + 0x68) = 0;
+    }
+    *(int *)(arg0 + 0x6C) = frame;
+    *(unsigned char *)(arg0 + 0x50) = flags;
+    *(unsigned char *)(arg0 + 0x51) = base[idx].f4;
+    return 1;
 }

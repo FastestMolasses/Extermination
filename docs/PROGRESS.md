@@ -1,3 +1,10 @@
+## 2026-10-28 — matching wave, queue batch 34: 8 more byte-matched
+
+See MATCHING_GUIDE "Queue batch 34"; CURIOSITIES 32 gains the voice-steal
+routine's wrong-voice mask. Gate: fresh build + verify_all all six stages pass,
+boot ELF byte-identical, 19/19 overlays, matched_code 99.97%, 2705/2707 units;
+audit_link_provenance clean (2208 ordinary-C routes).
+
 ## 2026-10-28 — matching wave, queue batch 33: 6 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 33"; CURIOSITIES gains entry 32 (the sound

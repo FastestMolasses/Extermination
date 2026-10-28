@@ -667,6 +667,12 @@ batch 33 whose logic follows the original instruction by instruction; the
 residual is register colouring only). Not yet observed in a
 capture (that would need all 48 voices busy at once).
 
+- **The steal routine marks the wrong voice** (func_0011A2B0, byte-matched,
+  matching wave batch 34). After its scan it ORs `1 << (limit - start)` into
+  the voice-in-use mask at D_0027F740+0x28 and calls func_001157F0(3, i, 0, 0)
+  with `i` equal to the scan's end, not the index of the voice it took; the
+  effect at run time is not traced yet.
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the examples in port
