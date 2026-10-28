@@ -264,3 +264,13 @@ func_001FCF90 (an inverted loop arm; declaration order; an integer-sum
 address). Improved and parked: func_00131740 99.88, func_0019FE50 96.91,
 func_001CABA0 94.04 (the 2.3.3 permuter reached 100 only through a
 self-assignment, which was rejected).
+
+### Queue batch 11 (2026-10-27)
+
+4 byte-matched: func_001FA0D0 (`idx += 1`; two adjacent bytes as one struct
+extern), func_001FE920 (the function takes two parameters and passes them
+through; the old `(void)` signature was the whole residual), func_00178910
+(loop index declared first; two scratchpad vectors as `extern Vec4`),
+func_0011E748 (ee-gcc fdlibm wrapper in its twins' shape; the domain-error
+path returned the wrong value, a behaviour fix). Improved and parked:
+func_00144C20 98.62, func_00150F40 97.92.

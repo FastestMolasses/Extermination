@@ -1,74 +1,63 @@
-// NEARMISS func_0011E748  (vram 0x0011E748, 0x114 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 92.58% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler wall. Float-register assignment: x is kept in f20 and r = func_0011CB90() in f21.
-// RETURN VALUE (corrected against the .s): r is returned on the early paths (D_0026C5D0 == -1,
-// func_0011E080(x) != 0, or !(x < 0)), but NOT on the error path. There the original calls
-// func_00127758 with the exception record's +0x18 double (0, or D_0026C650 when mode != 0, as
-// possibly rewritten by the matherr in func_0011DB90) and goes straight to the epilogue without
-// copying r back into f0, so the function returns func_00127758's float result (e.g. 0x7FB00000 for
-// sqrtf(negative normal); see the port's docs/SDK_MATH_ORIGINAL.md). The C below declares
-// func_00127758 void and ends in `return r`, so on that path it is NOT body-correct; being NEARMISS
-// it is never linked (the boot ELF is unaffected). An earlier version of this header said "returns
-// r on ALL paths, func_00127758's return discarded" and "body byte-identical" with only two
-// list-scheduler residuals; the error-path return is a real behavioural difference, so those
-// statements were wrong.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 92.58% NEARMISS).
+// Fixes read from the original instructions:
+//  - the exception record is a struct (as in the byte-matched twins func_0011E420 /
+//    func_0011E620) with double fields; func_00128350 returns a double (float to double)
+//    and func_00127758 (double to float) returns a float;
+//  - the domain-error path returns func_00127758(st.e), not the kernel's value;
+//  - D_0026C650 is a double constant (the non-SVID result) and the mode-2 test re-reads
+//    D_0026C5D0 rather than using the cached mode;
+//  - the two argument doubles are set in one chained assignment.
+// libm wrapper (sqrtf-shaped): kernel func_0011CB90(x); when the error mode D_0026C5D0 is
+// not -1, x is not a NaN (func_0011E080) and x < 0, it fills the exception record (type 1,
+// name D_0026C648, x as a double twice, result 0.0 in mode 0 else D_0026C650), stores 0x21
+// through func_0011FD78's pointer when the mode is 2 or func_0011DB90(record) returns 0,
+// stores the record's word +0x20 there when it is nonzero, and returns the record's result
+// converted to float. Otherwise it returns the kernel's value.
+
+extern float func_0011CB90(float x);
+extern int func_0011E080(float x);
+extern double func_00128350(float x);
+extern int func_0011DB90(void *p);
+extern int *func_0011FD78(void);
+extern float func_00127758(double h);
 
 extern int D_0026C5D0;
-extern long D_0026C648;
-extern long D_0026C650;
-extern float func_0011CB90(void);
-extern int func_0011E080(float);
-extern long func_00128350(float);
-extern int func_0011DB90(void *);
-extern int *func_0011FD78(void);
-extern void func_00127758(long);
+extern int D_0026C648;
+extern double D_0026C650;
 
-float func_0011E748(float x)
-{
+float func_0011E748(float x) {
     int mode;
-    float r;
-    long h;
-    char buf[0x24];
+    float saved;
+    struct {
+        int a;        /* 0x00 */
+        int *b;       /* 0x04 */
+        double c;     /* 0x08 */
+        double d;     /* 0x10 */
+        double e;     /* 0x18 */
+        int f;        /* 0x20 */
+    } st;
 
-    r = func_0011CB90();
+    saved = func_0011CB90(x);
     mode = D_0026C5D0;
-    if (mode == -1) {
-        return r;
+    if (mode == -1 || func_0011E080(x) != 0)
+        return saved;
+    if (x < 0.0f) {
+        st.a = 1;
+        st.b = &D_0026C648;
+        st.f = 0;
+        st.c = st.d = func_00128350(x);
+        if (mode == 0)
+            st.e = 0.0;
+        else
+            st.e = D_0026C650;
+        if (D_0026C5D0 == 2 || func_0011DB90(&st) == 0) {
+            *func_0011FD78() = 0x21;
+        }
+        if (st.f != 0)
+            *func_0011FD78() = st.f;
+        return func_00127758(st.e);
     }
-    if (func_0011E080(x) != 0) {
-        return r;
-    }
-    if (!(x < 0.0f)) {
-        return r;
-    }
-
-    *(int *)(buf + 0x0) = 1;
-    *(int *)(buf + 0x4) = (int)&D_0026C648;
-    *(int *)(buf + 0x20) = 0;
-    h = func_00128350(x);
-    *(long *)(buf + 0x8) = h;
-    *(long *)(buf + 0x10) = h;
-    if (mode == 0) {
-        *(long *)(buf + 0x18) = 0;
-    } else {
-        *(long *)(buf + 0x18) = D_0026C650;
-    }
-
-    if (D_0026C5D0 == 2 || func_0011DB90(buf) == 0) {
-        *func_0011FD78() = 0x21;
-    }
-    if (*(int *)(buf + 0x20) != 0) {
-        *func_0011FD78() = *(int *)(buf + 0x20);
-    }
-    func_00127758(*(long *)(buf + 0x18));
-    return r;
+    return saved;
 }
