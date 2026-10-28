@@ -1,15 +1,28 @@
-// NEARMISS func_001E04E0  (vram 0x001E04E0, 0x264 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 58.46% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two stacked walls; logic is fully recovered (setup calls, packet header/GIFtag layout, both loop bounds and shapes, the acc thread, teardown and kick all reproduce instruction-for-instruction where the compiler cooperates). (1) VU0 wall: after func_001CD370(0) the target executes four quadword loads into VU0 vf24..vf27...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 58.46% NEARMISS).
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// Fixes read from the original instructions:
+//  - the four VU0 matrix-row loads after func_001CD370(0) are inline asm.
+//  - the source grid is D_0081C0F0[row][column] of 16-byte vertices.
+//  - func_001CAAC0 takes two arguments (arg0, saved cursor); the old C passed a
+//    third.
+//  - the render-context pointer is a block-scoped local (as in func_001DB480); the
+//    strip cursor is taken as packet + 0x10 inside that block; the VRAM arena
+//    0x258000 is a local; locals declared i, j, acc, dl, p, wp0.
+//
+// Draws a 16x16 vertex grid as 15 triangle strips into the display list of
+// the render context D_00275670 (word +0x1C is the running write cursor).
+// arg0 = transform context for func_001028B8, arg1 = passed through to the
+// per-vertex emitter func_001E0240, t = morph parameter for func_00103230.
+// Setup on unit 3 with texture buffer 0x258000 (func_001D6B10, func_001D1F80,
+// func_001D6BA0, func_001D1FF0); the matrix from func_001CD370(0) is loaded
+// into VU0 rows 24..27 for func_001E0240. Each row opens a 0x630-byte packet
+// (header byte +3 = 0x10, word +4 = 0, halfword +0 = 0x62, control word
+// 0x50000061, GIFtag 0x302E400000008020 / 0x421) and emits two strip vertices
+// per column (rows i and i+1). Teardown: func_001D1F20(3), func_001D1FF0(3, 1),
+// close the list (byte +3 = 0x60) and kick with func_001CAAC0(arg0, saved cursor).
 
 //
 // SEMANTICS: draws a 16x16 vertex grid as 15 triangle strips into the display
@@ -48,7 +61,7 @@
 typedef int u128 __attribute__((mode(TI)));
 
 extern char *D_00275670;
-extern char D_0081C0F0[];
+extern char D_0081C0F0[][16][16];
 
 extern void func_001D6B10(int, int, int, int);
 extern void func_001D1F80(int, int, int);
@@ -59,45 +72,54 @@ extern char *func_001CD370(int);
 extern void func_00103230(float *, char *, float);
 extern void func_001028B8(float *, int, float *);
 extern int func_001E0240(char *, float *, int, int);
-extern void func_001CAAC0(int, char *, char *);
+extern void func_001CAAC0(int, char *);
 
 void func_001E04E0(int arg0, int arg1, float t)
 {
-    char *wp0;
-    char *p;
-    char *dl;
     int i;
     int j;
     int acc;
+    char *dl;
+    char *p;
+    char *wp0;
     float v[4];
+    char *m;
+    int arena;
 
     wp0 = *(char **)(D_00275670 + 0x1C);
-    func_001D6B10(3, 0x258000, 8, 8);
+    arena = 0x258000;
+    func_001D6B10(3, arena, 8, 8);
     func_001D1F80(3, 2, 1);
-    func_001D6BA0(3, 0x258000, 8, 8, 0, 0);
+    func_001D6BA0(3, arena, 8, 8, 0, 0);
     func_001D1FF0(3, 3);
-    /* the original also loads the four rows at result+0x0..+0x30 into VU0 vf24..vf27 */
-    func_001CD370(0);
+    m = func_001CD370(0);
+    asm("lqc2 vf24, 0x0(%0)" : : "r"(m));
+    asm("lqc2 vf25, 0x10(%0)" : : "r"(m));
+    asm("lqc2 vf26, 0x20(%0)" : : "r"(m));
+    asm("lqc2 vf27, 0x30(%0)" : : "r"(m));
 
     for (i = 0; i < 15; i++) {
-        *(char *)(*(char **)(D_00275670 + 0x1C) + 3) = 0x10;
-        *(int *)(*(char **)(D_00275670 + 0x1C) + 4) = 0;
-        *(short *)(*(char **)(D_00275670 + 0x1C) + 0) = 0x62;
-        p = *(char **)(D_00275670 + 0x1C);
-        *(char **)(D_00275670 + 0x1C) = p + 0x630;
+        {
+            char *ctx = D_00275670;
+            *(char *)(*(char **)(ctx + 0x1C) + 3) = 0x10;
+            *(int *)(*(char **)(ctx + 0x1C) + 4) = 0;
+            *(short *)(*(char **)(ctx + 0x1C) + 0) = 0x62;
+            p = *(char **)(ctx + 0x1C);
+            dl = p + 0x10;
+            *(char **)(ctx + 0x1C) = p + 0x630;
+        }
         *(u128 *)(p + 0x10) = 0;
         *(int *)(p + 0x1C) = 0x50000061;
         *(long long *)(p + 0x20) = 0x8020 | ((long long)0x302E4000 << 32);
         *(long long *)(p + 0x28) = 0x421;
-        dl = p + 0x10;
         dl += 0x20;
         acc = 0;
         for (j = 0; j < 16; j++) {
-            func_00103230(v, &D_0081C0F0[(i << 8) + (j << 4)], t);
+            func_00103230(v, D_0081C0F0[i][j], t);
             func_001028B8(v, arg0, v);
             acc = func_001E0240(dl, v, arg1, acc);
             dl += 0x30;
-            func_00103230(v, &D_0081C0F0[((i + 1) << 8) + (j << 4)], t);
+            func_00103230(v, D_0081C0F0[i + 1][j], t);
             func_001028B8(v, arg0, v);
             acc = func_001E0240(dl, v, arg1, acc);
             dl += 0x30;
@@ -106,9 +128,12 @@ void func_001E04E0(int arg0, int arg1, float t)
 
     func_001D1F20(3);
     func_001D1FF0(3, 1);
-    *(char *)(*(char **)(D_00275670 + 0x1C) + 3) = 0x60;
-    *(int *)(*(char **)(D_00275670 + 0x1C) + 4) = 0;
-    *(short *)(*(char **)(D_00275670 + 0x1C) + 0) = 0;
-    *(char **)(D_00275670 + 0x1C) = *(char **)(D_00275670 + 0x1C) + 0x10;
-    func_001CAAC0(arg0, wp0, D_00275670);
+    {
+        char *ctx = D_00275670;
+        *(char *)(*(char **)(ctx + 0x1C) + 3) = 0x60;
+        *(int *)(*(char **)(ctx + 0x1C) + 4) = 0;
+        *(short *)(*(char **)(ctx + 0x1C) + 0) = 0;
+        *(char **)(ctx + 0x1C) = *(char **)(ctx + 0x1C) + 0x10;
+    }
+    func_001CAAC0(arg0, wp0);
 }

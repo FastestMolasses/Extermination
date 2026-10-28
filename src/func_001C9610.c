@@ -1,8 +1,15 @@
 // NEARMISS func_001C9610  (vram 0x001C9610, 0x330 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 32.66% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 69.18% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (was 32.66%; matching wave 2026-10-28).
+// Remaining differences: the original moves each row scale from a float register into
+// the integer register t0 (a float-to-integer move, not a VU0 instruction) right before the
+// VU0 scalar load; mwcc cannot express that in C (a float "r" operand is silently left
+// uncomputed, a pointer pun goes through memory), so this candidate passes the scale
+// through a union on the stack. With a (non-approved) asm move the score is still only
+// 72.35: the inlined helpers' arguments are also materialised differently (the original
+// keeps the destination and source addresses in separate argument registers).
+// Needs: approval of a float-to-GPR move for the VU0 scalar operand.
+// Inline VU0 asm (user-approved 2026-10-28 for the VU0 class), one instruction per statement.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,79 +18,93 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-typedef struct { float x, y, z, w; } Vec4;   /* one VU0 quadword */
-typedef struct { Vec4 r[4]; } Mtx4;          /* row-major; row 3 = translation */
+// Skeleton pose to world matrices (scale + Euler + translation + bind, parented).
+
+typedef struct { float x, y, z, w; } Vec4;
+typedef struct { Vec4 r[4]; } Mtx4;
 
 typedef struct SkelNode {
     /* 0x00 */ Mtx4  bind;
     /* 0x40 */ char  pad40[0x64 - 0x40];
-    /* 0x64 */ short parent;                 /* index into `nodes`, -1 = root */
+    /* 0x64 */ short parent;
     /* 0x66 */ char  pad66[0x70 - 0x66];
-    /* 0x70 */ float rot[3];                 /* radians, applied Z, Y, X */
+    /* 0x70 */ float rot[3];
     /* 0x7C */ float trans[3];
-    /* 0x88 */ short scale[3];               /* 1/4096 fixed point */
+    /* 0x88 */ short scale[3];
     /* 0x8E */ char  pad8E[0x90 - 0x8E];
-    /* 0x90 */ Mtx4  world;                  /* OUTPUT */
+    /* 0x90 */ Mtx4  world;
 } SkelNode;
 
-/* PS2 scratchpad staging matrix at 0x70003400 (rows at 0x3400/10/20/30). */
 extern Mtx4 D_70003400;
 
-/* SDK VU0 helpers (both are hand-written asm leaves in this tree). */
-extern void func_001029C0(Mtx4 *m);                        /* m = identity */
-extern void func_00102C58(Mtx4 *dst, Mtx4 *src, float *rot); /* dst = src * Rzyx(rot) */
+extern void func_001029C0(Mtx4 *m);
+extern void func_00102C58(Mtx4 *dst, Mtx4 *src, float *rot);
 
-/* VU0 macro-mode row-vector * 4x4 (vmulax/vmadday/vmaddaz/vmaddw via $ACC). */
-static void vu0_mul_vec4_mtx(Vec4 *out, const Vec4 *v, const Mtx4 *m) {
-    out->x = v->x * m->r[0].x + v->y * m->r[1].x + v->z * m->r[2].x + v->w * m->r[3].x;
-    out->y = v->x * m->r[0].y + v->y * m->r[1].y + v->z * m->r[2].y + v->w * m->r[3].y;
-    out->z = v->x * m->r[0].z + v->y * m->r[1].z + v->z * m->r[2].z + v->w * m->r[3].z;
-    out->w = v->x * m->r[0].w + v->y * m->r[1].w + v->z * m->r[2].w + v->w * m->r[3].w;
+static inline void vu0_scale_xyz(Vec4 *dst, Vec4 *src, float s)
+{
+    union { float f; int i; } u;
+
+    u.f = s;
+    asm("lqc2 vf4, 0x0(%0)" : : "r"(src));
+    asm("qmtc2.ni %0, vf5" : : "r"(u.i));
+    asm("vmulx.xyz vf4, vf4, vf5x");
+    asm("sqc2 vf4, 0x0(%0)" : : "r"(dst));
 }
 
-static void vu0_mul_mtx4(Mtx4 *out, const Mtx4 *a, const Mtx4 *b) {
-    int i;
-    for (i = 0; i < 4; i++) {
-        vu0_mul_vec4_mtx(&out->r[i], &a->r[i], b);
-    }
+static inline void vu0_mul_matrix(Mtx4 *m0, Mtx4 *m1, Mtx4 *m2)
+{
+    asm("lqc2 vf4, 0x0(%0)" : : "r"(m2));
+    asm("lqc2 vf5, 0x10(%0)" : : "r"(m2));
+    asm("lqc2 vf6, 0x20(%0)" : : "r"(m2));
+    asm("lqc2 vf7, 0x30(%0)" : : "r"(m2));
+    asm("lqc2 vf8, 0x0(%0)" : : "r"(m1));
+    asm("vmulax.xyzw ACC, vf4, vf8x");
+    asm("vmadday.xyzw ACC, vf5, vf8y");
+    asm("vmaddaz.xyzw ACC, vf6, vf8z");
+    asm("vmaddw.xyzw vf12, vf7, vf8w");
+    asm("sqc2 vf12, 0x0(%0)" : : "r"(m0));
+    asm("lqc2 vf9, 0x10(%0)" : : "r"(m1));
+    asm("vmulax.xyzw ACC, vf4, vf9x");
+    asm("vmadday.xyzw ACC, vf5, vf9y");
+    asm("vmaddaz.xyzw ACC, vf6, vf9z");
+    asm("vmaddw.xyzw vf13, vf7, vf9w");
+    asm("sqc2 vf13, 0x10(%0)" : : "r"(m0));
+    asm("lqc2 vf10, 0x20(%0)" : : "r"(m1));
+    asm("vmulax.xyzw ACC, vf4, vf10x");
+    asm("vmadday.xyzw ACC, vf5, vf10y");
+    asm("vmaddaz.xyzw ACC, vf6, vf10z");
+    asm("vmaddw.xyzw vf14, vf7, vf10w");
+    asm("sqc2 vf14, 0x20(%0)" : : "r"(m0));
+    asm("lqc2 vf11, 0x30(%0)" : : "r"(m1));
+    asm("vmulax.xyzw ACC, vf4, vf11x");
+    asm("vmadday.xyzw ACC, vf5, vf11y");
+    asm("vmaddaz.xyzw ACC, vf6, vf11z");
+    asm("vmaddw.xyzw vf15, vf7, vf11w");
+    asm("sqc2 vf15, 0x30(%0)" : : "r"(m0));
 }
 
-/* qmtc2 scalar into vf5 + vmulx.xyz: scale xyz in place, leave w alone. */
-static void vu0_scale_row_xyz(Vec4 *row, float s) {
-    row->x *= s;
-    row->y *= s;
-    row->z *= s;
-}
-
-void func_001C9610(SkelNode **nodes, int count, const Mtx4 *root) {
+void func_001C9610(SkelNode **nodes, int count, Mtx4 *root)
+{
     int i;
 
     for (i = 0; i < count; i++) {
-        SkelNode *n;
-
-        /* SPR = identity, then the ZYX Euler rotation. Note the node pointer is
-           re-loaded from nodes[i] between every step in the original; the calls
-           may move the array, so keep the reloads if you port this literally. */
         func_001029C0(&D_70003400);
-        n = nodes[i];
-        func_00102C58(&D_70003400, &D_70003400, &n->rot[0]);
-
-        n = nodes[i];
-        D_70003400.r[3].x = n->trans[0];
-        D_70003400.r[3].y = n->trans[1];
-        D_70003400.r[3].z = n->trans[2];
-
-        vu0_scale_row_xyz(&D_70003400.r[0], (float)n->scale[0] * (1.0f / 4096.0f));
-        vu0_scale_row_xyz(&D_70003400.r[1], (float)n->scale[1] * (1.0f / 4096.0f));
-        vu0_scale_row_xyz(&D_70003400.r[2], (float)n->scale[2] * (1.0f / 4096.0f));
-
-        /* SPR = SPR * bind, in place. */
-        vu0_mul_mtx4(&D_70003400, &D_70003400, &n->bind);
-
-        if (n->parent != -1) {
-            vu0_mul_mtx4(&n->world, &D_70003400, &nodes[n->parent]->world);
+        func_00102C58(&D_70003400, &D_70003400, nodes[i]->rot);
+        D_70003400.r[3].x = nodes[i]->trans[0];
+        D_70003400.r[3].y = nodes[i]->trans[1];
+        D_70003400.r[3].z = nodes[i]->trans[2];
+        vu0_scale_xyz(&D_70003400.r[0], &D_70003400.r[0],
+                      (1.0f / 4096.0f) * (float)nodes[i]->scale[0]);
+        vu0_scale_xyz(&D_70003400.r[1], &D_70003400.r[1],
+                      (1.0f / 4096.0f) * (float)nodes[i]->scale[1]);
+        vu0_scale_xyz(&D_70003400.r[2], &D_70003400.r[2],
+                      (1.0f / 4096.0f) * (float)nodes[i]->scale[2]);
+        vu0_mul_matrix(&D_70003400, &D_70003400, &nodes[i]->bind);
+        if (nodes[i]->parent != -1) {
+            vu0_mul_matrix(&nodes[i]->world, &D_70003400,
+                           &nodes[nodes[i]->parent]->world);
         } else {
-            vu0_mul_mtx4(&n->world, &D_70003400, root);
+            vu0_mul_matrix(&nodes[i]->world, &D_70003400, root);
         }
     }
 }

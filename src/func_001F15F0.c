@@ -1,97 +1,151 @@
 // NEARMISS func_001F15F0  (vram 0x001F15F0, 0x2D0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 46.71% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 99.78% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4); matching wave 2026-10-28.
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class), one instruction per statement.
+// Remaining differences:
+// in both projections the vertex-source and clip-temp pointers sit in swapped
+// temporaries (v0/v1), the same three-operand projection residual as func_001CAAC0.
+// Fixes so far: the history entry is a struct (ten positions, then ten fades at
+// +0xA0); the loop is top-tested with the first pass skipping the wrap test; the
+// pass counter increments right after samp -= 2; -sdatathreshold 4; local order.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
-// CFLAGS: -O4,p -sdatathreshold 0
+// CFLAGS: -O4,p -sdatathreshold 4
+//
+// Emits a trail of line segments for an actor: texture page from func_001CCF70
+// (0xFFFFFF = not resident -> return), a 0x3E-quadword block from func_001CB5F0,
+// then for each (node, sample) step back through the history D_00275B40 until it
+// wraps to the start: scale the two colours by fade / 10 (func_00102900), convert
+// them (func_00102990), project both history positions into XYZF2 words, age the
+// fade by 1 (or set the ADC bit in the NEXT block when it is spent, a quirk kept
+// as is), then close the block with func_001CB900(D_007635C0, page, 2).
 
-typedef unsigned int       u32;
-typedef unsigned long long u64;
+typedef int u128 __attribute__((mode(TI)));
 
 typedef struct { float x, y, z, w; } Vec4;
-typedef struct { Vec4 c0, c1, c2, c3; } Mtx4;
 
-extern char *D_00275670;            /* per-frame render context   */
-extern char *D_00275B40;            /* published node-pointer table */
-extern char  D_007635C0[];          /* display-list page table      */
+extern char *D_00275670;
+struct hist {
+    Vec4  pos[10];
+    float fade[10];
+};
 
-extern int   func_001CCF70(char *desc);                 /* -> GS page, 0xFFFFFF bad */
-extern char *func_001CB5F0(char *pages, int page, int qwords);
-extern void  func_001CB900(char *pages, int page, int kind);
+extern struct hist **D_00275B40;
+extern char  D_007635C0[];
+extern Vec4  D_70003600;
+extern Vec4  D_70003610;
+extern Vec4  D_70003AC0[4];
 
-/* VU0 leaves (byte-matched; see their src files). */
-extern void func_00102900(Vec4 *dst, const Vec4 *src, float s);  /* dst = src*s   */
-extern void func_00102990(void *dst, const Vec4 *src);           /* dst = vftoi0  */
-
-static void vu0_project_xyzf2(const Mtx4 *cam, const Vec4 *fog,
-                              const Vec4 *p, u32 *out);
+extern int   func_001CCF70(char *pos);
+extern char *func_001CB5F0(int pages, int page, int qwords);
+extern void  func_001CB900(int pages, int page, int kind);
+extern void  func_00102900(float *dst, float *v, float s);
+extern void  func_00102990(int *dst, float *v);
 
 void func_001F15F0(char *actor, int node, int samp)
 {
-    char *desc = *(char **)(actor + 0x1F0);
-    int   page = func_001CCF70(desc + 0x30);
-    const Mtx4 *cam;
-    const Vec4 *fog;
-    Vec4 *scratch0 = (Vec4 *)0x70003600;
-    Vec4 *scratch1 = (Vec4 *)0x70003610;
+    Vec4  clip0;
+    Vec4  clip1;
+    int   page;
+    int   qw;
+    int   node0;
+    int   samp0;
+    int   iter;
     char *blk;
-    int   node0 = node, samp0 = samp;
-    int   iter  = 0;
+    struct hist *hist;
+    char *a;
+    char *fog;
+    Vec4 *m;
+    float scale;
+    float fade;
+    Vec4 *src;
+    char *dst;
+    Vec4 *c;
 
+    a = actor + 0x1F0;
+    page = func_001CCF70(*(char **)a + 0x30);
     if (page == 0xFFFFFF) {
-        return;                                  /* texture page not resident */
+        return;
     }
-
-    fog = (const Vec4 *)(D_00275670 + 0xA0);     /* -> vf23 */
-    cam = (const Mtx4 *)0x70003AC0;              /* -> vf28..vf31 */
-
-    blk = func_001CB5F0(D_007635C0, page, 0x3E);
-
-    ((u64 *)blk)[0] = 0;                         /* two VIFcode no-ops */
-    ((u64 *)blk)[1] = 0;                         /* VIFcode no-op     */
-    *(u32 *)(blk + 0x0C) = 0x50000000 | (0x3E - 1);   /* DIRECT, 61 qwords */
+    qw = 0x3E;
+    node0 = node;
+    samp0 = samp;
+    fog = D_00275670 + 0xA0;
+    asm("lqc2 vf23, 0x0(%0)" : : "r"(fog));
+    m = D_70003AC0;
+    asm("lqc2 vf28, 0x0(%0)" : : "r"(m));
+    asm("lqc2 vf29, 0x10(%0)" : : "r"(m));
+    asm("lqc2 vf30, 0x20(%0)" : : "r"(m));
+    asm("lqc2 vf31, 0x30(%0)" : : "r"(m));
+    blk = func_001CB5F0((int)D_007635C0, page, qw);
+    *(u128 *)blk = 0;
+    *(int *)(blk + 0xC) = (qw - 1) | 0x50000000;
+    blk += 0x10;
+    *(long long *)(blk + 0) = (long long)0x40264000 << 32 | 0x800F;
+    *(long long *)(blk + 8) = 0x4141;
     blk += 0x10;
 
-    *(u64 *)(blk + 0x00) = 0x402640000000800FULL;     /* GIFtag lo */
-    *(u64 *)(blk + 0x08) = 0x0000000000004141ULL;     /* REGS      */
-    blk += 0x10;
-
-    do {
-        char  *hist  = *(char **)(D_00275B40 + node * 4);
-        float *fadep = (float *)(hist + samp * 4 + 0xA0);
-        float  fade  = *fadep;
-        float  scale = fade / 10.0f;
-
-        func_00102900(scratch0, (const Vec4 *)(actor + 0x220), scale);
-        func_00102900(scratch1, (const Vec4 *)(actor + 0x230), scale);
-
-        func_00102990(blk + 0x00, scratch0);     /* RGBAQ, vertex 0 */
-        func_00102990(blk + 0x20, scratch1);     /* RGBAQ, vertex 1 */
-
-        vu0_project_xyzf2(cam, fog, (const Vec4 *)(hist + samp * 0x10),
-                          (u32 *)(blk + 0x10));
-        vu0_project_xyzf2(cam, fog, (const Vec4 *)(hist + (samp + 1) * 0x10),
-                          (u32 *)(blk + 0x30));
-
-        fade = *fadep;
-        blk += 0x40;                             /* bumped on BOTH paths */
-
-        if (fade > 0.0f) {
-            *fadep = fade - 1.0f;                /* age the sample */
-        } else {
-            /* See the CAVEAT above: post-advance cursor, so these land in the
-             * next block. Reproduced verbatim. */
-            *(u32 *)(blk + 0x1C) |= 0x8000;      /* GS ADC bit */
-            *(u32 *)(blk + 0x2C) |= 0x8000;
+    iter = 0;
+    while (1) {
+        if (iter != 0 && node0 == node && samp0 == samp) {
+            break;
         }
-
+        hist = D_00275B40[node];
+        scale = hist->fade[samp] / 10.0f;
+        func_00102900((float *)&D_70003600, (float *)(a + 0x30), scale);
+        func_00102900((float *)&D_70003610, (float *)(a + 0x40), scale);
+        func_00102990((int *)blk, (float *)&D_70003600);
+        func_00102990((int *)(blk + 0x20), (float *)&D_70003610);
+        src = &hist->pos[samp];
+        dst = blk + 0x10;
+        c = &clip0;
+        asm("lqc2 vf1, 0x0(%0)" : : "r"(src));
+        asm("vmulax.xyzw ACC, vf28, vf1x");
+        asm("vmadday.xyzw ACC, vf29, vf1y");
+        asm("vmaddaz.xyzw ACC, vf30, vf1z");
+        asm("vmaddw.xyzw vf2, vf31, vf0w");
+        asm("vdiv Q, vf0w, vf2w");
+        asm("sqc2 vf2, 0x0(%0)" : : "r"(c));
+        asm("vwaitq");
+        asm("vmulq.xyz vf2, vf2, Q");
+        asm("vmulaz.w ACC, vf0, vf23z");
+        asm("vmaddw.w vf2, vf23, vf2w");
+        asm("vminix.w vf2, vf2, vf23x");
+        asm("vmaxx.w vf2, vf2, vf0x");
+        asm("vftoi4.xyzw vf2, vf2");
+        asm("sqc2 vf2, 0x0(%0)" : : "r"(dst));
+        src = &hist->pos[samp + 1];
+        dst = blk + 0x30;
+        c = &clip1;
+        asm("lqc2 vf1, 0x0(%0)" : : "r"(src));
+        asm("vmulax.xyzw ACC, vf28, vf1x");
+        asm("vmadday.xyzw ACC, vf29, vf1y");
+        asm("vmaddaz.xyzw ACC, vf30, vf1z");
+        asm("vmaddw.xyzw vf2, vf31, vf0w");
+        asm("vdiv Q, vf0w, vf2w");
+        asm("sqc2 vf2, 0x0(%0)" : : "r"(c));
+        asm("vwaitq");
+        asm("vmulq.xyz vf2, vf2, Q");
+        asm("vmulaz.w ACC, vf0, vf23z");
+        asm("vmaddw.w vf2, vf23, vf2w");
+        asm("vminix.w vf2, vf2, vf23x");
+        asm("vmaxx.w vf2, vf2, vf0x");
+        asm("vftoi4.xyzw vf2, vf2");
+        asm("sqc2 vf2, 0x0(%0)" : : "r"(dst));
+        fade = hist->fade[samp];
+        blk += 0x40;
+        if (fade > 0.0f) {
+            hist->fade[samp] = fade - 1.0f;
+        } else {
+            *(int *)(blk + 0x1C) |= 0x8000;
+            *(int *)(blk + 0x2C) |= 0x8000;
+        }
         samp -= 2;
+        iter++;
         if (samp < 0) {
             samp = 8;
             node -= 1;
@@ -99,35 +153,6 @@ void func_001F15F0(char *actor, int node, int samp)
                 node = 2;
             }
         }
-        iter++;
-        /* The .s skips this test on the first pass (it branches on s0 == 0), i.e. do/while. */
-    } while (node != node0 || samp != samp0);
-
-    func_001CB900(D_007635C0, page, 2);
-}
-
-/* --- VU0 screen kernel, written scalar ---------------------------------- */
-
-static void vu0_project_xyzf2(const Mtx4 *cam, const Vec4 *fog,
-                              const Vec4 *p, u32 *out)
-{
-    float x = cam->c0.x * p->x + cam->c1.x * p->y + cam->c2.x * p->z + cam->c3.x;
-    float y = cam->c0.y * p->x + cam->c1.y * p->y + cam->c2.y * p->z + cam->c3.y;
-    float z = cam->c0.z * p->x + cam->c1.z * p->y + cam->c2.z * p->z + cam->c3.z;
-    float w = cam->c0.w * p->x + cam->c1.w * p->y + cam->c2.w * p->z + cam->c3.w;
-    float q = 1.0f / w;                 /* VU0 divide unit: Q = 1.0 / w, then wait */
-    float f;
-
-    x *= q;                             /* xyz scaled by Q */
-    y *= q;
-    z *= q;
-
-    f = fog->z + fog->w * w;            /* w-lane multiply-accumulate: 1.0 * fog.z, then + fog.w * w */
-    if (f > fog->x) f = fog->x;         /* VU min against fog.x (== 255.0) */
-    if (f < 0.0f)   f = 0.0f;           /* VU max against vf0.x (== 0.0)   */
-
-    out[0] = (u32)(int)(x * 16.0f);     /* vftoi4: 12.4 screen X */
-    out[1] = (u32)(int)(y * 16.0f);     /*         12.4 screen Y */
-    out[2] = (u32)(int)(z * 16.0f);     /*         GS Z (bits 68..91) */
-    out[3] = (u32)(int)(f * 16.0f);     /*         F (bits 100..107), ADC at 15 */
+    }
+    func_001CB900((int)D_007635C0, page, 2);
 }

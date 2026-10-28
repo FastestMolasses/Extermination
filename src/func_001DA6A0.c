@@ -1,14 +1,9 @@
 // NEARMISS func_001DA6A0  (vram 0x001DA6A0, 0x5E8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 84.63% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and
-// STRUCTURE are faithful (both kind dispatches are 13-entry switches, as the two jump tables show).
-// Remaining differences: the original performs the three clip tests with inline VU0 macro code
-// (matrix rows loaded once into vf24..vf27, one multiply-accumulate chain plus clip test per probe,
-// CLIP flags read from VI18 and masked to 6 bits); the C stand-in clip_flags() is a scalar call.
-// Because the original function contains inline asm, mwcc also skipped its global optimisations
-// there: the bone loop is neither strength-reduced nor has its count hoisted, and 128.0f / scale
-// stays a run-time divide. C-only code cannot reproduce that; with GCC-style inline asm for the
-// VU0 block (not committed, rule 2026-10-27) the same body reaches 98.9%.
+// objdiff 99.97% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-28 (was 84.63%): the three probe clip tests are the original inline VU0 code (camera rows loaded into VU0 24..27 once, then per probe a transform, clip against w and clip-flag read), written as one-instruction asm statements in a static inline helper; 128.0f / scale is one expression; func_001D9EE0 is called as (self, unit) — under the EE ABI the float goes to $f12 whatever its position, and the original sets the pointer argument first.
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// Remaining differences: one addu operand order in the bone loop (the original adds the scaled index to self, mwcc emits self + index for every spelling tried: index-first sums, int casts, array-of-pointer indexing, unsigned index).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -51,29 +46,29 @@ extern void  func_001D1F80(int a, int b, int c);
 extern void  func_001D1F20(int a);
 extern void  func_001DA310(void *pos, const void *rot, const void *rgba,
                            char *res, float size);
-extern void  func_001D9EE0(float unit, char *self);
+extern void  func_001D9EE0(char *self, float unit);
 extern void  func_001D5C80(void *a, void *b);
 
-/*
- * Transform `p` by `m` and return the six VU CLIP flags (VI18 & 0x3F) produced
- * by vclipw.xyz — one bit each for x>+w, x<-w, y>+w, y<-w, z>+w, z<-w. There is
- * no portable C equivalent; a port has to recreate the flag bits explicitly.
- */
-static int clip_flags(const Mtx4 *m, const Vec4 *p)
+/* Clip p on VU0 against the matrix rows held in VU0 registers 24..27:
+   transform, clip against w, wait for the flag pipeline, and return the
+   six clip flags. */
+static inline int vu0_clip(const Vec4 *p)
 {
-    float x = m->r[0].x * p->x + m->r[1].x * p->y + m->r[2].x * p->z + m->r[3].x;
-    float y = m->r[0].y * p->x + m->r[1].y * p->y + m->r[2].y * p->z + m->r[3].y;
-    float z = m->r[0].z * p->x + m->r[1].z * p->y + m->r[2].z * p->z + m->r[3].z;
-    float w = m->r[0].w * p->x + m->r[1].w * p->y + m->r[2].w * p->z + m->r[3].w;
-    float aw = (w < 0.0f) ? -w : w;
-    int f = 0;
-    if (x >  aw) { f |= 0x01; }
-    if (x < -aw) { f |= 0x02; }
-    if (y >  aw) { f |= 0x04; }
-    if (y < -aw) { f |= 0x08; }
-    if (z >  aw) { f |= 0x10; }
-    if (z < -aw) { f |= 0x20; }
-    return f;
+    int c;
+
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(p));
+    asm("vmulax.xyzw ACC, vf24, vf1x");
+    asm("vmadday.xyzw ACC, vf25, vf1y");
+    asm("vmaddaz.xyzw ACC, vf26, vf1z");
+    asm("vmaddw.xyzw vf2, vf27, vf0w");
+    asm("vclipw.xyz vf2, vf2w");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("vnop");
+    asm("cfc2.ni %0, vi18" : "=r"(c));
+    return c & 0x3F;
 }
 
 void func_001DA6A0(char *self)
@@ -99,8 +94,7 @@ void func_001DA6A0(char *self)
 
     variant = 0;
     scale   = 16.0f;
-    unit    = 128.0f;
-    unit   /= scale;                        /* 8.0f */
+    unit    = 128.0f / scale;               /* 8.0f */
 
     kind = *(short *)(self + 0x96);
     if (kind == 0) {
@@ -174,10 +168,15 @@ void func_001DA6A0(char *self)
         break;
     }
 
-    cam   = (const Mtx4 *)func_001CD370(0);
-    flags = clip_flags(cam, &probe[0]);
-    flags &= clip_flags(cam, &probe[1]);
-    flags &= clip_flags(cam, &probe[2]);
+    cam = (const Mtx4 *)func_001CD370(0);
+    /* load the camera matrix rows into VU0 registers 24..27 */
+    asm("lqc2 vf24, 0x0(%0)" : : "r"(cam));
+    asm("lqc2 vf25, 0x10(%0)" : : "r"(cam));
+    asm("lqc2 vf26, 0x20(%0)" : : "r"(cam));
+    asm("lqc2 vf27, 0x30(%0)" : : "r"(cam));
+    flags = vu0_clip(&probe[0]);
+    flags &= vu0_clip(&probe[1]);
+    flags &= vu0_clip(&probe[2]);
     if (flags != 0) {
         return;
     }
@@ -187,7 +186,7 @@ void func_001DA6A0(char *self)
     minz_a = *(float *)(*(char **)(self + 0x114) + 0xC8);
     minz_b = minz_a;
     for (i = 2; i < (int)*(u8 *)(self + 9); i++) {
-        char *node = *(char **)(self + 0x110 + i * 4);
+        char *node = *(char **)(i * 4 + self + 0x110);
         x = *(float *)(node + 0xC0);
         z = *(float *)(node + 0xC8);
 
@@ -220,6 +219,6 @@ void func_001DA6A0(char *self)
     func_001DA310(&pos, &rot, &colA, func_001C6120(D_0028A56C[0], 0x15), scale);
     func_001D1F20(0);
 
-    func_001D9EE0(unit, self);
+    func_001D9EE0(self, unit);
     func_001D5C80(D_00817FB0, D_00817FA0);
 }

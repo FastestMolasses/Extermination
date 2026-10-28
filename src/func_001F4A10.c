@@ -1,17 +1,9 @@
 // NEARMISS func_001F4A10  (vram 0x001F4A10, 0x1E0 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 80.55% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
-// Remaining differences: the original inlines VU0 macro code (fog-quad load, the
-// K-matrix row loads, the projection with Q divide, fog clamp and ftoi4) where this
-// C calls the vu0_load_fog_quad / vu0_project stand-ins; inline asm is not approved
-// for this function. Every scalar instruction outside that block matches, except that
-// the key's store/reload through screen.z goes via a pointer register (a side effect
-// of screen's address escaping into the stand-in call).
-// Fixed 2026-10-27 (was 67.58%): -sdatathreshold 8 (the globals are gp-relative;
-// D_0028A56C is an unsized array so it stays absolute), the random term written as
-// a separate draw then base + r * base, the scale divided in place, the display slot
-// re-read through one slot pointer after the calls, dir.w an int field, the packet
-// passed as a sign-extended 64-bit value, the depth key kept in screen.z.
+// objdiff 99.82% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-28 (was 80.55%): the fog-quad load, K-matrix row loads, projection with Q divide, fog clamp and 12.4 conversion are the original inline VU0 code, written as one-instruction asm statements; the K pointer and the pos/clip/screen addresses are locals set before the VU0 block (the original computes them ahead of it).
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// Remaining differences: register names of the three stack addresses before the VU0 block (original pos/screen/clip in v1/a2/v0, mwcc picks v0/a0/v1); declaration and assignment orders and an inline-helper form did not change it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -39,11 +31,6 @@ extern void  func_00102948(void *dst, const void *src);
 extern int   float_to_int(float v);
 extern void  func_001CB760(void *page_table, int key, unsigned long long payload);
 
-/* COP2 primitives; see src/func_001D72D0.c. */
-extern void vu0_load_fog_quad(const void *quad);
-extern void vu0_project(const Vec4 *matK, const Vec4 *p,
-                        Vec4 *clip_out, IVec4 *screen_12_4);
-
 void func_001F4A10(void *obj, const int *v)
 {
     DVec4  dir;
@@ -51,6 +38,10 @@ void func_001F4A10(void *obj, const int *v)
     IVec4  screen;
     Vec4   clip;
     int   *slot;
+    Vec4  *k;
+    Vec4  *pp;
+    IVec4 *ps;
+    Vec4  *pc;
     long long packet;
     float  base, scale;
 
@@ -78,8 +69,35 @@ void func_001F4A10(void *obj, const int *v)
 
     func_00102948(&pos, D_00275B44 + 0xB0);
 
-    vu0_load_fog_quad(D_00275670 + 0xA0);
-    vu0_project(D_70003AC0, &pos, &clip, &screen);
+    /* VU0: load the fog parameters (render context +0xA0) and the camera
+       matrix K into VU0, transform pos by K, keep the homogeneous clip
+       position, then divide by w, compute the fog value from w (scaled,
+       offset and clamped by the fog parameters) and convert x, y, z and
+       fog to 12.4 fixed point */
+    asm("lqc2 vf23, 0x0(%0)" : : "r"(D_00275670 + 0xA0));
+    k = D_70003AC0;
+    asm("lqc2 vf28, 0x0(%0)" : : "r"(k));
+    asm("lqc2 vf29, 0x10(%0)" : : "r"(k));
+    asm("lqc2 vf30, 0x20(%0)" : : "r"(k));
+    asm("lqc2 vf31, 0x30(%0)" : : "r"(k));
+    pp = &pos;
+    pc = &clip;
+    ps = &screen;
+    asm("lqc2 vf1, 0x0(%0)" : : "r"(pp));
+    asm("vmulax.xyzw ACC, vf28, vf1x");
+    asm("vmadday.xyzw ACC, vf29, vf1y");
+    asm("vmaddaz.xyzw ACC, vf30, vf1z");
+    asm("vmaddw.xyzw vf2, vf31, vf0w");
+    asm("vdiv Q, vf0w, vf2w");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(pc));
+    asm("vwaitq");
+    asm("vmulq.xyz vf2, vf2, Q");
+    asm("vmulaz.w ACC, vf0, vf23z");
+    asm("vmaddw.w vf2, vf23, vf2w");
+    asm("vminix.w vf2, vf2, vf23x");
+    asm("vmaxx.w vf2, vf2, vf0x");
+    asm("vftoi4.xyzw vf2, vf2");
+    asm("sqc2 vf2, 0x0(%0)" : : "r"(ps));
 
     /* screen.w is 16 * the GS FOG value, so this is 0xFFFFFF / F */
     screen.z = float_to_int(268435440.0f / (float)screen.w);

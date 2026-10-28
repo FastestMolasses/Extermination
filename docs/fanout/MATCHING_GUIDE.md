@@ -958,3 +958,27 @@ a3, VU0 ops in delay slots), func_00102798 / func_001027E0 (MMI).
 mwcc notes: asm strings may not contain \n (';' separates), "=r" outputs
 warn about an uninitialised variable; with split statements the order in
 which pointer locals are assigned decides v0/v1.
+
+
+### Queue batch 46 (2026-10-28): VU0 class, game code
+
+11 byte-matched with one-instruction VU0 asm statements: func_001DAE10,
+func_001E2BA0 (per-point clip as a `static inline` helper; `-sdatathreshold 4`),
+func_001D72D0, func_001CD070 (clip flags read into an int through a "=r"
+output), func_001CD180 (per-word `// SPAD:` externs as unsized arrays),
+func_001D0540, func_001D5A70 (companion; clip matrix held in VU0 rows 24..27
+across three vertices), func_001E04E0 (the old C passed a third argument to
+func_001CAAC0), func_001CCF70, func_001DD170 (projection reuses the fog row
+23 without reloading), func_001CE660 (sin / cos through scratchpad words).
+Most of these were 30-60% because the old C imitated the VU0 work with FPU C.
+Improved: func_001DA6A0 99.97, func_001F4A10 99.82, func_001CAAC0 99.78,
+func_001F15F0 99.78, func_001D75E0 99.53, func_001F8D30 99.11,
+func_001DE920 98.89, func_001E4A00 96.35, func_00179910 95.31,
+func_001776E0 94.53, func_001D5C80 93.44, func_001D5370 92.76,
+func_001CE860 90.67, func_001F6FB0 82.07 (its update runs inside switch case
+1), func_001C9610 69.18, func_001C9940 67.74; companion func_001CF470 95.49.
+Blocked by the asm rules, not by C: func_001CAAC0 / func_001F15F0 reach 100
+only with the 14-instruction projection as ONE asm statement; func_001C9610,
+func_001C9940, func_001CE860 need a float-to-GPR move before a VU0 scalar
+load; func_001D5370 / func_001D5C80 need EE nop padding after clip-flag
+reads. Each is a user decision.

@@ -1,3 +1,10 @@
+## 2026-10-28 — VU0 class, queue batch 46: 11 more byte-matched, 17 improved
+
+See MATCHING_GUIDE "Queue batch 46". Gate: fresh build + verify_all all six
+stages pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.97%,
+2769/2771 units; provenance clean (the VU0 files route
+compiled_object_inline_assembly, as func_001DB480).
+
 ## 2026-10-28 — VU0 class, queue batch 45: 14 libvu0 helpers as C with inline VU0 asm
 
 User decision 2026-10-28: inline VU0 macro asm is approved for the VU0 class

@@ -1,8 +1,8 @@
 // NEARMISS func_001DE920  (vram 0x001DE920, 0x488 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.82% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 98.89% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-28 (was 98.82%): the texture index is `tex = base; tex = (tex + float_to_int(..)) << 4;` (the base lives in a saved register across the call, as in the original). The target has no VU0 instructions, so no asm is used.
+// Remaining differences: the jitter spread: the original adds -1.0f to 2*r (add with a negative constant) where the C subtracts 1.0f; every spelling with -1.0f gives the right add but hoists the constant earlier. Also one store/addiu order in the record header.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -150,11 +150,11 @@ void func_001DE920(void) {
         *(float *)(particle + 0x14) = (baseV + basis[1]) / 224.0f;
         *(int *)(particle + 0x18) = 0x3F800000;
         tex = jitU + 0x700;
-        tex += float_to_int(basis[0]);
-        *(int *)(particle + 0x20) = tex << 4;
+        tex = (tex + float_to_int(basis[0])) << 4;
+        *(int *)(particle + 0x20) = tex;
         tex = jitV + 0x790;
-        tex += float_to_int(basis[1]);
-        *(int *)(particle + 0x24) = tex << 4;
+        tex = (tex + float_to_int(basis[1])) << 4;
+        *(int *)(particle + 0x24) = tex;
         i += 1;
         *(int *)(particle + 0x28) = jitBase;
         *(int *)(particle + 0x2C) = 0;

@@ -1,8 +1,15 @@
 // NEARMISS func_001E4A00  (vram 0x001E4A00, 0x2D8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 38.04% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// compiler artifact (register coloring / scheduling)
+// objdiff 96.35% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (was 38.04%; matching wave 2026-10-28).
+// Remaining differences: float saved-register colouring only (the original keeps t in f20,
+// size in f22, w in f21, the frame value in f23; this C gets t f22 / size f21 / w f20) and
+// the address setup order inside the two VU0 lerp blocks (the original materialises the
+// scratch, ramp and key pointers after the divide, in a3 / a2 / v0). Declaration-order,
+// statement-order, param-reuse and inline-helper variants tried (about 20 trials).
+// Inline VU0 asm (user-approved 2026-10-28 for the VU0 class), one instruction per statement.
+// Fixes found: the colour ramp lerp is VU0 code (b + (a - b) * u, clamped to 0..255 with the
+// key quadword {u, 255}); the "t > 0.2" arm is the VU0 path and the copy arm is the else;
+// w is computed before the frame index.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,79 +18,93 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Impact-flash sprite: while age < 1.8, t = age / 1.8 picks two colours from the ramps
+// D_002541F0 and D_00254210 (held at the first stop until t = 0.2, then lerped with
+// u = (t - 0.2) / 0.8 and clamped to 0..255 in the scratchpad quad 0x700038B0), packs each to
+// RGBA through func_00128250 and draws two billboards at obj + 0x30 with func_001CD520: the
+// animated frame D_00253C50[10 t] at size w = size (1 + 2t), then the halo sprite at 2w.
+
 typedef struct { float x, y, z, w; } Vec4;
 
 extern int  float_to_int(float x);
-extern int  func_00128250(float x);                  /* float -> int (soft) */
-extern void func_00102948(void *dst, const void *src);   /* VU0 qword copy */
+extern int  func_00128250(float x);
+extern void func_00102948(void *dst, const void *src);
 
 extern void func_001CD520(int kind, int mode, const Vec4 *pos,
                           unsigned long long tex, float w, float h, float depth,
                           unsigned int rgba);
 
-extern Vec4 D_002541F0[2];       /* layer-1 colour ramp: stop0, stop1 (0..255) */
-extern Vec4 D_00254210[2];       /* layer-2 colour ramp                        */
-extern unsigned long long D_00253C50[10];   /* 10-frame sprite descriptor table */
-
-/*
- * The VU0 lerp block, written scalar. `scratch` is the fixed EE-scratchpad qword
- * the original always uses.
- */
-static void flash_ramp(const Vec4 *ramp, float t, Vec4 *scratch)
-{
-    float u, c;
-
-    if (t <= 0.2f) {
-        func_00102948(scratch, &ramp[0]);       /* hold the first stop */
-        return;
-    }
-
-    u = (t - 0.2f) / 0.8f;
-
-    c = ramp[0].x + (ramp[1].x - ramp[0].x) * u;
-    scratch->x = (c < 0.0f) ? 0.0f : (c > 255.0f ? 255.0f : c);
-    c = ramp[0].y + (ramp[1].y - ramp[0].y) * u;
-    scratch->y = (c < 0.0f) ? 0.0f : (c > 255.0f ? 255.0f : c);
-    c = ramp[0].z + (ramp[1].z - ramp[0].z) * u;
-    scratch->z = (c < 0.0f) ? 0.0f : (c > 255.0f ? 255.0f : c);
-    c = ramp[0].w + (ramp[1].w - ramp[0].w) * u;
-    scratch->w = (c < 0.0f) ? 0.0f : (c > 255.0f ? 255.0f : c);
-}
-
-static unsigned int pack_rgba(const Vec4 *c)
-{
-    return (unsigned int)func_00128250(c->x)
-         | ((unsigned int)func_00128250(c->y) << 8)
-         | ((unsigned int)func_00128250(c->z) << 16)
-         | ((unsigned int)func_00128250(c->w) << 24);
-}
+extern Vec4 D_002541F0[2];
+extern Vec4 D_00254210[2];
+extern unsigned long long D_00253C50[10];
+extern Vec4 D_700038B0;
 
 void func_001E4A00(char *obj, float age, float size)
 {
-    Vec4 *scratch = (Vec4 *)0x700038B0;
-    const Vec4 *pos = (const Vec4 *)(obj + 0x30);
     unsigned int rgba1, rgba2;
-    float t, frame_f, w, depth;
-    int frame;
+    float t, frame_f, w, u;
+    Vec4 *dst;
+    Vec4 *ramp;
+    Vec4 *pk;
+    Vec4 k1;
+    Vec4 k2;
 
     if (!(age < 1.8f)) {
-        return;                                  /* the flash has expired */
+        return;
     }
 
     t       = age / 1.8f;
+    w       = size + (2.0f * size) * t;
     frame_f = 10.0f * t;
-    w       = size + (2.0f * size) * t;          /* size * (1 + 2t) */
-    depth   = size / 2.0f;
 
-    flash_ramp(D_002541F0, t, scratch);
-    rgba1 = pack_rgba(scratch);
+    if (t > 0.2f) {
+        k1.x = (t - 0.2f) / 0.8f;
+        k1.y = 255.0f;
+        dst = &D_700038B0;
+        ramp = D_002541F0;
+        pk = &k1;
+        asm("lqc2 vf28, 0x0(%0)" : : "r"(ramp));
+        asm("lqc2 vf29, 0x10(%0)" : : "r"(ramp));
+        asm("lqc2 vf30, 0x0(%0)" : : "r"(pk));
+        asm("vsub.xyzw vf1, vf29, vf28");
+        asm("vmulx.xyzw vf1, vf1, vf30x");
+        asm("vadd.xyzw vf1, vf1, vf28");
+        asm("vmaxx.xyzw vf1, vf1, vf0x");
+        asm("vminiy.xyzw vf1, vf1, vf30y");
+        asm("sqc2 vf1, 0x0(%0)" : : "r"(dst));
+    } else {
+        func_00102948(&D_700038B0, D_002541F0);
+    }
+    rgba1 = func_00128250(D_700038B0.x);
+    rgba1 |= func_00128250(D_700038B0.y) << 8;
+    rgba1 |= func_00128250(D_700038B0.z) << 16;
+    rgba1 |= func_00128250(D_700038B0.w) << 24;
 
-    flash_ramp(D_00254210, t, scratch);
-    rgba2 = pack_rgba(scratch);
+    if (t > 0.2f) {
+        k2.x = (t - 0.2f) / 0.8f;
+        k2.y = 255.0f;
+        dst = &D_700038B0;
+        ramp = D_00254210;
+        pk = &k2;
+        asm("lqc2 vf28, 0x0(%0)" : : "r"(ramp));
+        asm("lqc2 vf29, 0x10(%0)" : : "r"(ramp));
+        asm("lqc2 vf30, 0x0(%0)" : : "r"(pk));
+        asm("vsub.xyzw vf1, vf29, vf28");
+        asm("vmulx.xyzw vf1, vf1, vf30x");
+        asm("vadd.xyzw vf1, vf1, vf28");
+        asm("vmaxx.xyzw vf1, vf1, vf0x");
+        asm("vminiy.xyzw vf1, vf1, vf30y");
+        asm("sqc2 vf1, 0x0(%0)" : : "r"(dst));
+    } else {
+        func_00102948(&D_700038B0, D_00254210);
+    }
+    rgba2 = func_00128250(D_700038B0.x);
+    rgba2 |= func_00128250(D_700038B0.y) << 8;
+    rgba2 |= func_00128250(D_700038B0.z) << 16;
+    rgba2 |= func_00128250(D_700038B0.w) << 24;
 
-    frame = float_to_int(frame_f);
-
-    func_001CD520(0, 2, pos, D_00253C50[frame], w, w, depth, rgba1);
-    func_001CD520(0, 2, pos, 0x20045BA5154222DCULL,
-                  2.0f * w, 2.0f * w, depth, rgba2);
+    func_001CD520(0, 2, (Vec4 *)(obj + 0x30), D_00253C50[float_to_int(frame_f)],
+                  w, w, size / 2.0f, rgba1);
+    func_001CD520(0, 2, (Vec4 *)(obj + 0x30), 0x20045BA5154222DCULL,
+                  2.0f * w, 2.0f * w, size / 2.0f, rgba2);
 }
