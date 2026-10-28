@@ -1,15 +1,17 @@
 // NEARMISS func_001E3D90  (vram 0x001E3D90, 0x870 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.81% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (was 74.39%, matching wave
-// 2026-10-27). Fixes read from the original: the room gates are switches (case 0x100; case 0/1) with
+// objdiff 97.04% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8) (was 74.39%, then 96.81%,
+// matching wave 2026-10-27). Fixes read from the original: the room gates are switches (case 0x100; case 0/1) with
 // `D_00810702 == 5 || == 6` as one condition; the three matrix-Y bumps use per-address scratchpad
 // externs (idiom-32, SPAD header) so their loads hoist above the stores; the per-variant table
-// pointers are set after the bumps; the LCG steps reassign `seed`; the countdown tests `== 0` first.
-// Remaining differences: scheduling only -- in the LCG jitter block the target converts/divides the
-// first value straight into $f13 with the quotient as the add's first operand and loads +0x3A20
-// earlier; the quad-count byte (1 or 6) is built in a temp and narrowed into a saved register
-// (ours loads the constants straight into it); case 2 of the sound-ping switch sets its two float
-// arguments in the opposite order.
+// pointers are set after the bumps; the LCG steps reassign `seed`; the countdown tests `== 0` first;
+// the scratchpad result vector at 0x70003A20 is one float[4] extern and the three jitter values are
+// computed into locals before being stored (the original reloads [0] ahead of those stores).
+// Remaining differences: scheduling only -- in the LCG jitter block the target defers the first
+// value's convert/divide until after the second seed step (straight into $f13); the quad-count byte
+// (1 or 6) is built in a temp and narrowed into a saved register (ours loads the constants straight
+// into it; int/short/char/ternary spellings tried); case 2 of the sound-ping switch sets its two
+// float arguments in the opposite order (case reorderings tried).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -64,6 +66,7 @@ extern char D_700036E0[];
 extern char D_70003720[];
 extern char D_70003750[];
 extern float D_700036D4[];
+extern float D_70003A20[];
 extern float D_70003714[];
 extern float D_70003754[];
 
@@ -80,16 +83,18 @@ void func_001E3D90(char *p) {
     float fadeC;
     float dist;
     float t24;
+    float t28;
+    float t2c;
     float fv;
     int buf[24];
 
     s3 = p + 0x1F0;
     switch (*(unsigned char *)(p + 4)) {
     case 0:
-        *(float *)0x70003A20 = (float)func_00122BB8() / 2147483648.0f;
-        *(float *)(s3 + 0x10) = *(float *)0x70003A20;
-        *(float *)(s3 + 0x14) = *(float *)0x70003A20;
-        *(float *)(s3 + 0x18) = *(float *)0x70003A20;
+        D_70003A20[0] = (float)func_00122BB8() / 2147483648.0f;
+        *(float *)(s3 + 0x10) = D_70003A20[0];
+        *(float *)(s3 + 0x14) = D_70003A20[0];
+        *(float *)(s3 + 0x18) = D_70003A20[0];
         *(int *)(s3 + 0) = 0;
         *(int *)(s3 + 4) = 0;
         *(int *)(s3 + 8) = func_00122BB8();
@@ -173,18 +178,20 @@ void func_001E3D90(char *p) {
         }
         id = func_001CD070(D_70003750, 0x30);
         if (id != 0xFFFFFF) {
-            *(float *)0x70003A20 = func_001CD2B0(*(float *)tbl2, *(float *)(tbl2 + 4), 320.0f, 320.0f);
+            D_70003A20[0] = func_001CD2B0(*(float *)tbl2, *(float *)(tbl2 + 4), 320.0f, 320.0f);
             t24 = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
-            *(float *)0x70003A24 = t24;
             seed = seed * 37 + 11;
-            *(float *)0x70003A28 = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
+            t28 = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
             seed = seed * 37 + 11;
-            *(float *)0x70003A2C = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
-            dist = *(float *)0x70003A20;
+            t2c = (float)((seed >> 16) & 0xFFFF) / 65535.0f + 0.0001f;
+            D_70003A20[1] = t24;
+            D_70003A20[2] = t28;
+            D_70003A20[3] = t2c;
+            dist = D_70003A20[0];
             if (dist != 0.0f) {
                 func_001CFAE0(buf, 0, D_700036A0, *(float *)(s3 + 0x10), t24, dist, 0.4f);
                 func_001CFBE0(id - 0x2000, 1, tbl, buf, 0);
-                func_001CFAE0(buf, 0, D_700036E0, *(float *)(s3 + 0x14), *(float *)0x70003A28, *(float *)0x70003A20, 0.2f);
+                func_001CFAE0(buf, 0, D_700036E0, *(float *)(s3 + 0x14), *(float *)0x70003A28, D_70003A20[0], 0.2f);
                 func_001CFBE0(id, 1, tbl + 0x90, buf, 0);
             }
             n = 1;
@@ -196,11 +203,11 @@ void func_001E3D90(char *p) {
             func_001CFBE0(id, flag, tbl + 0x120, buf, 0);
         }
         switch ((D_00810700[0] << 8) + D_00810701[0]) {
-        case 0x1301:
-        case 0x1100:
-        case 0xE00:
-        case 0x202:
         case 0x200:
+        case 0x202:
+        case 0xE00:
+        case 0x1100:
+        case 0x1301:
             func_0021B9A0(1, 0.0f, 0.0f);
             break;
         }

@@ -518,3 +518,25 @@ matrix calls; old C doubled a texture stride the original does not).
 
 The port should re-check its copies of these functions: the corrected C
 changes collision and particle behaviour.
+
+### Queue batch 26 (2026-10-27)
+
+3 byte-matched: func_001FDB80 (one state switch; unknown states return 1, not
+0; the tail reset is nested; the +0x34 index is passed to func_001FD6A0 as a
+full 64-bit value, while that function's definition declares an unsigned int
+parameter, to reconcile), func_001EBD20 and func_001EBC30 (twins: the float
+at 0x70003434 is element 13 of `extern float D_70003400[16]`, bumped with a
+compound `+=`; the old literal-address `x = x + K` was the "FP-constant emit
+order wall"). Improved and parked: func_001DD2F0 89.51 (the templates are
+0x50/0x28 float-pair tables, not 0x48/0x38 blobs), func_001F7E40 84.91 (seven
+random draws per particle, each read before the seed advances; the old C drew
+too few), func_0019C6F0 92.38, func_001E3D90 97.04.
+
+Constant-order class, new evidence: in the 0x001EA000-0x001EE000 wrapper
+family (func_001EC1F0, func_001EC3F0 and siblings, one func_001CFB50 call then
+func_001CFBE0 calls) the only residual is the order of the 1.0 / 5.0 / 1e-6
+setup. A throwaway function using 1e-6 compiled before func_001EC1F0 in the
+same file lifts it from 80% to 99.6%, so the order depends on the earlier
+functions of the original translation unit, not only on the compiler version.
+Compiling with the real preceding byte-matched neighbours (TU_STATIC-style) is
+being tested.

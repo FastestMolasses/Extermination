@@ -1,43 +1,38 @@
-// NEARMISS func_001FDB80  (vram 0x001FDB80, 0x224 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 60.52% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation + inverse-CSE near-miss. Logic fully recovered and correct. Residuals are compiler artifacts: (1) counter/pointer are colored s2/s1 vs the target's s1/s2 (swap cascades through the whole 12-bit loop); (2) mwcc CSEs the loop mask (1<<i) into a callee-saved reg s3 and grows the ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 60.3% (mwcc 2.3.3). Logic fully recovered; residual is a register-
-// allocation permutation (counter/pointer land in s2/s1 vs target s1/s2), the loop
-// mask (1<<i) being CSE'd into a callee-saved reg (frame 0x40->0x50 vs target which
-// recomputes it in v1 twice). Body/control-flow are correct.
-//
-// SEMANTIC FIX (m3-matching fix round, 59.74 -> 60.52%): the dsll32/dsrl32 pair
-// at 0x001FDCB8/0x001FDCC4 is NOT dead. It forms $a0 for the jal func_001FD6A0
-// at 0x001FDCF4: the +0x34 value with bit 31 cleared (a 31-bit index). The C used
-// to pass &D_002821B0 there. func_001FD6A0 (byte-matched) takes
-// (unsigned int index, int *out) and writes the found index to *out.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 60.52% NEARMISS).
+// Fixes read from the original instructions:
+// - the mask loop is the byte-matched sibling func_001FD950's do-while
+//   (record pointer, then bit counter; unsigned mask clear);
+// - the state dispatch is one switch on +0x5C: case 0 promotes to state 1 (if/else,
+//   else returns 0) and falls into case 1; any other state returns 1 (the original
+//   reuses the 1 the state compare left in the result register);
+// - the +0x34 index is a 64-bit local: the original builds the 31-bit index with a
+//   64-bit shift pair and passes the full register to func_001FD6A0 without
+//   truncating it (so the call takes an unsigned long long here);
+// - the mode-0 test is written +0x70 <= index (its compare result goes to the
+//   assembler temporary as in the original);
+// - the tail is nested: only when func_001FD950 returns nonzero and +0x50 == 0 is
+//   the state reset to 0 and +0x60 bumped; with +0x50 set, 1 is returned only when
+//   both flags D_00282155 and D_00282156 are 0; everything else returns 0.
 //
 // s0 = &D_002821B0 (a global manager struct). arg0 != 0 is the "init/clear" entry:
 // zero fields 0x5C..0x76, then for each of 12 bits set in the mask at s0+0x64, write
-// 2 into D_008106B0[0x24 + i] and clear the bit; when the hardware/global byte at
-// 0x70003B8F == 2 and i == 0, also call func_001D06E0(&D_008102B0, 0). Then
+// 2 into D_008106B0[0x24 + i] and clear the bit; when the scratchpad game-mode byte at
+// 0x70003B8F == 2 and i == 0, first call func_001D06E0(&D_008102B0, 0). Then
 // func_001FAB80() and return 1. arg0 == 0 is the "tick" entry, a small state machine
-// on s0+0x5C (0/1): state 0 tries func_001FD790 to promote to state 1; state 1 reads
-// the signed value a1 = s0+0x34, and unless its sign bit is set, dispatches on the
-// mode byte D_008106F5 (2: nop; 1: if s0+0x70 == a1 clear D_008106F5; 0: if
-// a1 >= s0+0x70 call func_001FD6A0(a1 & 0x7FFFFFFF, &s0[0x70])). Then bumps s0+0x68,
-// calls func_001FD950; on 0 return 0; if s0+0x50 == 0 reset to state 0 and bump
-// s0+0x60; otherwise return 1 only when both flags D_00282155 and D_00282156 are 0.
+// on s0+0x5C: state 0 tries func_001FD790 to promote to state 1 (else returns 0);
+// state 1 reads the signed value s0+0x34, and unless its sign bit is set, dispatches
+// on the mode byte D_008106F5 (2: nothing; 1: if s0+0x70 == value clear D_008106F5;
+// 0: if value >= s0+0x70 call func_001FD6A0(value & 0x7FFFFFFF, &s0[0x70])). Then
+// bumps s0+0x68 and calls func_001FD950 (see above for the tail). Other states
+// return 1.
 extern void func_001D06E0(int p, int a);
 extern void func_001FAB80(void);
 extern int func_001FD790(int p);
 extern int func_001FD950(int p);
-extern int func_001FD6A0(unsigned int idx, int *out);
+extern int func_001FD6A0(unsigned long long idx, int *out);
 extern char D_002821B0;
 extern char D_008106B0;
 extern char D_008102B0;
@@ -47,9 +42,10 @@ extern char D_00282156;
 
 int func_001FDB80(int arg0) {
     char *s0;
-    char *s2;
-    int i;
-    int a1;
+    int bit;
+    char *rec;
+    long a1;
+    unsigned long long idx;
 
     s0 = &D_002821B0;
     if (arg0 != 0) {
@@ -60,68 +56,63 @@ int func_001FDB80(int arg0) {
         *(int *)(s0 + 0x70) = 0;
         *(short *)(s0 + 0x74) = 0;
         *(short *)(s0 + 0x76) = 0;
-        s2 = &D_008106B0;
-        for (i = 0; i < 0xC; i++) {
-            if (*(int *)(s0 + 0x64) & (1 << i)) {
+        rec = &D_008106B0;
+        bit = 0;
+        do {
+            if (*(int *)(s0 + 0x64) & (1 << bit)) {
                 if (*(unsigned char *)0x70003B8F == 2) {
-                    if (i != 0) {
-                        goto skipcall;
+                    if (bit == 0) {
+                        func_001D06E0((int)&D_008102B0, 0);
                     }
-                    func_001D06E0((int)&D_008102B0, 0);
                 }
-            skipcall:
-                *(char *)(s2 + 0x24) = 2;
-                *(int *)(s0 + 0x64) = *(int *)(s0 + 0x64) & ~(1 << i);
+                *(char *)(rec + 0x24) = 2;
+                *(unsigned int *)(s0 + 0x64) &= ~(1 << bit);
             }
-            s2++;
-        }
+            bit += 1;
+            rec += 1;
+        } while (bit < 0xC);
         func_001FAB80();
         return 1;
     }
 
-    if (*(int *)(s0 + 0x5C) == 1) {
-        goto state1;
-    }
-    if (*(int *)(s0 + 0x5C) == 0) {
+    switch (*(int *)(s0 + 0x5C)) {
+    case 0:
         if (func_001FD790((int)&D_002821B0)) {
             *(int *)(s0 + 0x5C) = 1;
-            goto state1;
+        } else {
+            return 0;
         }
-        return 0;
-    }
-    return 0;
-
-state1:
-    a1 = *(int *)(s0 + 0x34);
-    if (!(a1 & 0x80000000)) {
-        switch (D_008106F5) {
-        case 2:
-            break;
-        case 1:
-            if (*(int *)(s0 + 0x70) == a1) {
-                D_008106F5 = 0;
+    case 1:
+        a1 = *(int *)(s0 + 0x34);
+        if (!((int)a1 & 0x80000000)) {
+            idx = (unsigned long long)a1 << 0x21;
+            idx >>= 0x21;
+            switch (D_008106F5) {
+            case 0:
+                if (*(int *)(s0 + 0x70) <= a1) {
+                    func_001FD6A0(idx, (int *)(s0 + 0x70));
+                }
+                break;
+            case 1:
+                if (*(int *)(s0 + 0x70) == a1) {
+                    D_008106F5 = 0;
+                }
+                break;
+            case 2:
+                break;
             }
-            break;
-        case 0:
-            if (a1 >= *(int *)(s0 + 0x70)) {
-                func_001FD6A0(((unsigned long long)a1 << 33) >> 33, (int *)(s0 + 0x70));
-            }
-            break;
         }
-    }
-    *(int *)(s0 + 0x68) = *(int *)(s0 + 0x68) + 1;
-    if (func_001FD950((int)&D_002821B0) == 0) {
-        return 0;
-    }
-    if (*(unsigned char *)(s0 + 0x50) == 0) {
-        *(int *)(s0 + 0x5C) = 0;
-        *(int *)(s0 + 0x60) = *(int *)(s0 + 0x60) + 1;
-        return 0;
-    }
-    if (*(char *)&D_00282155 != 0) {
-        return 0;
-    }
-    if (*(char *)&D_00282156 != 0) {
+        *(int *)(s0 + 0x68) = *(int *)(s0 + 0x68) + 1;
+        if (func_001FD950((int)&D_002821B0) != 0) {
+            if (*(unsigned char *)(s0 + 0x50) != 0) {
+                if (D_00282155 == 0 && D_00282156 == 0) {
+                    return 1;
+                }
+                return 0;
+            }
+            *(int *)(s0 + 0x5C) = 0;
+            *(int *)(s0 + 0x60) = *(int *)(s0 + 0x60) + 1;
+        }
         return 0;
     }
     return 1;

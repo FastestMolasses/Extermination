@@ -1,3 +1,11 @@
+## 2026-10-27 — matching wave, queue batch 26: 3 more byte-matched
+
+See MATCHING_GUIDE "Queue batch 26" (including new evidence that the
+constant-order class depends on the earlier functions of the original
+translation unit). Gate: fresh build + verify_all all six stages pass, boot
+ELF byte-identical, 19/19 overlays, matched_code 99.97%, 2632/2634 units;
+audit_link_provenance clean (2135 ordinary-C routes).
+
 ## 2026-10-27 — matching wave, queue batch 25: 8 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 25" (the segment hit-scan family; its old C
