@@ -1,53 +1,47 @@
-// NEARMISS func_00114360  (vram 0x00114360, 228 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 89.82% via ee-gcc 2.9-991111-01 (-O2; reproduce: the // COMPILER/CFLAGS below).
-// DIVERGENCE (compiler artifact, not a logic error): deterministic GPR register coloring.
-// The original keeps the `st = &D_0027B184 - 0x14` pointer in $v1 (and reuses it as the tail
-// return-value register); ee-gcc 2.9 colors it into $v0, which cascades register naming through
-// the body. No source shape flips ee-gcc's allocator here (5 restructurings tried; a decomp-
-// permuter run reaches ~98.4% but only via mechanical temp/decl shuffles that mangle readability).
-// The LOGIC and STRUCTURE are faithful — only register naming differs.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT from this C
-// (fill_unmatched treats `// NEARMISS` like a stub). This file is faithful ground truth for the
-// port, not a compiled unit, and is excluded from the matched_code metric. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 89.82% NEARMISS).
+// Fixes read from the original instructions:
+//  - the string-copy helper func_00123418 returns its destination (strncpy shape); declaring
+//    it void freed $v0 and ee-gcc coloured the request pointer there instead of $v1.
+//  - the request block is reached as the copy destination minus 0x14 (the copy runs first,
+//    then the three header words are stored), with the twin func_00114AC0's struct and
+//    `if (r == 0)` tail.
+//
+// RPC wrapper: unless a request is already pending (D_00241D68) or the client is not bound
+// (f24 == 0, returns -100), copies up to 0x3FF bytes of the name into the request buffer,
+// fills its three header words (arg0, arg1, arg3), terminates the name and sends RPC 2;
+// on success it records request 2 as pending. Returns the RPC result.
+
 extern int D_00241D68;
-extern char D_0027B0C0;
-extern char D_0027B184;
-extern char D_0027C680;
+struct s_b0c0 {
+    char pad[0x24];
+    int f24;
+};
+extern struct s_b0c0 D_0027B0C0;
+extern int D_0027B184;
+extern int D_0027C680;
+extern char *func_00123418(char *dst, char *src, int n);
+extern int func_0010E8A8(struct s_b0c0 *, int, int, int *, int, int *, int, int, int);
 
-extern int func_00123418(void *a0, int a1, int a2);
-extern int func_0010E8A8(void *a0, int a1, int a2, void *a3, int t0, void *t1, int t2, int t3, int sp0);
-
-int func_00114360(int arg0, int arg1, int arg2, int arg3)
-{
+int func_00114360(int x, int a1, char *name, int a3) {
+    int *p;
     int r;
-    char *base;
-    char *st;
 
     if (D_00241D68 != 0)
         return D_00241D68;
+    if (D_0027B0C0.f24 == 0)
+        return -0x64;
 
-    base = &D_0027B0C0;
-    if (*(int *)(base + 0x24) == 0)
-        return -100;
-
-    func_00123418(&D_0027B184, arg2, 0x3FF);
-
-    st = &D_0027B184 - 0x14;
-    *(int *)st = arg0;
-    *(int *)(st + 8) = arg3;
-    *(int *)(st + 4) = arg1;
-    *(char *)(st + 0x413) = 0;
-
-    r = func_0010E8A8(base, 2, 1, st, 0x414, &D_0027C680, 4, 0, 0);
-    if (r != 0)
-        return r;
-
-    D_00241D68 = 2;
+    func_00123418((char *)&D_0027B184, name, 0x3FF);
+    p = &D_0027B184 - 5;
+    *p = x;
+    p[2] = a3;
+    p[1] = a1;
+    *((char *)p + 0x413) = 0;
+    r = func_0010E8A8(&D_0027B0C0, 2, 1, p, 0x414, &D_0027C680, 4, 0, 0);
+    if (r == 0)
+        D_00241D68 = 2;
     return r;
 }

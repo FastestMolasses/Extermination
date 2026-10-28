@@ -1,15 +1,15 @@
-// NEARMISS func_001D8C30  (vram 0x001D8C30, 0x394 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 89.45% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 89.45 (mwcc233 -O4,p -sdatathreshold 4; 233 instrs). The jr-table dispatch is FULLY byte-identical including the jtbl_0026E520 reloc (objdiff accepts the local `@14` vs `jtbl_0026E520` .rodata symbol), the prologue, all 28 zero-stores in both clearing cases, and every swc1/lwc1/copy_qw4 call site...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 89.45% NEARMISS).
+// Fixes read from the original instructions:
+//  - The clamp is a ternary that keeps t when positive, `(t > 0.0f) ? t : 0.0f`,
+//    not `if (t <= 0.0f) t = 0.0f;` (gives the original's branch-around shape
+//    with the jump-table bound test in both slots).
+//  - The 8388608.0f float->fixed bias is a file-scope `static const float`, not
+//    a literal. The named constant is still folded (no data is emitted) but its
+//    setup is scheduled ahead of the input loads, as in the original, which
+//    fixed every case's constant order and FP register choice.
 
 // SEMANTICS: builds the GS "UV / XYZ" register payload for one sprite-ish
 //   primitive.  Parameters: `mode` selects the packing style, `m` is a 4x4
@@ -32,6 +32,7 @@
 //     mode 6 : as mode 4, but out[3] = bias + 128 * in.w.
 
 extern int D_00275670;
+static const float bias = 8388608.0f;
 extern void copy_qw4();
 
 void func_001D8C30(int mode, int *m, float *out, float *in)
@@ -39,9 +40,7 @@ void func_001D8C30(int mode, int *m, float *out, float *in)
     float t;
 
     t = in[3] - 1.0f;
-    if (t <= 0.0f) {
-        t = 0.0f;
-    }
+    t = (t > 0.0f) ? t : 0.0f;
 
     switch (mode) {
     case 0:
@@ -75,10 +74,10 @@ void func_001D8C30(int mode, int *m, float *out, float *in)
         out[10] = 0.0f;
         out[9] = 0.0f;
         out[8] = 0.0f;
-        out[12] = 8388608.0f + (128.0f + in[0]);
-        out[13] = 8388608.0f + (128.0f + in[1]);
-        out[14] = 8388608.0f + (128.0f + in[2]);
-        out[15] = 8388608.0f + (64.0f * t);
+        out[12] = bias + (128.0f + in[0]);
+        out[13] = bias + (128.0f + in[1]);
+        out[14] = bias + (128.0f + in[2]);
+        out[15] = bias + (64.0f * t);
         break;
     case 2:
         m[0] = 0;
@@ -109,37 +108,37 @@ void func_001D8C30(int mode, int *m, float *out, float *in)
         out[10] = 0.0f;
         out[9] = 0.0f;
         out[8] = 0.0f;
-        out[12] = 8388608.0f + in[0];
-        out[13] = 8388608.0f + in[1];
-        out[14] = 8388608.0f + in[2];
-        out[15] = 8388608.0f + (64.0f * t);
+        out[12] = bias + in[0];
+        out[13] = bias + in[1];
+        out[14] = bias + in[2];
+        out[15] = bias + (64.0f * t);
         break;
     case 3:
-        out[0] = 8388608.0f + (128.0f * in[0]);
-        out[1] = 8388608.0f + (128.0f * in[1]);
-        out[2] = 8388608.0f + (128.0f * in[2]);
-        out[3] = 8388608.0f + (64.0f * t);
+        out[0] = bias + (128.0f * in[0]);
+        out[1] = bias + (128.0f * in[1]);
+        out[2] = bias + (128.0f * in[2]);
+        out[3] = bias + (64.0f * t);
         break;
     case 4:
         copy_qw4(m, D_00275670 + 0x2380);
-        out[0] = 8388608.0f + (128.0f * in[0]);
-        out[1] = 8388608.0f + (128.0f * in[1]);
-        out[2] = 8388608.0f + (128.0f * in[2]);
+        out[0] = bias + (128.0f * in[0]);
+        out[1] = bias + (128.0f * in[1]);
+        out[2] = bias + (128.0f * in[2]);
         out[3] = 8388672.0f;
         break;
     case 5:
         copy_qw4(m, D_00275670 + 0x2380);
-        out[0] = 8388608.0f + (128.0f * in[0]);
-        out[1] = 8388608.0f + (128.0f * in[1]);
-        out[2] = 8388608.0f + (128.0f * in[2]);
+        out[0] = bias + (128.0f * in[0]);
+        out[1] = bias + (128.0f * in[1]);
+        out[2] = bias + (128.0f * in[2]);
         out[3] = 0.2f * (128.0f * in[3]);
         break;
     case 6:
         copy_qw4(m, D_00275670 + 0x2380);
-        out[0] = 8388608.0f + (128.0f * in[0]);
-        out[1] = 8388608.0f + (128.0f * in[1]);
-        out[2] = 8388608.0f + (128.0f * in[2]);
-        out[3] = 8388608.0f + (128.0f * in[3]);
+        out[0] = bias + (128.0f * in[0]);
+        out[1] = bias + (128.0f * in[1]);
+        out[2] = bias + (128.0f * in[2]);
+        out[3] = bias + (128.0f * in[3]);
         break;
     }
 }

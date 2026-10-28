@@ -362,3 +362,19 @@ func_001E0C80 (a struct field pointer taken once), func_00106540 (ee-gcc:
 post-increment spin tests; a plain 64-bit load folds its address).
 **Next pool:** 100 src/readable/ companions remain (asm-bodied functions with
 readable near-miss C); ~15 score >= 95%.
+
+### Queue batch 17 (2026-10-27)
+
+9 byte-matched: func_00114360 (ee-gcc: func_00123418 is a strncpy-shaped
+copy returning its destination; a void declaration moved the request pointer
+from v1 to v0), func_001C40B0 (the D_00810Cxx meters `volatile`; strict
+clamps; one value read into a local and reused), func_00178080 (a one-argument
+callee declared with two; named scratchpad externs), func_00117BA0 (ee-gcc: a
+record-pointer field stepped with `+=`), func_00159B90 (switch cases `break`;
+a result test as an if / else-if chain; an int callee parameter), func_001D8C30
+(a ternary clamp; a file-scope `static const float` bias that folds and emits
+no data but sets the constant up early), func_001AF8E0 (statement order: each
+list set up in turn), func_001E4610 (dispatch and size pick as switches;
+values updated in place), func_00187CC0 (an if/else ladder; a flag set in each
+arm; a named scratch block). Improved and parked: func_001D7C30 99.68,
+func_00117918 94.20, func_001D6930 83.69.

@@ -1,46 +1,48 @@
-// NEARMISS func_00117BA0  (vram 0x00117BA0, 0x88 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 89.56% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation permutation. Size-matched (34/34 instrs); semantics fully decoded and correct. The original computes the a1*16 index first and keeps the struct base in one persistent register reused for every D_00281AC0 access; our ee-gcc 2.9-991111-01 -O2 forms the D_00281AC0 upper half first and uses a different temporary for the shift (rest of the note: docs/NEARMISS.md).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 89.56% NEARMISS).
+// Fixes read from the original instructions:
+//  - The 0x04 field of D_00281AC0 is a pointer to 16-byte records, advanced and
+//    rewound by a1 records with `+=` / `-=` (not a pre-shifted byte offset local).
+//  - The first table lookup goes into its own byte local (v1) and the second
+//    lookup indexes with it, so the two lookups colour the original registers.
+//
+// Temporarily advances the record cursor of D_00281AC0 by a1 records and reads
+// the byte at offset 0x0C of the selected record. For mode 4 that byte is the
+// result; otherwise it is translated twice through the 32-column table
+// D_00242230: first with the column taken from the record byte and the row from
+// byte 2 of the object at field 0x00, then with the column from that result and
+// the row from byte 4 of the object at field 0x0C. The cursor is restored before
+// returning.
+
 extern unsigned char D_00242230[];
 
+struct rec {
+    int x[3];          /* 0x00 */
+    unsigned char c;   /* 0x0C */
+    unsigned char pad[3];
+};
+
 struct g {
-    void *p0;          /* 0x00 */
-    unsigned char *p4; /* 0x04 */
+    unsigned char *p0; /* 0x00 */
+    struct rec *p4;    /* 0x04 */
     int pad8;          /* 0x08 */
     unsigned char *pC; /* 0x0C */
 };
 extern struct g D_00281AC0;
 
 unsigned char func_00117BA0(int a0, int a1) {
-    int t0 = a1 << 4;
-    unsigned char *p;
     unsigned char v0;
+    unsigned char v1;
 
-    p = D_00281AC0.p4 + t0;
-    D_00281AC0.p4 = p;
+    D_00281AC0.p4 += a1;
     if (a0 == 4) {
-        v0 = p[0xC];
+        v0 = D_00281AC0.p4->c;
     } else {
-        unsigned char *a = (unsigned char *)D_00281AC0.p0;
-        unsigned char *e = D_00281AC0.pC;
-        unsigned int v1 = p[0xC] >> 2;
-        unsigned int t = (a[2] >> 2) << 5;
-        v1 = D_00242230[v1 + t];
-        {
-            unsigned int q = (e[4] >> 2) << 5;
-            v0 = D_00242230[(v1 >> 2) + q];
-        }
+        v1 = D_00242230[(D_00281AC0.p4->c >> 2) + ((D_00281AC0.p0[2] >> 2) << 5)];
+        v0 = D_00242230[(v1 >> 2) + ((D_00281AC0.pC[4] >> 2) << 5)];
     }
-    D_00281AC0.p4 = D_00281AC0.p4 - t0;
+    D_00281AC0.p4 -= a1;
     return v0;
 }

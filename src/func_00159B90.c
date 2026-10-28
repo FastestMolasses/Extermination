@@ -1,22 +1,28 @@
-// NEARMISS func_00159B90  (vram 0x00159B90, 0x2D4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 90.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The body follows the original instructions;
-// the residual diff is code generation only:
-// Body corrected 2026-09-25 against the original instructions (callee argument lists and the sub-state 3 store; was 85.72% with the wrong body; 89.89% before D_00810350/370/710/720 and D_002470E0 were declared as arrays, which the original addresses absolutely and which a gp-relative access cannot reach). Residual: switch-comparand registers (a2 = 2, a3 = 3 kept live across the calls) and branch layout.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 90.64% NEARMISS).
+// Fixes read from the original instructions:
+// - The outer state switch ends every case in `break` (no early returns), which
+//   gives the original's branch-likely case entries and shared epilogue.
+// - The result test of func_00157CE0 is an if / else-if chain testing 2 first,
+//   then 3, else 3 is stored.
+// - func_001BA1A0 is declared with its definition's prototype (int *, int); the
+//   table address is passed converted to int, which sets it up ahead of the
+//   first argument as in the original.
+//
+// State handler on p[4]: state 0 (when func_001B0FD0 returns 0) sets fields and
+// four scratchpad floats and calls func_001C5570; state 1 steps a sub-state on
+// p[5], then for two scratchpad vectors calls func_001026A0 with p+0xD0 and
+// func_00158590, then func_001B17A0 and the callback at p+0x4C; state 2
+// advances to state 3; state 3 calls func_001AFC10.
 
 extern int func_001B0FD0(unsigned char *p);
 extern void func_001C6380(unsigned char *p);
 extern int func_00157CE0(unsigned char *p, unsigned char *ev);
 extern void func_00102948(void *dst, void *src);
 extern void func_001FB9F0(int a, int b, int c, int d);
-extern void func_001BA1A0(unsigned char *ev, void *tbl);
+extern void func_001BA1A0(int *ev, int tbl);
 extern int func_001BA1F0(unsigned char *p);
 extern void func_001C5570(unsigned char *p, void *v, int a, int b);
 extern void func_001026A0(void *v, void *a, void *b);
@@ -53,9 +59,8 @@ void func_00159B90(unsigned char *p) {
             *(volatile float *)0x700038A8 = 0.0f;
             *(volatile float *)0x700038AC = 1.0f;
             func_001C5570(p, D_700038A0, 0x76, 1);
-            return;
         }
-        return;
+        break;
     case 1:
         st2 = p[5];
         switch (st2) {
@@ -64,20 +69,18 @@ void func_00159B90(unsigned char *p) {
                 func_00102948(D_00810710, D_00810350);
                 func_00102948(D_00810720, D_00810370);
                 func_001FB9F0(0x3E8, 0x1000, 0x1000, 0x1000);
-                if (r != 2) {
-                    if (r == 3) {
-                        p[5] = p[5] + 1;
-                    } else {
-                        p[5] = 3;
-                    }
-                } else {
+                if (r == 2) {
                     p[5] = 2;
+                } else if (r == 3) {
+                    p[5] = p[5] + 1;
+                } else {
+                    p[5] = 3;
                 }
             }
             break;
         case 1:
             p[5] = st2 + 1;
-            func_001BA1A0(e, D_002470E0);
+            func_001BA1A0((int *)e, (int)D_002470E0);
             break;
         case 2:
             if (func_001BA1F0(p) != 0) {
@@ -106,10 +109,10 @@ void func_00159B90(unsigned char *p) {
         func_00158590(p, 1, -2);
         func_001B17A0(p);
         (*(void (**)(unsigned char *))(p + 0x4C))(p);
-        return;
+        break;
     case 2:
         p[4] = st + 1;
-        return;
+        break;
     case 3:
         func_001AFC10(p);
         break;

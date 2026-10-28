@@ -131,7 +131,7 @@ GPREL_FORCE_ASM = {
     # func_001469B0 removed (matching wave 2026-10-27): byte-matched from C.
     "func_00153770",
     "func_00158810",
-    "func_00159B90",
+    # func_00159B90 removed (matching wave 2026-10-27): byte-matched from C.
     # func_0015A070 removed (matching wave 2026-10-27): byte-matched from C.
     # func_0015AC00 removed (matching wave 2026-10-27): byte-matched from C.
     "func_001647D0",
