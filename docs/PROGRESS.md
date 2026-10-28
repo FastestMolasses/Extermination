@@ -1,3 +1,9 @@
+## 2026-10-28 — matching wave, queue batch 40: 4 more byte-matched, 7 improved
+
+See MATCHING_GUIDE "Queue batch 40". Gate: fresh build + verify_all all six
+stages pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.97%,
+2746/2748 units; audit_link_provenance clean (2279 ordinary-C routes).
+
 ## 2026-10-28 — matching wave, queue batch 39: 18 more byte-matched (16 asm bodies replaced)
 
 See MATCHING_GUIDE "Queue batch 39". Gate: fresh build + verify_all all six

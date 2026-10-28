@@ -1,12 +1,18 @@
 // NEARMISS func_001A4D10  (vram 0x001A4D10, 0x38C bytes) — readable companion C, NOT byte-identical.
 //
-// objdiff 88.68% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
+// objdiff 98.85% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
 // similarity does not prove semantic equivalence. Remaining differences:
-// Scheduling and FPU colouring: with the segment inputs as // SPAD symbols, else-return shapes for
-// the face tests and if/else stores of the normal sign, the control flow lines up; the original
-// re-reads the scratchpad temporaries 0x70003680 / 0x70003684 right after storing them where mwcc
-// 2.3.3 forwards the stored value (local, volatile and assignment-expression spellings measured),
-// which shifts the FPU registers of the interpolation.
+// FPU register colouring only (instruction stream, scheduling and control flow line up): the
+// original gives the published height (0x700031A4) f3 and the y-span delta f2, where mwcc 2.3.3
+// gives the height f6 and swaps the delta with the low y bound, which shifts the registers of the
+// face spans (z span delta, crossing lo/hi, hit z). Matching wave 2026-10-28 fixed the rest:
+// every scratchpad word is its own // SPAD extern (idiom-32), so mwcc re-reads 0x70003680 /
+// 0x70003684 right after storing them as the original does (non-volatile externs; volatile
+// ones scored lower); the two face branches are an if/else that fall through to ONE shared
+// `return 0` (the original's common failure exit); the dz<0 arm of the x-face span derives the
+// low bound from the high one. Decl orders, block-scoped temporaries, y as a local or a CSE'd
+// extern read, direct segment-input reads, span spellings, mwcc24 / 991202 and a 540 s
+// permuter run (6.3k iterations; its best was not honest C, rescored 99.01%) did not move it.
 //
 // The function links from the asm body in src/func_001A4D10.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -15,12 +21,19 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// SPAD: 0x70003190 0x70003198 0x700031A0 0x700031A4 0x700031A8
+// SPAD: 0x70003190 0x70003198 0x700031A0 0x700031A4 0x700031A8 0x700031B0 0x700031B4 0x700031B8 0x70003680 0x70003684 0x70003688 0x7000368C
 extern float D_70003190;
 extern float D_70003198;
 extern float D_700031A0;
 extern float D_700031A4;
 extern float D_700031A8;
+extern float D_700031B0;
+extern float D_700031B4;
+extern float D_700031B8;
+extern float D_70003680;
+extern float D_70003684;
+extern float D_70003688;
+extern float D_7000368C;
 // Horizontal segment against one wall-face collision record (ACTOR_COLLISION.md
 // record kind 0x2000; faces 1 / 2 are planes of constant x, faces 5 / 6 of
 // constant z; faces 3 / 4 are func_001A4650's). The segment runs from
@@ -47,7 +60,6 @@ int func_001A4D10(unsigned char *rec) {
     unsigned char face = rec[2];
     float y0;
     float y1;
-    float y;
     float x0;
     float x1;
     float z0;
@@ -62,7 +74,6 @@ int func_001A4D10(unsigned char *rec) {
     float fx;
     float ddx;
     float ddz;
-    float t;
     float fz;
 
     if ((unsigned int)(face - 3) < 2) {
@@ -75,8 +86,7 @@ int func_001A4D10(unsigned char *rec) {
         y0 = f->y;
         y1 = f->y + f->dy;
     }
-    y = D_700031A4;
-    if (y < y0 || !(y <= y1)) {
+    if (D_700031A4 < y0 || !(D_700031A4 <= y1)) {
         return 0;
     }
     x0 = D_70003190;
@@ -117,23 +127,23 @@ int func_001A4D10(unsigned char *rec) {
         fx = f->x;
         if (f->dz < 0.0f) {
             hi = f->z;
-            lo = f->z + f->dz;
+            lo = hi + f->dz;
         } else {
             lo = f->z;
             hi = f->z + f->dz;
         }
         if (xlo < fx && !(xhi <= fx)) {
-            *(float *)0x70003680 = x1 - x0;
-            ddx = *(float *)0x70003680;
-            *(float *)0x70003684 = z1 - z0;
-            ddz = *(float *)0x70003684;
-            *(float *)0x70003688 = fx - x0;
-            c = z0 + ddz * *(float *)0x70003688 / ddx;
-            *(float *)0x7000368C = c;
+            D_70003680 = x1 - x0;
+            ddx = D_70003680;
+            D_70003684 = z1 - z0;
+            ddz = D_70003684;
+            D_70003688 = fx - x0;
+            c = z0 + ddz * D_70003688 / ddx;
+            D_7000368C = c;
             if (!(c <= lo) && c < hi) {
-                *(float *)0x700031B0 = fx;
-                *(float *)0x700031B4 = y;
-                *(float *)0x700031B8 = c;
+                D_700031B0 = fx;
+                D_700031B4 = D_700031A4;
+                D_700031B8 = c;
                 *(int *)0x700030DC = 0;
                 *(int *)0x700030D8 = 0;
                 *(short *)0x700030CA = 0x2000;
@@ -143,46 +153,40 @@ int func_001A4D10(unsigned char *rec) {
                     *(float *)0x700030D4 = -1.0f;
                 }
                 return 1;
-            } else {
-                return 0;
             }
-        } else {
-            return 0;
-        }
-    }
-    fz = f->z;
-    if (f->dx < 0.0f) {
-        hi = f->x;
-        lo = f->x + f->dx;
-    } else {
-        lo = f->x;
-        hi = f->x + f->dx;
-    }
-    if (zlo < fz && !(zhi <= fz)) {
-        *(float *)0x70003680 = x1 - x0;
-        ddx = *(float *)0x70003680;
-        *(float *)0x70003684 = z1 - z0;
-        ddz = *(float *)0x70003684;
-        *(float *)0x70003688 = fz - z0;
-        c = x0 + ddx * *(float *)0x70003688 / ddz;
-        *(float *)0x7000368C = c;
-        if (!(c <= lo) && c < hi) {
-            *(float *)0x700031B0 = c;
-            *(float *)0x700031B4 = y;
-            *(float *)0x700031B8 = fz;
-            *(int *)0x700030D8 = 0;
-            *(int *)0x700030D4 = 0;
-            *(short *)0x700030CA = 0x2000;
-            if (face == 5) {
-                *(float *)0x700030DC = 1.0f;
-            } else {
-                *(float *)0x700030DC = -1.0f;
-            }
-            return 1;
-        } else {
-            return 0;
         }
     } else {
-        return 0;
+        fz = f->z;
+        if (f->dx < 0.0f) {
+            hi = f->x;
+            lo = f->x + f->dx;
+        } else {
+            lo = f->x;
+            hi = f->x + f->dx;
+        }
+        if (zlo < fz && !(zhi <= fz)) {
+            D_70003680 = x1 - x0;
+            ddx = D_70003680;
+            D_70003684 = z1 - z0;
+            ddz = D_70003684;
+            D_70003688 = fz - z0;
+            c = x0 + ddx * D_70003688 / ddz;
+            D_7000368C = c;
+            if (!(c <= lo) && c < hi) {
+                D_700031B0 = c;
+                D_700031B4 = D_700031A4;
+                D_700031B8 = fz;
+                *(int *)0x700030D8 = 0;
+                *(int *)0x700030D4 = 0;
+                *(short *)0x700030CA = 0x2000;
+                if (face == 5) {
+                    *(float *)0x700030DC = 1.0f;
+                } else {
+                    *(float *)0x700030DC = -1.0f;
+                }
+                return 1;
+            }
+        }
     }
+    return 0;
 }

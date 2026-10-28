@@ -1,13 +1,17 @@
 // NEARMISS func_001F0720  (vram 0x001F0720, 0x334 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 86.25%).
+// objdiff 99.02% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 86.25%, then 98.88%).
 // Improved 2026-10-27 from the original instructions: the four GIF-tag address/size locals are
 // unsigned int (as int, mwcc folds them; the original keeps them in saved registers from entry),
 // the copy loop's count is the literal 0xC0, `count *= 60` replaces a separate total, the
 // per-slot divide converts `count` inline (the conversion is hoisted to the loop preheader),
 // `i` is declared before `slot`, and the size is shifted into place once before the chunk loop.
-// Remaining differences: saved-register colouring only -- the chunk counter `k` and the
-// last tag's address `addr3` swap s6/s2, and the size shift is scheduled one store later.
+// Matching wave 2026-10-28: declaring `addr3` where `k` was (and `k` last) gives the original's
+// saved registers (k in s6, addr3 in s2).
+// Remaining differences: one scheduling choice -- the size shift is placed one store earlier
+// than in the original (before the third mode-word store of the first packet instead of after
+// it); moving the statement, folding the shift into the tag expression, or `qwc = qwc << 16`
+// did not change it.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -73,13 +77,13 @@ void func_001F0720(int n)
     float f;
     int count;
     int pal;
-    int k;
+    unsigned int addr3;
     int t;
     int cnt;
     unsigned int addr2;
     unsigned int addr;
     unsigned int qwc;
-    unsigned int addr3;
+    int k;
 
     addr2 = 0xE;
     addr = 0x20;

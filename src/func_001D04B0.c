@@ -1,45 +1,32 @@
-// Simple nonleaf asm void
-extern void func_001CCF70(int, int, int, int);
-extern void func_001CFA60(int, int, int, int);
-extern void func_001CFBE0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_001D04B0(void) {
-    addiu      $sp, $sp, -0xC0
-    sq         $ra, 0x50($sp)
-    sq         $s3, 0x40($sp)
-    sq         $s2, 0x30($sp)
-    sq         $s1, 0x20($sp)
-    sq         $s0, 0x10($sp)
-    swc1       $f21, 0x4($sp)
-    paddub     $s3, $a0, $zero
-    swc1       $f20, 0x0($sp)
-    addiu      $a0, $s3, 0x30
-    mov.s      $f21, $f12
-    mov.s      $f20, $f13
-    paddub     $s2, $a1, $zero
-    jal        func_001CCF70
-    paddub    $s1, $a2, $zero
-    addiu      $a0, $sp, 0x60
-    mov.s      $f12, $f21
-    paddub     $s0, $v0, $zero
-    mov.s      $f13, $f20
-    jal        func_001CFA60
-    paddub    $a1, $s3, $zero
-    addiu      $a3, $sp, 0x60
-    paddub     $a0, $s0, $zero
-    paddub     $a1, $s2, $zero
-    paddub     $a2, $s1, $zero
-    jal        func_001CFBE0
-    paddub    $8, $zero, $zero
-    lq         $ra, 0x50($sp)
-    lq         $s3, 0x40($sp)
-    lq         $s2, 0x30($sp)
-    lq         $s1, 0x20($sp)
-    lq         $s0, 0x10($sp)
-    lwc1       $f21, 0x4($sp)
-    lwc1       $f20, 0x0($sp)
-    jr         $ra
-    addiu     $sp, $sp, 0xC0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an 81.67% NEARMISS).
+// Fixes read from the original instructions:
+//  - The argument-copy schedule (b copied into a saved FPU register before the
+//    first call, a2 saved in that call's delay slot, obj moved into a1 in the
+//    second call's delay slot) follows the source order of the parameters, not
+//    the registers they arrive in. Under the PS2 ABI floats travel in f12/f13
+//    and integers in a0..a2 whatever their position in the list, so the
+//    parameter order is invisible to callers but steers mwcc's copy order:
+//      * this function's floats are declared right after obj
+//        (obj, a, b, a1, a2; same registers as (obj, a1, a2, a, b));
+//      * func_001CFA60 is declared with its two floats first
+//        (a, b, block, obj; same registers as its src/ definition, which
+//        also byte-matches when its own floats are declared first).
+//
+// Registers a drawn sprite for an object: the display handle comes from
+// func_001CCF70(obj + 0x30); func_001CFA60 builds the 0x60-byte draw block
+// from the object with the two float parameters, and func_001CFBE0(handle,
+// a1, a2, block, 0) queues it.
+extern int func_001CCF70(void *a0);
+extern void func_001CFA60(float a, float b, void *block, void *obj);
+extern void func_001CFBE0(int handle, int a1, void *a2, void *block, int a4);
+
+void func_001D04B0(char *obj, float a, float b, int a1, void *a2) {
+    char block[0x60];
+    int handle = func_001CCF70(obj + 0x30);
+
+    func_001CFA60(a, b, block, obj);
+    func_001CFBE0(handle, a1, a2, block, 0);
 }
-
-// Readable C (NEARMISS companion, objdiff 81.67%): src/readable/func_001D04B0.c

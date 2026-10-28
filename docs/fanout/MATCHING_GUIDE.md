@@ -810,3 +810,28 @@ newlib's source shape, constants as `#define` literals so no unused .rodata).
   vertex first); func_001EC270 / func_001ECE70 (constant order: scale/unit/eps
   int locals; 0.1 as `1.0f / (float)tenth_i`).
 Improved companions: func_0021B1B0 99.47, func_001A4830 99.87.
+
+
+### Queue batch 40 (2026-10-28)
+
+4 byte-matched. func_001C2770 and func_001486E0: idiom-32 with one VOLATILE
+relocated extern per scratchpad word (vec4 slots as float arrays used as [0],
+a pointer word as `char *volatile`), callee pointer parameters as `void *`;
+func_001486E0 also needs idiom-24 for the 15.0 in one timer arm only.
+func_00134090: the scratchpad vectors and the source vector as volatile Vec4
+externs read field by field (mwcc24). func_001D04B0 (companion, 81.67): source
+PARAMETER ORDER. EE float parameters arrive in f12.. and ints in a0..
+whatever their position, so callers cannot tell, but mwcc's argument-copy
+schedule follows the source order: the function declared
+`(char *obj, float a, float b, int a1, void *a2)` and its callee func_001CFA60
+declared floats-first. This lever was tried on eight other near-misses with no
+effect (their residuals are load order or colouring, not argument copies);
+it did help func_0014BC30 (callees declared float-first, 87.60 -> 99.84).
+Two findings: with mwcc 2.3.3 a load from a volatile relocated extern right
+after a store to it is forwarded (the stored value is reused), while a plain
+extern or a literal volatile cast is re-read; for floats copied from the
+scratchpad the last-declared local gets the highest FPU register.
+Improved: func_001E4CE0 99.96 (eps lever), func_0014BC30 99.84, func_001F0720
+99.02, func_001B8AB0 95.37 (one shared zero-return exit); companions
+func_001A4D10 98.85, func_00205240 97.07 (the packet cursor is a 64-bit value
+end to end), func_00133DB0 91.33.

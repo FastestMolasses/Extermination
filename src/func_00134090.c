@@ -1,17 +1,17 @@
-// NEARMISS func_00134090  (vram 0x00134090, 0x270 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.90% via mwcc24 (-O4,p -sdatathreshold 4). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate:
-// jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the old C passed act); fixing that clears the jal-slot residual. Left: 0x700038A4 is written twice and our literal form CSEs it into a register (ori), and symbolizing it (SPAD, array form) scores lower (91.5%); th...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc24
 // CFLAGS: -O4,p -sdatathreshold 4
+// SPAD: 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B0 0x700038B4 0x700038B8 0x700038BC
 
-//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 93.90% NEARMISS).
+// Fixes read from the original instructions:
+//  - The two scratchpad vectors are relocated volatile externs (idiom-32, opted
+//    in with // SPAD:), written field by field as a four-float struct, and the
+//    call receives their addresses. The literal-address form let mwcc share one
+//    address register between the two writes of 0x700038A4.
+//  - The source vector at D_00810360 is read as a volatile four-float struct,
+//    which keeps its four loads ahead of the first scratchpad store and the
+//    270.0f / 1.0f constants next to their own stores, as in the original.
+
 // SEMANTICS: per-frame update for one actor kind (act = actor/controller block,
 // ent = the entity it drives).  It first stages two 16-byte vectors in the EE
 // scratchpad (0x700038A0 and 0x700038B0): 0x700038A0 gets the four floats at
@@ -33,15 +33,13 @@
 //   act[+0x4C] = per-actor callback invoked with the actor itself.
 // D_00275B44 is the global render/actor context passed to func_001DA6A0 last.
 
-extern char D_700038A0[];
-extern char D_700038B0[];
-extern float D_00810360[2];
-extern float D_00810364[2];
-extern float D_00810368[2];
-extern float D_0081036C[2];
+typedef struct { float x, y, z, w; } Vec4;
+extern volatile Vec4 D_700038A0;
+extern volatile Vec4 D_700038B0;
+extern volatile Vec4 D_00810360;
 extern int D_00275B44;
 
-extern float func_001B15D0(char *, char *);
+extern float func_001B15D0(void *, void *);
 extern void func_00134300(unsigned char *, unsigned char *);
 extern void func_00134500(unsigned char *, unsigned char *);
 extern void func_001348E0(unsigned char *, unsigned char *);
@@ -67,22 +65,22 @@ void func_00134090(unsigned char *act, unsigned char *ent)
     short flag;
     float f0, f1, f2, f3;
 
-    f3 = D_00810360[0];
-    f2 = D_00810364[0];
-    f1 = D_00810368[0];
-    f0 = D_0081036C[0];
+    f3 = D_00810360.x;
+    f2 = D_00810360.y;
+    f1 = D_00810360.z;
+    f0 = D_00810360.w;
 
-    *(volatile int *)0x700038B0 = 0x43AA0000;
-    *(volatile float *)0x700038A0 = f3;
-    *(volatile float *)0x700038A4 = f2;
-    *(volatile float *)0x700038A8 = f1;
-    *(volatile float *)0x700038AC = f0;
-    *(volatile int *)0x700038B4 = 0;
-    *(volatile int *)0x700038A4 = 0;
-    *(volatile int *)0x700038B8 = 0x43870000;
-    *(volatile int *)0x700038BC = 0x3F800000;
+    D_700038B0.x = 340.0f;
+    D_700038A0.x = f3;
+    D_700038A0.y = f2;
+    D_700038A0.z = f1;
+    D_700038A0.w = f0;
+    D_700038B0.y = 0.0f;
+    D_700038A0.y = 0.0f;
+    D_700038B0.z = 270.0f;
+    D_700038B0.w = 1.0f;
 
-    if (func_001B15D0(D_700038A0, D_700038B0) <= 94.0f) {
+    if (func_001B15D0((void *)&D_700038A0, (void *)&D_700038B0) <= 94.0f) {
         *(char *)(ent + 0x5C) = 0;
     } else {
         *(char *)(ent + 0x5C) = 1;

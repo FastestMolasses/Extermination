@@ -1,8 +1,14 @@
 // NEARMISS func_0014BC30  (vram 0x0014BC30, 0x1E8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 87.60% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP even/odd register-coloring permutation + constant-CSE difference (permuter-class). Body and all control flow fully recovered (o233 87.6%). The scratch-fill block (load D_00810350..5C constant table, store object fields arg0+0xB0..0xBC and the const table into the D_700038A0/B0 VU0 scratchpad, ...
+// objdiff 99.84% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-28 (was 87.60%): every scratchpad word is a relocated volatile extern
+// (idiom-32, // SPAD:), the D_00810350.. table is copied straight into 0x700038B0..BC, the two
+// +15.0f height offsets read both words before writing either, and func_001B13F0 / func_001B1560
+// are declared with the float first (as the byte-matched func_0012F6C0 does), which puts the
+// float constant ahead of the address arguments like the original.
+// Remaining differences: the two height additions put the 15.0f register first; the original
+// has it as the second operand (two operand fields, everything else identical). A local for
+// 15.0f fixes the operand order but swaps the FP registers of the constant and the first word.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,10 +16,11 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B0 0x700038B4 0x700038B8 0x700038BC
 
 extern int func_00122BB8(void);
-extern int func_001B13F0(float *a, float *b, float v);
-extern int func_001B1560(char *a, float *b, float v);
+extern int func_001B13F0(float r, volatile void *a, volatile void *b);
+extern int func_001B1560(float angle, char *a, volatile void *b);
 extern int func_0021BE40(char *a, char *b);
 extern char D_008102B0;
 extern float D_00810350;
@@ -21,11 +28,16 @@ extern float D_00810354;
 extern float D_00810358;
 extern float D_0081035C;
 extern unsigned char D_008104E4;
-extern float D_700038A0;
-extern float D_700038B0;
+extern volatile float D_700038A0[];
+extern volatile float D_700038A4[];
+extern volatile float D_700038A8[];
+extern volatile float D_700038AC[];
+extern volatile float D_700038B0[];
+extern volatile float D_700038B4[];
+extern volatile float D_700038B8[];
+extern volatile float D_700038BC[];
 
 int func_0014BC30(char *arg0, char *arg1) {
-    float c0, c1, c2, c3;
 
     if (*(int *)(arg1 + 0x38) == 0) {
         return 0;
@@ -36,29 +48,29 @@ int func_0014BC30(char *arg0, char *arg1) {
     if (func_0021BE40(&D_008102B0, arg0) != 0) {
         return 0;
     }
-    c0 = D_00810350;
-    c1 = D_00810354;
-    c2 = D_00810358;
-    c3 = D_0081035C;
-    *(volatile float *)0x700038A0 = *(float *)(arg0 + 0xB0);
-    *(volatile float *)0x700038A4 = *(float *)(arg0 + 0xB4);
-    *(volatile float *)0x700038A8 = *(float *)(arg0 + 0xB8);
-    *(volatile float *)0x700038AC = *(float *)(arg0 + 0xBC);
-    *(volatile float *)0x700038B0 = c0;
-    *(volatile float *)0x700038B4 = c1;
-    *(volatile float *)0x700038B8 = c2;
-    *(volatile float *)0x700038BC = c3;
-    *(float *)0x700038A4 = *(float *)0x700038A4 + 15.0f;
-    *(float *)0x700038B4 = *(float *)0x700038B4 + 15.0f;
+    D_700038A0[0] = *(float *)(arg0 + 0xB0);
+    D_700038A4[0] = *(float *)(arg0 + 0xB4);
+    D_700038A8[0] = *(float *)(arg0 + 0xB8);
+    D_700038AC[0] = *(float *)(arg0 + 0xBC);
+    D_700038B0[0] = D_00810350;
+    D_700038B4[0] = D_00810354;
+    D_700038B8[0] = D_00810358;
+    D_700038BC[0] = D_0081035C;
+    {
+        float y0 = D_700038A4[0] + 15.0f;
+        float y1 = D_700038B4[0] + 15.0f;
+        D_700038A4[0] = y0;
+        D_700038B4[0] = y1;
+    }
     if (D_008104E4 != 1) {
-        if (func_001B13F0(&D_700038B0, &D_700038A0, 30.0f) != 0) {
+        if (func_001B13F0(30.0f, D_700038B0, D_700038A0) != 0) {
             return 0;
         }
     }
-    if (func_001B13F0(&D_700038B0, &D_700038A0, 100.0f) == 0) {
+    if (func_001B13F0(100.0f, D_700038B0, D_700038A0) == 0) {
         return 0;
     }
-    if (func_001B1560(arg0, &D_700038B0, 0.3926991f) == 0) {
+    if (func_001B1560(0.3926991f, arg0, D_700038B0) == 0) {
         return 0;
     }
     *(char *)(arg0 + 5) = 6;

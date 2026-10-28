@@ -1,15 +1,18 @@
-// NEARMISS func_001486E0  (vram 0x001486E0, 0x458 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.33% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Full 4-state logic/structure recovered. Matching wave 2026-10-27 fixes: func_001B3C30 declared with its real pointer parameters (no int casts; restores the argument setup order), and the spad copy block uses the twin's separately declared t0..t3 with volatile reads (f3..f0 load-all-then-store-all). Remaining differences: (1) the 0.8f/1.0f scale constants: the target materialises 0.8f into v0 after the first copy load and 1.0f only just before its store, ours hoists both (v1/v0); (2) in the D_0081070A == 0 arm the target sets up 15.0f (f13) before 200.0f (f12), speculating its constant into the branch delay slot (same residual as func_0013A3B0).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x700036D0 0x700036D4 0x700036D8 0x700036DC 0x700038A0 0x700038A4 0x700038A8 0x700038AC 0x700038B0 0x700038B4 0x700038B8 0x700038BC
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 98.33% NEARMISS).
+// Fixes read from the original instructions:
+//  - Every scratchpad word is a relocated volatile extern (idiom-32, opted in
+//    with // SPAD:), one extern per address; 0x700038A0/B0 are float arrays
+//    whose element 0 is the base word. This fixed the placement of the
+//    0.8f/1.0f scale constants.
+//  - In the first timer's D_0081070A == 0 arm the 15.0f reach is an int
+//    converted to float (idiom-24), which sets it up before 200.0f as the
+//    original does; the second timer's arm keeps the plain constant.
+//  - func_001B3C30 takes its real pointer parameters; the scratchpad copy
+//    block uses separately declared t0..t3 temporaries.
 
 // Per-state animation/clip driver for entity arg0 (state byte at arg0+6), companion object
 // arg1. State 0: advance the state, set arg1+0x88=1, zero arg1+0x50/0x4C, kick clip 0xD via
@@ -33,8 +36,18 @@ extern void func_001B3C30(char *arg0, void *arg1, void *arg2, float fparg0, floa
 extern void func_001FBD50(char *p, int a, int b, float f);
 extern unsigned char D_0081070A;
 extern char D_700036A0[];
-extern char D_700038A0[];
-extern char D_700038B0[];
+extern volatile float D_700038A0[];
+extern volatile float D_700038B0[];
+extern volatile float D_700036D0;
+extern volatile float D_700036D4;
+extern volatile float D_700036D8;
+extern volatile float D_700036DC;
+extern volatile float D_700038A4;
+extern volatile float D_700038A8;
+extern volatile float D_700038AC;
+extern volatile float D_700038B4;
+extern volatile float D_700038B8;
+extern volatile float D_700038BC;
 
 void func_001486E0(char *arg0, char *arg1) {
     unsigned char st;
@@ -76,30 +89,32 @@ void func_001486E0(char *arg0, char *arg1) {
         } else {
             *(int *)(arg1 + 0x28) = 0xA;
             copy_qw4(D_700036A0, *(char **)(arg0 + 0x17C) + 0x90);
-            *(float *)0x700038A0 = 11.0f;
-            *(int *)0x700038A4 = 0;
-            *(int *)0x700038A8 = 0;
-            *(float *)0x700038AC = 1.0f;
+            D_700038A0[0] = 11.0f;
+            D_700038A4 = 0.0f;
+            D_700038A8 = 0.0f;
+            D_700038AC = 1.0f;
             func_001026A0(D_700038A0, D_700036A0, D_700038A0);
             {
                 float t0, t1, t2, t3;
-                t3 = *(volatile float *)0x700038A0;
-                t2 = *(volatile float *)0x700038A4;
-                t1 = *(volatile float *)0x700038A8;
-                t0 = *(volatile float *)0x700038AC;
-                *(float *)0x700036D0 = t3;
-                *(float *)0x700036D4 = t2;
-                *(float *)0x700036D8 = t1;
-                *(float *)0x700036DC = t0;
+                t3 = D_700038A0[0];
+                t2 = D_700038A4;
+                t1 = D_700038A8;
+                t0 = D_700038AC;
+                D_700036D0 = t3;
+                D_700036D4 = t2;
+                D_700036D8 = t1;
+                D_700036DC = t0;
             }
-            *(float *)0x700038B0 = 0.8f;
-            *(float *)0x700038B4 = 0.8f;
-            *(float *)0x700038B8 = 0.8f;
-            *(float *)0x700038BC = 1.0f;
+            D_700038B0[0] = 0.8f;
+            D_700038B4 = 0.8f;
+            D_700038B8 = 0.8f;
+            D_700038BC = 1.0f;
             if (D_0081070A != 0) {
                 func_001B3C30(arg0, D_700036A0, D_700038B0, 200.0f, 20.0f);
             } else {
-                func_001B3C30(arg0, D_700036A0, D_700038B0, 200.0f, 15.0f);
+                int k_i = 15;
+                float k = (float)k_i;
+                func_001B3C30(arg0, D_700036A0, D_700038B0, 200.0f, k);
             }
             func_001FBD50(arg0, 0x7E5, 0, 300.0f);
         }
@@ -110,26 +125,26 @@ void func_001486E0(char *arg0, char *arg1) {
         }
         *(int *)(arg1 + 0x2C) = 0xA;
         copy_qw4(D_700036A0, *(char **)(arg0 + 0x180) + 0x90);
-        *(float *)0x700038A0 = 8.0f;
-        *(int *)0x700038A4 = 0;
-        *(int *)0x700038A8 = 0;
-        *(float *)0x700038AC = 1.0f;
+        D_700038A0[0] = 8.0f;
+        D_700038A4 = 0.0f;
+        D_700038A8 = 0.0f;
+        D_700038AC = 1.0f;
         func_001026A0(D_700038A0, D_700036A0, D_700038A0);
         {
             float t0, t1, t2, t3;
-            t3 = *(volatile float *)0x700038A0;
-            t2 = *(volatile float *)0x700038A4;
-            t1 = *(volatile float *)0x700038A8;
-            t0 = *(volatile float *)0x700038AC;
-            *(float *)0x700036D0 = t3;
-            *(float *)0x700036D4 = t2;
-            *(float *)0x700036D8 = t1;
-            *(float *)0x700036DC = t0;
+            t3 = D_700038A0[0];
+            t2 = D_700038A4;
+            t1 = D_700038A8;
+            t0 = D_700038AC;
+            D_700036D0 = t3;
+            D_700036D4 = t2;
+            D_700036D8 = t1;
+            D_700036DC = t0;
         }
-        *(float *)0x700038B0 = 0.8f;
-        *(float *)0x700038B4 = 0.8f;
-        *(float *)0x700038B8 = 0.8f;
-        *(float *)0x700038BC = 1.0f;
+        D_700038B0[0] = 0.8f;
+        D_700038B4 = 0.8f;
+        D_700038B8 = 0.8f;
+        D_700038BC = 1.0f;
         if (D_0081070A != 0) {
             func_001B3C30(arg0, D_700036A0, D_700038B0, 200.0f, 20.0f);
         } else {

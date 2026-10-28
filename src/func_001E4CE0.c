@@ -1,15 +1,17 @@
 // NEARMISS func_001E4CE0  (vram 0x001E4CE0, 0x910 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 83.90%; matching wave 2026-10-27).
+// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 83.90%, then 98.59%).
 // Fixes read from the original: func_001CD2B0 takes four floats (no variant argument); the
 // area check reads D_00810700/1 as non-gp arrays; the variant-6/7 test, the area test and the
 // a[0] choice are switches; the state cases end in break; limit is set after the last
 // scratchpad store; the jitter is staged in a float local (cvt, /=, +=) before the seed step;
 // the actor arrives as an int and is cast into a local (gives the original's saved registers);
-// 0x70003A30 is the relocated scratchpad extern D_70003A30 (idiom-32).
-// Remaining differences: one scheduling choice - the third func_001CFB50 call materialises
-// its 1.0f/1e-6 constants in a different order (~8 rows of 580; idiom-24 int-to-float
-// locals and further SPAD externs for 0x70003A20..34 did not help).
+// 0x70003A30 is the relocated scratchpad extern D_70003A30 (idiom-32). Matching wave 2026-10-28:
+// the third func_001CFB50 call's 1e-6 is `eps = 1.0f / (float)eps_i` with eps_i = 1000000
+// (as in func_001EC470), which gives the original's constant order.
+// Remaining differences: two loads before that third call are swapped: the original loads
+// sub->age before the fade value at 0x70003A2C, mwcc loads the fade first. An age local (at
+// several positions), a fade local, an int-staged 1.0f, and -sdatathreshold 0 did not help.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -114,6 +116,10 @@ void func_001E4CE0(int arg0) {
     float len;
     float scale;
     float jit;
+    int unit_i;
+    float unit;
+    int eps_i;
+    float eps;
 
     a = (unsigned char *)arg0;
     sub = (Burst *)(a + 0x1F0);
@@ -316,11 +322,13 @@ void func_001E4CE0(int arg0) {
             func_001CFB50(desc, 0, a + 0xD0, age, jit,
                           1.0f, 0.000001f, *(volatile float *)0x70003A2C);
             func_001CFBE0(handle, pass, set, desc, 1);
+            eps_i = 1000000;
+            eps = 1.0f / (float)eps_i;
             jit = (float)((seed >> 16) & 0xFFFF);
             jit /= 65535.0f;
             jit += 0.0001f;
             func_001CFB50(desc, 0, a + 0xD0, sub->age, jit,
-                          1.0f, 0.000001f, *(volatile float *)0x70003A2C);
+                          1.0f, eps, *(volatile float *)0x70003A2C);
             func_001CFBE0(handle, pass, set + 0x90, desc, 0);
         }
         step = sub->step;
