@@ -52,7 +52,7 @@ that is a different, stale tree.
   level smoke `EM_STARTUP_TEST=newgame-level` + `tools/test_level_smoke.py`. Its phases
   are checked against the route captures.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
-  Latest (2026-10-28, end of the matching wave plus the VU0 class, queue batch 47): 2769/2771
+  Latest (2026-10-28, end of the matching wave plus the VU0 class, queue batch 48): 2773/2775
   units, matched_code 99.97%; boot ELF byte-identical; 19/19 overlays;
   audit_link_provenance clean (2309 ordinary-C routes). The wave byte-matched
   498 NEARMISS functions and replaced 51 asm bodies by C; per-batch levers are in
@@ -62,14 +62,11 @@ that is a different, stale tree.
   unchanged; a few kept for matching are commented in place).
   What is left (185 NEARMISS in src/, 53 companions in src/readable/):
   - VU0 class (user approval 2026-10-28: inline VU0 macro asm, one instruction
-    per asm statement, MATCHING_GUIDE "Queue batch 45"-"Queue batch 47"): 26
-    matched (14 libvu0 helpers, 12 game functions); about 30 near-misses now at
-    67-99.97%. Still blocked by the asm rules, each a user decision: (a) a
-    float handed to VU0 through a fixed GPR (a float-to-GPR move plus a nop
-    before the VU0 transfer; mwcc 2.3.3 drops float asm operands) caps about 12
-    functions (func_001C9610, func_001C9940, func_001CE860, func_001CE300,
-    func_001E0750, func_001E2800, func_001C69A0, func_001CD520, func_001CD940,
-    func_001CDDC0, anim_eval_skeleton, func_001F0A60); (b) EE nop padding after
+    per asm statement, MATCHING_GUIDE "Queue batch 45"-"Queue batch 48"): 30
+    matched (14 libvu0 helpers, 16 game functions); about 30 near-misses now at
+    67-99.97%. The float-to-GPR move before a VU0 transfer is approved too
+    (batch 48: 4 more matched, 8 more at 95-99.96%). Still blocked by the
+    asm rules, each a user decision: (b) EE nop padding after
     clip-flag reads (func_001D5370, func_001D5C80); (c) a multi-instruction VU0
     asm statement (func_001CAAC0, func_001F15F0 reach 100 with the 14-
     instruction projection as one statement; rule [c] of the leak guard rejects

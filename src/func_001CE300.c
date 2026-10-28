@@ -1,11 +1,13 @@
 // NEARMISS func_001CE300  (vram 0x001CE300, 0x358 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 94.43% via mwcc 2.3.3 (mwcps2-2.3.3-000906); matching wave 2026-10-28 (inline VU0 asm,
-// user-approved 2026-10-28 for the VU0 class). Remaining differences:
-// (1) the original hands 1.0f to VU0 from the FPU register that also divides 1 / w
-// (a float-to-integer move plus a hazard nop, not VU0 instructions); this C passes the
-// bits of 1.0f in an integer local (as the twin func_001CE860). (2) Colouring in the
-// triangle-staging loop: the original reuses s4/s5 for the field pointers. Was 0.00%.
+// objdiff 95.32% via mwcc 2.3.3 (mwcps2-2.3.3-000906); matching wave 2026-10-28 (inline VU0 asm,
+// user-approved 2026-10-28 for the VU0 class, incl. the float-to-GPR move before a VU0
+// transfer). Was 0.00%, 94.43% before the float-move round.
+// Fix: 1.0f reaches VU0 from the FPU register that also divides 1 / w (a float-to-GPR
+// move into t0; mwcc adds the hazard nop).
+// Remaining differences: colouring in the triangle-staging loop (the original reuses
+// s4 for the staging pointer and the s/t field pointers, ours keeps those in t7) and
+// in the vertex loop (the original keeps the vertex pointer in v0, the source in a2).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -77,7 +79,6 @@ void func_001CE300(int tag, const Vec4 *quad, u64 tex0, u32 rgba)
         const ClipVtx *src;
         const Vec4 *cam;
         float  one;
-        int    onebits;
         Vec4  *c;
         int    count, qwc;
 
@@ -125,7 +126,6 @@ void func_001CE300(int tag, const Vec4 *quad, u64 tex0, u32 rgba)
         asm("lqc2 vf31, 0x30(%0)" : : "r"(cam));
 
         one = 1.0f;
-        onebits = 0x3F800000;           /* the bits of 1.0f (see the header) */
         src = D_008117C0;
         c = &clip;
         for (k = 0; k < count; k++) {
@@ -141,7 +141,8 @@ void func_001CE300(int tag, const Vec4 *quad, u64 tex0, u32 rgba)
             asm("sqc2 vf2, 0x0(%0)" : : "r"(c) : "memory");
             asm("vwaitq");
             asm("vmulq.xy vf2, vf2, Q");
-            asm("qmtc2.ni %0, vf3" : : "r"(onebits));
+            asm("mfc1 $8, %0" : : "f"(one));
+            asm("qmtc2.ni $8, vf3");
             asm("vsubx.w vf2, vf2, vf3x");
             asm("vdiv Q, vf0w, vf2w");
             asm("vwaitq");

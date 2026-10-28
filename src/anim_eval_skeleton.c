@@ -1,27 +1,19 @@
-// NEARMISS anim_eval_skeleton  (vram 0x001C6DA0, 0x680 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 92.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0), was 11.24%.
-// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
-// Matching wave 2026-10-28 rebuilt it from the original (twin of func_001C69A0):
-// the row scales and the matrix products are VU0 macro code inline (one
-// instruction per asm statement) in static inline helpers whose pointer
-// arguments are copied to locals first; the per-node part is one static inline
-// function expanded twice (bone 0 with R = identity, then the loop).
-// "#pragma inline_depth(8)" lets mwcc expand the helpers inside that inline
-// function (at the default depth the matrix product stays an out-of-line call).
-// Remaining differences: each row-scale factor reaches VU0 through the fixed
-// register t0. The original loads the stored scales straight into t0 and moves
-// the computed rest scales there from the FPU (each followed by a hazard nop);
-// mwcc 2.3.3 drops a float asm operand, so the stored scales go through an
-// integer reinterpretation (another register, no nop) and the computed ones
-// through a stack union (frame 0x50, not 0x40).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 92.91% NEARMISS).
+// Fixes read from the original instructions:
+// - The row-scale helper takes the scale as a float and moves it into t0 with
+//   an asm float-to-GPR move before the VU0 scalar transfer, replacing the
+//   integer reinterpretation / stack union. For a scale stored in memory mwcc
+//   turns that move into a direct integer load into t0, as in the original;
+//   the stack frame shrinks to the original's size.
+// - Keeps the user-confirmed #pragma inline_depth(8).
+// - inline VU0 asm (user-approved 2026-10-28 for the VU0 class, incl. the
+//   float-to-GPR move before a VU0 transfer): VU0 macro instructions and the
+//   float-to-GPR move are one instruction per asm statement; everything else
+//   is C. No explicit nop is written: mwcc inserts the hazard nop after the
+//   move itself.
 //
 // Evaluates an actor's skeleton into world matrices (port: em_pose_host_
 // 001C6DA0, ANIM_RUNTIME_REST.md). The root matrix +0xD0 is built from the
@@ -79,13 +71,14 @@ extern Vec4 D_70003400[4];   /* channel rotation R */
 extern Vec4 D_70003440[4];   /* local basis L */
 extern float D_70003600[4];  /* blended quaternion */
 
-static inline void vu0_scale_xyz(Vec4 *dst, Vec4 *src, int s)
+static inline void vu0_scale_xyz(Vec4 *dst, Vec4 *src, float s)
 {
     Vec4 *d = dst;
     Vec4 *a = src;
 
     asm("lqc2 vf4, 0x0(%0)" : : "r"(a));
-    asm("qmtc2.ni %0, vf5" : : "r"(s));
+    asm("mfc1 $8, %0" : : "f"(s));
+    asm("qmtc2.ni $8, vf5");
     asm("vmulx.xyz vf4, vf4, vf5x");
     asm("sqc2 vf4, 0x0(%0)" : : "r"(d) : "memory");
 }
@@ -148,13 +141,10 @@ static inline void vu0_scale_matrix(Vec4 *dst, Vec4 *src, Vec4 *v)
     asm("sqc2 vf7, 0x30(%0)" : : "r"(d) : "memory");
 }
 
-typedef union { float f; int i; } FBits;
-
 /* L = rest basis of the node, then L = R x L, then node world = parent x L */
 static inline void node_world(Actor *a, Bone *node)
 {
     float k;
-    FBits s;
 
     func_001029C0(D_70003440);
     func_00102C58(D_70003440, D_70003440, node->rest_rot);
@@ -163,12 +153,9 @@ static inline void node_world(Actor *a, Bone *node)
     D_70003440[3].z = node->rest_trans[2];
 
     k = 1.0f / 4096.0f;
-    s.f = k * (float)node->rest_scale[0];
-    vu0_scale_xyz(&D_70003440[0], &D_70003440[0], s.i);
-    s.f = k * (float)node->rest_scale[1];
-    vu0_scale_xyz(&D_70003440[1], &D_70003440[1], s.i);
-    s.f = k * (float)node->rest_scale[2];
-    vu0_scale_xyz(&D_70003440[2], &D_70003440[2], s.i);
+    vu0_scale_xyz(&D_70003440[0], &D_70003440[0], k * (float)node->rest_scale[0]);
+    vu0_scale_xyz(&D_70003440[1], &D_70003440[1], k * (float)node->rest_scale[1]);
+    vu0_scale_xyz(&D_70003440[2], &D_70003440[2], k * (float)node->rest_scale[2]);
 
     vu0_mul_matrix(D_70003440, D_70003400, D_70003440);
 
@@ -193,9 +180,9 @@ void anim_eval_skeleton(Actor *a)
         node = a->bone[b];
         quat_nlerp(D_70003600, node->qa, node->qb, node->t);
         quat_to_mat3((float *)D_70003400, D_70003600, node);
-        vu0_scale_xyz(&D_70003400[0], &D_70003400[0], *(int *)&node->scale[0]);
-        vu0_scale_xyz(&D_70003400[1], &D_70003400[1], *(int *)&node->scale[1]);
-        vu0_scale_xyz(&D_70003400[2], &D_70003400[2], *(int *)&node->scale[2]);
+        vu0_scale_xyz(&D_70003400[0], &D_70003400[0], node->scale[0]);
+        vu0_scale_xyz(&D_70003400[1], &D_70003400[1], node->scale[1]);
+        vu0_scale_xyz(&D_70003400[2], &D_70003400[2], node->scale[2]);
         node_world(a, node);
     }
 }

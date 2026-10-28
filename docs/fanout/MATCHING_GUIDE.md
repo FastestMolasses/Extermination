@@ -86,7 +86,13 @@ The user approved all five items above. Results:
    for non-VU0 instructions (di / ei / sync / MMI stay excluded), comments
    describe the VU0 work in prose. SDK libvu0 helpers (0x001026A0..0x00103230)
    follow the SDK's own libvu0.c shape (C functions whose bodies are inline
-   VU0 asm blocks).
+   VU0 asm blocks). Extended by the user 2026-10-28 ("approve the
+   float-to-GPR move (plus its nop) before a VU0 transfer as an inline asm
+   statement"): where the original moves a float into a GPR (mfc1) and pads
+   it with a nop immediately before the qmtc2 / ctc2 that hands it to VU0,
+   that move and that nop may each be their own asm statement. Nothing else
+   outside VU0 macro code is approved (general nop padding, di / ei / sync,
+   MMI and multi-instruction statements stay excluded).
 5. **Symbol split: done.** `config/symbol_addrs.txt` names the VBLANK handler
    at 0x1AB140 `func_001AB140`; its existing CodeWarrior `asm` body moved
    unchanged to `src/func_001AB140.c`, and gs_readback_queue_run (the code was
@@ -999,3 +1005,25 @@ The common wall: the original hands a float to VU0 through a fixed GPR
 operands and CodeWarrior asm blocks reject float variables, so the C passes the
 bits through a stack union (bigger frame, other registers). func_001CF970 stays
 an asm body (MMI, absolute jump).
+
+
+### Queue batch 48 (2026-10-28): VU0 class, the float-to-GPR move
+
+User decision: the float-to-GPR move (and its nop) before a VU0 transfer may
+be an asm statement. Working spelling under mwcc 2.3.3:
+`asm("mfc1 $8, %0" : : "f"(x));` followed by the one-instruction qmtc2
+statement. mwcc accepts the "f" operand, inserts the hazard nop itself (an
+explicit asm nop doubles it, so none of the files has one), and turns the
+move into a direct load into t0 when the float is still in memory — exactly
+the original. Pass the float as a `float` (a parameter or local), never an
+int pun or a stack union; the frame then shrinks to the original size.
+4 byte-matched: func_001C69A0, anim_eval_skeleton (keeps
+`#pragma inline_depth(8)`), func_001C9610, func_001C9940 (the last two also
+use func_001C69A0's helpers, which copy pointer arguments to locals
+destination first). Improved: func_001CD520 99.96 (rgba before the three
+floats in its prototype), func_001E0750 99.75, func_001F0A60 99.67 (the two
+corner offsets as one `D_70003400[2][4]` extern), func_001CD940 98.08,
+func_001CE860 97.79, func_001E2800 97.62, func_001CDDC0 95.79,
+func_001CE300 95.32. Residuals: the colour-repack OR operand order
+(func_001CD520 / func_001F0A60), a nop mwcc adds at clamp join labels
+(func_001E2800 / func_001CD940), register colouring.

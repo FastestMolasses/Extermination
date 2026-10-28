@@ -1,7 +1,9 @@
 // NEARMISS func_001F0A60  (vram 0x001F0A60, 0x6AC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 17.97%.
-// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// objdiff 99.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 17.97%
+// (98.69% before the float-move round).
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class, incl. the float-to-GPR
+// move before a VU0 transfer)
 // Matching wave 2026-10-28 rebuilt it from the original:
 //  - the cull (clip flags of camera 0's cull matrix), the projection (raw
 //    vector spilled to the stack, its w kept as the corner depth) and the two
@@ -16,12 +18,13 @@
 //    channel extraction is on the int colour arguments; the first packet
 //    quadword is cleared with one 128-bit store, then its last word set; the
 //    outer vertex's fog word gets bit 15 after the vertex is written.
-// Remaining differences: the depth bias reaches VU0 through the fixed register
-// t0; the original moves it from the FPU (hazard nop after); mwcc 2.3.3 drops a
-// float asm operand, so the bits go through a stack union (frame 0xB0, not
-// 0xA0). Small scheduling differences remain in the first fog-programmer
-// call's constant loads, the corner stores, the half-offset loads, and one
-// OR's operand order in the colour repack.
+//  - the depth bias goes to VU0 as the original does: a float-to-GPR move into
+//    t0 (mwcc adds the hazard nop) and the transfer; no stack union, frame 0xA0.
+//  - the two corner offsets are one scratchpad array [2][4] (as separate
+//    externs mwcc reordered the second corner's stores ahead of the first's w);
+//    the second fog-programmer call takes its bias from a local.
+// Remaining differences: the half-offset products load y before x (registers
+// match), and one OR's operand order in the colour repack (as func_001CD520).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -57,8 +60,7 @@ extern void  func_001CB900(int chain, int id, int mode);
 extern char *D_00275670;            /* per-frame render context */
 extern char  D_0028F700[];          /* render-bucket page tables, stride 0x8000 */
 extern int   D_70003600[4];         /* projected centre: x, y, z (12.4), fog */
-extern Word  D_70003400[4];         /* corner offset 0 */
-extern Word  D_70003410[4];         /* corner offset 1 */
+extern Word  D_70003400[2][4];      /* the two corner offsets */
 extern Vec4  D_70003440[4];         /* rotation about z */
 extern Vec4  D_70003A40[4];         /* screen-scale matrix */
 extern Vec4  D_70003AC0[4];         /* camera P*V */
@@ -135,7 +137,6 @@ void func_001F0A60(int chain_no, int mode, Vec4 *pos, int inner, int outer,
     Vec4 *raw_p;
     Word off[2][4];
     Vec4 raw;
-    Word b;
     float keep_w;
     int clip;
     int k;
@@ -164,7 +165,10 @@ void func_001F0A60(int chain_no, int mode, Vec4 *pos, int inner, int outer,
     }
 
     func_0021B9A0(2, 1.0f, 150.0f);
-    func_0021B9A0(3, 1.0f, 150.0f);
+    {
+        float bias = 150.0f;
+        func_0021B9A0(3, 1.0f, bias);
+    }
 
     /* project: camera matrix, divide x, y by w, bias w by depth, divide z
        by the biased w, fog ramp on w, convert to 12.4 */
@@ -186,8 +190,8 @@ void func_001F0A60(int chain_no, int mode, Vec4 *pos, int inner, int outer,
     asm("sqc2 vf2, 0x0(%0)" : : "r"(raw_p) : "memory");
     asm("vwaitq");
     asm("vmulq.xy vf2, vf2, Q");
-    b.f = depth;
-    asm("qmtc2.ni %0, vf3" : : "r"(b.i));
+    asm("mfc1 $8, %0" : : "f"(depth));
+    asm("qmtc2.ni $8, vf3");
     asm("vsubx.w vf2, vf2, vf3x");
     asm("vdiv Q, vf0w, vf2w");
     asm("vwaitq");
@@ -200,27 +204,27 @@ void func_001F0A60(int chain_no, int mode, Vec4 *pos, int inner, int outer,
     asm("sqc2 vf2, 0x0(%0)" : : "r"(out) : "memory");
 
     /* the two corner offsets (size, 0) and (0, size), rotated by angle about z */
-    D_70003400[0].f = size;
-    D_70003400[1].f = 0.0f;
-    D_70003400[2].f = 0.0f;
-    D_70003400[3].f = 1.0f;
-    D_70003410[0].f = 0.0f;
-    D_70003410[1].f = size;
-    D_70003410[2].f = 0.0f;
-    D_70003410[3].f = 1.0f;
+    D_70003400[0][0].f = size;
+    D_70003400[0][1].f = 0.0f;
+    D_70003400[0][2].f = 0.0f;
+    D_70003400[0][3].f = 1.0f;
+    D_70003400[1][0].f = 0.0f;
+    D_70003400[1][1].f = size;
+    D_70003400[1][2].f = 0.0f;
+    D_70003400[1][3].f = 1.0f;
     keep_w = raw.w;
     func_001029C0(D_70003440);
     func_00102A60(D_70003440, D_70003440, angle);
-    func_001026A0(D_70003400, D_70003440, D_70003400);
-    func_001026A0(D_70003410, D_70003440, D_70003410);
+    func_001026A0(D_70003400[0], D_70003440, D_70003400[0]);
+    func_001026A0(D_70003400[1], D_70003440, D_70003400[1]);
 
     /* half offsets projected at the point's depth: 12.4 screen offsets */
-    off[0][0].f = 0.5f * D_70003400[0].f;
-    off[0][1].f = 0.5f * D_70003400[1].f;
+    off[0][0].f = 0.5f * D_70003400[0][0].f;
+    off[0][1].f = 0.5f * D_70003400[0][1].f;
     off[0][2].f = keep_w;
     vu0_project_extent(off[0]);
-    off[1][0].f = 0.5f * D_70003410[0].f;
-    off[1][1].f = 0.5f * D_70003410[1].f;
+    off[1][0].f = 0.5f * D_70003400[1][0].f;
+    off[1][1].f = 0.5f * D_70003400[1][1].f;
     off[1][2].f = keep_w;
     vu0_project_extent(off[1]);
 

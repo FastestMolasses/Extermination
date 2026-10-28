@@ -902,6 +902,14 @@
       }
     },
     {
+      "name": "anim_eval_skeleton",
+      "target_path": "build/expected/anim_eval_skeleton.o",
+      "base_path": "build/obj/anim_eval_skeleton.o",
+      "metadata": {
+        "source_path": "src/anim_eval_skeleton.c"
+      }
+    },
+    {
       "name": "anim_frame_top_a",
       "target_path": "build/expected/anim_frame_top_a.o",
       "base_path": "build/obj/anim_frame_top_a.o",
@@ -14814,6 +14822,14 @@
       }
     },
     {
+      "name": "func_001C69A0",
+      "target_path": "build/expected/func_001C69A0.o",
+      "base_path": "build/obj/func_001C69A0.o",
+      "metadata": {
+        "source_path": "src/func_001C69A0.c"
+      }
+    },
+    {
       "name": "func_001C7C00",
       "target_path": "build/expected/func_001C7C00.o",
       "base_path": "build/obj/func_001C7C00.o",
@@ -14907,6 +14923,22 @@
       "base_path": "build/obj/func_001C9570.o",
       "metadata": {
         "source_path": "src/func_001C9570.c"
+      }
+    },
+    {
+      "name": "func_001C9610",
+      "target_path": "build/expected/func_001C9610.o",
+      "base_path": "build/obj/func_001C9610.o",
+      "metadata": {
+        "source_path": "src/func_001C9610.c"
+      }
+    },
+    {
+      "name": "func_001C9940",
+      "target_path": "build/expected/func_001C9940.o",
+      "base_path": "build/obj/func_001C9940.o",
+      "metadata": {
+        "source_path": "src/func_001C9940.c"
       }
     },
     {

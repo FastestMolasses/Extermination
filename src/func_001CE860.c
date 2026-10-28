@@ -1,15 +1,21 @@
 // NEARMISS func_001CE860  (vram 0x001CE860, 0x678 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 90.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (was 27.43%; matching wave 2026-10-28).
-// Remaining differences: the original moves the constant 3.0f into VU0 through a float
-// register and a float-to-integer move (not a VU0 instruction); this candidate hands the
-// bit pattern of 3.0f in an integer register (2 instructions short), plus saved-register
-// colouring of the parameters (the original spills chain_no and mode to the stack and keeps
-// the key in fp).
-// Inline VU0 asm (user-approved 2026-10-28 for the VU0 class), one instruction per statement.
+// objdiff 97.79% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (was 90.67%; matching wave 2026-10-28).
+// Remaining differences: the store of the width scale to the scratchpad word 0x7000368C
+// is followed in the original by a float register copy before the two multiplies (a
+// second variable holding the same value); one join of the "i != 0" block carries a
+// label nop the candidate lacks; the 64-bit tex word is stored one slot earlier; and the
+// second projection's address bases (screen slot, point, raw temp) are coloured
+// differently.
+// Inline VU0 asm (user-approved 2026-10-28 for the VU0 class, incl. the float-to-GPR
+// move before a VU0 transfer), one instruction per statement; mwcc inserts the hazard
+// nop after the move itself (no explicit nop is written).
 // Fixes found: the clip test, the camera projection (xy / w, w - 3, z / (w - 3), fog clamp,
-// 12.4 conversion) are inline VU0 code; the screen matrix copy is one 64-byte struct copy;
-// the normal scratch at 0x70003630 is a float / int union.
+// 12.4 conversion) are inline VU0 code; 3.0f is a float moved to t0 for the VU0 transfer;
+// the screen matrix copy is four 128-bit row copies through pointers (source declared
+// first); the normal scratch at 0x70003630 is a float / int union; the width-scale word
+// 0x7000368C is an unsized extern (not gp-relative); the packet record cursor starts at
+// the packet and then steps past the header; the clip test reads the point directly.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -39,7 +45,7 @@ typedef struct { Vec4 r[4]; } Mtx;
 extern Mtx D_70003A40;
 extern Mtx D_70003400;
 extern union { float f[4]; int i[4]; } D_70003630;
-extern float D_7000368C;
+extern float D_7000368C[];
 
 void func_001CE860(int chain_no, int mode, Vec4 *points, float *colour, int n,
                    unsigned long long tex, float width)
@@ -61,9 +67,11 @@ void func_001CE860(int chain_no, int mode, Vec4 *points, float *colour, int n,
     Vec4 *rp;
     float t;
     float k;
-    int three;
+    float three;
     int flags;
     char *pkt;
+    u128 *src;
+    u128 *dst;
 
     m = func_001CD370(0);
     asm("lqc2 vf24, 0x0(%0)" : : "r"(m));
@@ -80,7 +88,12 @@ void func_001CE860(int chain_no, int mode, Vec4 *points, float *colour, int n,
     asm("lqc2 vf29, 0x10(%0)" : : "r"(m));
     asm("lqc2 vf30, 0x20(%0)" : : "r"(m));
     asm("lqc2 vf31, 0x30(%0)" : : "r"(m));
-    D_70003400 = D_70003A40;
+    dst = (u128 *)&D_70003400;
+    src = (u128 *)&D_70003A40;
+    dst[0] = src[0];
+    dst[1] = src[1];
+    dst[2] = src[2];
+    dst[3] = src[3];
     D_70003400.r[3].x = 0.0f;
     D_70003400.r[3].y = 0.0f;
     D_70003400.r[3].z = 0.0f;
@@ -96,11 +109,11 @@ void func_001CE860(int chain_no, int mode, Vec4 *points, float *colour, int n,
     ((unsigned long long *)pkt)[5] = 6;
     ((unsigned long long *)pkt)[6] = (long long)n | 0x502E400000008000ULL;
     ((unsigned long long *)pkt)[7] = 0x42421;
-    rec = pkt + 0x40;
+    rec = pkt;
+    rec += 0x40;
 
     for (i = 0; i < n; i++) {
-        p = &points[i];
-        asm("lqc2 vf1, 0x0(%0)" : : "r"(p));
+        asm("lqc2 vf1, 0x0(%0)" : : "r"(&points[i]));
         asm("vmulax.xyzw ACC, vf24, vf1x");
         asm("vmadday.xyzw ACC, vf25, vf1y");
         asm("vmaddaz.xyzw ACC, vf26, vf1z");
@@ -120,18 +133,18 @@ void func_001CE860(int chain_no, int mode, Vec4 *points, float *colour, int n,
 
         sp = &scr[side];
         p = &points[i];
-        three = 0x40400000;     /* the bits of 3.0f */
-        rp = &raw;
+        three = 3.0f;
         asm("lqc2 vf1, 0x0(%0)" : : "r"(p));
         asm("vmulax.xyzw ACC, vf28, vf1x");
         asm("vmadday.xyzw ACC, vf29, vf1y");
         asm("vmaddaz.xyzw ACC, vf30, vf1z");
         asm("vmaddw.xyzw vf2, vf31, vf0w");
         asm("vdiv Q, vf0w, vf2w");
-        asm("sqc2 vf2, 0x0(%0)" : : "r"(rp));
+        asm("sqc2 vf2, 0x0(%0)" : : "r"(&raw));
         asm("vwaitq");
         asm("vmulq.xy vf2, vf2, Q");
-        asm("qmtc2.ni %0, vf3" : : "r"(three));
+        asm("mfc1 $8, %0" : : "f"(three) : "$8");
+        asm("qmtc2.ni $8, vf3");
         asm("vsubx.w vf2, vf2, vf3x");
         asm("vdiv Q, vf0w, vf2w");
         asm("vwaitq");
@@ -168,7 +181,7 @@ void func_001CE860(int chain_no, int mode, Vec4 *points, float *colour, int n,
             D_70003630.f[0] = -((float)scr[side].y - (float)scr[1 - side].y);
             k = width * (1.0f / func_0011E748(D_70003630.f[0] * D_70003630.f[0]
                                                + D_70003630.f[1] * D_70003630.f[1]));
-            D_7000368C = k;
+            D_7000368C[0] = k;
             D_70003630.f[0] *= k;
             D_70003630.f[1] *= k;
             D_70003630.f[2] = inv_w[side];

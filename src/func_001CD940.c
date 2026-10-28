@@ -1,25 +1,31 @@
 // NEARMISS func_001CD940  (vram 0x001CD940, 0x480 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 94.03% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 22.80%.
-// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// objdiff 98.08% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 94.03%.
+// Inline VU0 asm (user-approved 2026-10-28 for the VU0 class, incl. the float-to-GPR
+// move before a VU0 transfer), one instruction per statement; mwcc inserts the hazard
+// nop after the move itself (no explicit nop is written).
 // Matching wave 2026-10-28 rebuilt it from the original: it is func_001E2800's
 // line drawer (same projection, fade and packet code, its own display list
 // constants) preceded by a VU0 clip test of both endpoints against camera 0's
 // cull matrix and the loading of the fog ramp and camera matrix, all as VU0
 // macro code inline (one instruction per asm statement). -sdatathreshold 4
-// (gp-relative render context); per-quad scratchpad externs; 128-bit colour
-// copies; the fade's mode test is a switch.
+// (gp-relative render context); the display list and the line GIF state block
+// are unsized arrays (not gp-relative); per-quad scratchpad externs, the fade
+// words their own externs (// SPAD:); 128-bit colour copies; the fade's mode
+// test is a switch. The w bias 1.0f is a float local of the projection moved
+// to t0 before each VU0 transfer (no stack union; frame back to 0x80).
 //  - FIDELITY: func_001CB6B0 gets a plain 32-bit address (the old C zero-extended it).
-// Remaining differences: the w bias (1.0f) reaches VU0 through the fixed
-// register t0; the original moves it from the FPU (hazard nop after); mwcc
-// 2.3.3 drops a float asm operand, so the bits go through a stack union
-// (frame 0x90, not 0x80) with the register colouring that follows.
+// Remaining differences: mwcc pads the label after each fade clamp's 0xFF store
+// with a nop the original lacks (shifting the later branch targets), and the
+// two colour copies and the final packet copies colour their address registers
+// differently (as func_001E2800).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
 // COMPILER: mwcc233
+// SPAD: 0x7000360C 0x7000361C
 // CFLAGS: -O4,p -sdatathreshold 4
 //
 // Draws a gouraud line between two points when both pass camera 0's view
@@ -35,24 +41,26 @@ extern char *func_001CB5F0(int list, int z, int nqw);
 extern void  func_001CB6B0(int list, int z, int nqw, int ref);
 extern void  func_001CB900(int list, int z, int kind);
 
-extern int D_007635C0;
-extern int D_00251240;
+extern char D_007635C0[];
+extern char D_00251240[];
 extern char *D_00275670;            /* per-frame render context */
 extern Vec4 D_70003AC0[4];          /* camera P*V */
 extern char *func_001CD370(int camera);
 
 /* EE scratchpad staging block for one line. */
 extern int D_70003600[4];   /* endpoint A: x, y, z (12.4), fade */
-extern int D_70003610[4];   /* endpoint B */
+extern int D_70003610[4];
+extern int D_7000360C[];   /* endpoint A's fade word */
+extern int D_7000361C[];   /* endpoint B's fade word */   /* endpoint B */
 extern int D_70003620[4];   /* colour A: R, G, B, A */
 extern int D_70003630[4];   /* colour B */
 
-static inline void vu0_project(int *out, const Vec4 *p, float bias)
+static inline void vu0_project(int *out, const Vec4 *p)
 {
     Vec4 raw;
     int *o = out;
     Vec4 *r = &raw;
-    union { float f; int i; } u;
+    float one = 1.0f;
 
     asm("lqc2 vf1, 0x0(%0)" : : "r"(p));
     asm("vmulax.xyzw ACC, vf28, vf1x");
@@ -63,8 +71,8 @@ static inline void vu0_project(int *out, const Vec4 *p, float bias)
     asm("sqc2 vf2, 0x0(%0)" : : "r"(r) : "memory");
     asm("vwaitq");
     asm("vmulq.xy vf2, vf2, Q");
-    u.f = bias;
-    asm("qmtc2.ni %0, vf3" : : "r"(u.i));
+    asm("mfc1 $8, %0" : : "f"(one) : "$8");
+    asm("qmtc2.ni $8, vf3");
     asm("vsubx.w vf2, vf2, vf3x");
     asm("vdiv Q, vf0w, vf2w");
     asm("vwaitq");
@@ -77,23 +85,23 @@ static inline void vu0_project(int *out, const Vec4 *p, float bias)
     asm("sqc2 vf2, 0x0(%0)" : : "r"(o) : "memory");
 }
 
-#define DEPTH_FADE(mode, pt, col)                          \
+#define DEPTH_FADE(mode, fw, col)                            \
     do {                                                   \
-        pt[3] = pt[3] >> 4;                                \
-        if (pt[3] > 0xFF) pt[3] = 0xFF;                   \
-        if (pt[3] < 0)      pt[3] = 0;                     \
+        fw = fw >> 4;                                \
+        if (fw > 0xFF) fw = 0xFF;                   \
+        if (fw < 0)      fw = 0;                     \
         switch (mode) {                                    \
         case 2:                                            \
         case 3:                                            \
-            col[0] = (col[0] * pt[3]) >> 8;                \
-            col[1] = (col[1] * pt[3]) >> 8;                \
-            col[2] = (col[2] * pt[3]) >> 8;                \
+            col[0] = (col[0] * fw) >> 8;                \
+            col[1] = (col[1] * fw) >> 8;                \
+            col[2] = (col[2] * fw) >> 8;                \
             break;                                         \
         case 1:                                            \
-            col[3] = (col[3] * pt[3]) >> 8;                \
+            col[3] = (col[3] * fw) >> 8;                \
             break;                                         \
         }                                                  \
-        pt[3] = 0xFF0;                                     \
+        fw = 0xFF0;                                     \
     } while (0)
 
 /* Clip p against the matrix rows in VU0 registers 24..27; returns the six
@@ -141,25 +149,25 @@ void func_001CD940(int mode, const Vec4 *pa, const void *ca,
     asm("lqc2 vf30, 0x20(%0)" : : "r"(cam));
     asm("lqc2 vf31, 0x30(%0)" : : "r"(cam));
 
-    vu0_project(D_70003600, pa, 1.0f);
-    vu0_project(D_70003610, pb, 1.0f);
+    vu0_project(D_70003600, pa);
+    vu0_project(D_70003610, pb);
 
     *(u128 *)D_70003620 = *(const u128 *)ca;
     *(u128 *)D_70003630 = *(const u128 *)cb;
 
     if (mode != 0) {
-        DEPTH_FADE(mode, D_70003600, D_70003620);
+        DEPTH_FADE(mode, D_7000360C[0], D_70003620);
     }
     if (mode != 0) {
-        DEPTH_FADE(mode, D_70003610, D_70003630);
+        DEPTH_FADE(mode, D_7000361C[0], D_70003630);
     }
 
-    dst = func_001CB5F0((int)&D_007635C0, D_70003600[2], 4);
+    dst = func_001CB5F0((int)D_007635C0, D_70003600[2], 4);
     ((u128 *)dst)[0] = *(u128 *)D_70003620;
     ((u128 *)dst)[1] = *(u128 *)D_70003600;
     ((u128 *)dst)[2] = *(u128 *)D_70003630;
     ((u128 *)dst)[3] = *(u128 *)D_70003610;
-    func_001CB6B0((int)&D_007635C0, D_70003600[2], 2,
-                  (int)&D_00251240);
-    func_001CB900((int)&D_007635C0, D_70003600[2], mode);
+    func_001CB6B0((int)D_007635C0, D_70003600[2], 2,
+                  (int)D_00251240);
+    func_001CB900((int)D_007635C0, D_70003600[2], mode);
 }

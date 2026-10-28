@@ -1,10 +1,13 @@
 // NEARMISS func_001E0750  (vram 0x001E0750, 0x36C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.32% via mwcc 2.3.3 (mwcps2-2.3.3-000906); matching wave 2026-10-28 (inline VU0 asm,
-// user-approved 2026-10-28 for the VU0 class). Remaining differences:
-// The original hands 0.0f to VU0 from an FPU register (a float-to-integer move plus a
-// hazard nop, not VU0 instructions); this C passes the integer 0, and two argument
-// registers shift with it. Was 13.75% (scalar emulation).
+// objdiff 99.75% via mwcc 2.3.3 (mwcps2-2.3.3-000906); matching wave 2026-10-28 (inline VU0 asm,
+// user-approved 2026-10-28 for the VU0 class, incl. the float-to-GPR move before a VU0
+// transfer). Was 13.75% (scalar emulation), 98.32% before the float-move round.
+// Fixes: the w reduction 0.0f is a float local moved to t0 (mwcc materialises it in
+// an FPU register and adds the hazard nop); the -3.5 screen offset of S is a local.
+// Remaining differences: the 2^-31 constant of the second jitter sits in a2, not a0,
+// and the ST constants' FPU registers (-3.5, 1/8192, -7.5625, 1/4096 load in that
+// order in the original).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -53,7 +56,7 @@ void func_001E0750(const Vec4 *pos, const int *style)
     RenderCtx *ctx;
     char *pkt;
     int   flags;
-    int   zero;
+    float zero;
 
     m = func_001CD370(0);
     asm("lqc2 vf24, 0x0(%0)" : : "r"(m));
@@ -90,7 +93,7 @@ void func_001E0750(const Vec4 *pos, const int *style)
     asm("lqc2 vf29, 0x10(%0)" : : "r"(cam));
     asm("lqc2 vf30, 0x20(%0)" : : "r"(cam));
     asm("lqc2 vf31, 0x30(%0)" : : "r"(cam));
-    zero = 0;                       /* the w reduction (0.0f; see the header) */
+    zero = 0.0f;                    /* the w reduction */
     out = D_70003600;
     c = &clip;
     asm("lqc2 vf1, 0x0(%0)" : : "r"(pos));
@@ -102,7 +105,8 @@ void func_001E0750(const Vec4 *pos, const int *style)
     asm("sqc2 vf2, 0x0(%0)" : : "r"(c) : "memory");
     asm("vwaitq");
     asm("vmulq.xy vf2, vf2, Q");
-    asm("qmtc2.ni %0, vf3" : : "r"(zero));
+    asm("mfc1 $8, %0" : : "f"(zero));
+    asm("qmtc2.ni $8, vf3");
     asm("vsubx.w vf2, vf2, vf3x");
     asm("vdiv Q, vf0w, vf2w");
     asm("vwaitq");
@@ -145,8 +149,14 @@ void func_001E0750(const Vec4 *pos, const int *style)
         *(int *)(vtx + 0x24) = float_to_int((float)D_70003600[1] + scale * corner.f[i * 2 + 1]);
         *(int *)(vtx + 0x28) = D_70003600[2];
         *(int *)(vtx + 0x2C) = 0;
-        *(float *)(vtx + 0x10) = jitter_s + (-3.5f + 0.0001220703125f * (float)*(int *)(vtx + 0x20));
-        *(float *)(vtx + 0x14) = jitter_t + (-7.5625f + 0.000244140625f * (float)*(int *)(vtx + 0x24));
+        {
+            float off_s = -3.5f;
+            *(float *)(vtx + 0x10) = jitter_s + (off_s + 0.0001220703125f * (float)*(int *)(vtx + 0x20));
+        }
+        {
+            float off_t = -7.5625f;
+            *(float *)(vtx + 0x14) = jitter_t + (off_t + 0.000244140625f * (float)*(int *)(vtx + 0x24));
+        }
         *(int *)(vtx + 0x18) = 0x3F800000;
         vtx += 0x30;
     }

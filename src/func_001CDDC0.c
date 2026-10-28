@@ -1,25 +1,26 @@
 // NEARMISS func_001CDDC0  (vram 0x001CDDC0, 0x540 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 94.70% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 0.00%.
-// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// objdiff 95.79% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 94.70%.
+// Inline VU0 asm (user-approved 2026-10-28 for the VU0 class, incl. the float-to-GPR
+// move before a VU0 transfer), one instruction per statement; mwcc inserts the hazard
+// nop after the move itself (no explicit nop is written).
 // Matching wave 2026-10-28 rebuilt it from the original:
 //  - corner 0's projection (x, y, z all divided by w, no bias) and each clipped
 //    vertex's projection (z divided by w - 1, as func_001E2800) are VU0 macro
 //    code inline, one instruction per asm statement; each vertex's Q is 1 / w
 //    of the raw transformed vector spilled to the stack, and its colour is a
-//    128-bit copy of the scratchpad quadword.
-//  - -sdatathreshold 4 (gp-relative render context); the sort-key loop and the
-//    triangle loop share one counter (saved-register order); the fade is a
-//    switch (2, 3, 4 colour; 1 alpha) with channel locals declared before f.
+//    128-bit copy of the scratchpad quadword. The w bias 1.0f is a float moved
+//    into t0 before the VU0 transfer (no stack union; frame back to 0xB0).
+//  - -sdatathreshold 4 (gp-relative render context); the fade is a switch
+//    (2, 3, 4 colour; 1 alpha) with channel locals declared before f.
+//  - the triangle-setup loop has its own block-local corner counter.
 //  - the VIF header quadword is cleared with one 128-bit store, then its last
 //    word set; the GIFtag's NLOOP is the sign-extended vertex count.
-// Remaining differences: the w bias (1.0f) reaches VU0 through the fixed
-// register t0; the original moves it from the FPU (hazard nop after); mwcc
-// 2.3.3 drops a float asm operand, so the bits go through a stack union (frame
-// 0xC0, not 0xB0). The triangle-setup loop allocates its address bases and
-// case constants to different registers (the original keeps i + j and the
-// case address in one register, so its case dispatch uses branch-likely
-// compares), and one OR in the colour repack has its operands swapped.
+// Remaining differences: the triangle-setup loop still colours its address
+// bases and case constants differently (the original computes the slot offset
+// first and keeps i + j and the case address in one register, so its case
+// dispatch uses branch-likely compares), and one OR in the colour repack has
+// its operands swapped (swapping them in C reorders the multiplies instead).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -167,14 +168,15 @@ void func_001CDDC0(int layer, int mode, Vec4 *corners, u64 tex0, u32 rgba)
 
     /* 4. two triangles, corners (0, 1, 2) and (1, 2, 3) */
     for (i = 0; i < 2; i++) {
-        for (j = 0; j < 3; j++) {
-            int ci = i + j;
-            *(u128 *)&D_008112C0[j].pos = *(u128 *)&corners[ci];
+        int k;
+        for (k = 0; k < 3; k++) {
+            int ci = i + k;
+            *(u128 *)&D_008112C0[k].pos = *(u128 *)&corners[ci];
             switch (ci) {
-            case 0: D_008112C0[j].u = 0.0f; D_008112C0[j].v = 0.0f; break;
-            case 1: D_008112C0[j].u = 0.0f; D_008112C0[j].v = 1.0f; break;
-            case 2: D_008112C0[j].u = 1.0f; D_008112C0[j].v = 0.0f; break;
-            case 3: D_008112C0[j].u = 1.0f; D_008112C0[j].v = 1.0f; break;
+            case 0: D_008112C0[k].u = 0.0f; D_008112C0[k].v = 0.0f; break;
+            case 1: D_008112C0[k].u = 0.0f; D_008112C0[k].v = 1.0f; break;
+            case 2: D_008112C0[k].u = 1.0f; D_008112C0[k].v = 0.0f; break;
+            case 3: D_008112C0[k].u = 1.0f; D_008112C0[k].v = 1.0f; break;
             }
         }
 
@@ -200,7 +202,7 @@ void func_001CDDC0(int layer, int mode, Vec4 *corners, u64 tex0, u32 rgba)
         {
             Vec4 raw;
             Vec4 *rp = &raw;
-            union { float f; int i; } one;
+            float one;
             ClipVtx *cv = D_008117C0;
             u128 *col = (u128 *)D_70003600;
 
@@ -219,8 +221,9 @@ void func_001CDDC0(int layer, int mode, Vec4 *corners, u64 tex0, u32 rgba)
                 asm("sqc2 vf2, 0x0(%0)" : : "r"(rp) : "memory");
                 asm("vwaitq");
                 asm("vmulq.xy vf2, vf2, Q");
-                one.f = 1.0f;
-                asm("qmtc2.ni %0, vf3" : : "r"(one.i));
+                one = 1.0f;
+                asm("mfc1 $8, %0" : : "f"(one) : "$8");
+                asm("qmtc2.ni $8, vf3");
                 asm("vsubx.w vf2, vf2, vf3x");
                 asm("vdiv Q, vf0w, vf2w");
                 asm("vwaitq");

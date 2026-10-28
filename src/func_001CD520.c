@@ -1,7 +1,9 @@
 // NEARMISS func_001CD520  (vram 0x001CD520, 0x420 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 21.91%.
-// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
+// objdiff 99.96% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4), was 21.91%
+// (98.72% before the float-move round).
+// inline VU0 asm (user-approved 2026-10-28 for the VU0 class, incl. the float-to-GPR
+// move before a VU0 transfer)
 // Matching wave 2026-10-28 rebuilt it from the original:
 //  - the cull, the projection and the half-extent projection are VU0 macro code
 //    inline (one instruction per asm statement): clip against camera 0's cull
@@ -13,11 +15,14 @@
 //  - the fade is a switch (2, 3, 4 colour; 1 alpha); channels extracted first,
 //    locals declared bl, g, r before f; alpha masks rgba in place.
 //  - FIDELITY: func_001CB6B0 gets a plain 32-bit address (the old C zero-extended it).
-// Remaining differences: the z bias reaches VU0 through the fixed register t0.
-// The original moves it from the FPU (followed by a hazard nop); mwcc 2.3.3
-// drops a float asm operand, so the bits go through a stack union (frame 0x90,
-// not 0x80, and the rgba argument's save moves after the float saves). One
-// OR's operand order in the colour repack differs.
+//  - the z bias goes to VU0 as the original does: a float-to-GPR move into t0
+//    (mwcc adds the hazard nop itself) and the transfer, no stack union.
+//  - rgba is declared before the three floats (several callers in src/ pass it
+//    there; the ABI registers are the same), which orders its parameter copy
+//    before the float copies as in the original.
+// Remaining differences: one OR's operand order in the colour repack (the
+// original ORs blue-shifted with green-shifted; every spelling that names
+// blue first also reschedules the three multiplies).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -54,7 +59,7 @@ extern Vec4 D_70003AC0[4];          /* camera P*V */
 #define PAGE_TABLE(b) ((int)(D_0028F700 + ((b) << 15) + 0x4D3EC0))
 
 int func_001CD520(int bucket, int mode, Vec4 *world, unsigned long long giftag,
-                  float w, float h, float zbias, unsigned int rgba)
+                  unsigned int rgba, float w, float h, float zbias)
 {
     char *m;
     char *fog;
@@ -64,7 +69,6 @@ int func_001CD520(int bucket, int mode, Vec4 *world, unsigned long long giftag,
     Word *q;
     Vec4 *sm;
     Vec4 raw;
-    Word b;
     int clip;
     unsigned int bl, g, r;
     int f;
@@ -112,8 +116,8 @@ int func_001CD520(int bucket, int mode, Vec4 *world, unsigned long long giftag,
     asm("sqc2 vf2, 0x0(%0)" : : "r"(raw_p) : "memory");
     asm("vwaitq");
     asm("vmulq.xy vf2, vf2, Q");
-    b.f = zbias;
-    asm("qmtc2.ni %0, vf3" : : "r"(b.i));
+    asm("mfc1 $8, %0" : : "f"(zbias));
+    asm("qmtc2.ni $8, vf3");
     asm("vsubx.w vf2, vf2, vf3x");
     asm("vdiv Q, vf0w, vf2w");
     asm("vwaitq");

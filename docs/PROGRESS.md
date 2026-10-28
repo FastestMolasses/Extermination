@@ -1,3 +1,9 @@
+## 2026-10-28 — VU0 class, queue batch 48: float-to-GPR move approved; 4 more byte-matched, 8 improved
+
+See MATCHING_GUIDE "Queue batch 48". Gate: fresh build + verify_all all six
+stages pass, boot ELF byte-identical, 19/19 overlays, matched_code 99.97%,
+2773/2775 units; provenance clean.
+
 ## 2026-10-28 — VU0 class, queue batch 47: build_trs_matrix byte-matched, 12 improved
 
 See MATCHING_GUIDE "Queue batch 47"; HANDOFF lists the VU0 class status and

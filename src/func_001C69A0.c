@@ -1,27 +1,18 @@
-// NEARMISS func_001C69A0  (vram 0x001C69A0, 0x3F8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0), was 23.04%.
-// inline VU0 asm (user-approved 2026-10-28 for the VU0 class)
-// Matching wave 2026-10-28 rebuilt it from the original: the matrix scale, the
-// per-row scales and the three matrix products are VU0 macro code inline
-// (one instruction per asm statement, in static inline helpers whose pointer
-// arguments are copied into locals first, which keeps them in registers as
-// in the original). The old C emulated them on the FPU with a different
-// structure (a 4-row loop helper).
-// Remaining differences: each row-scale factor reaches VU0 through the fixed
-// register t0. The original loads the stored scales straight into t0 and moves
-// the computed rest scales there from the FPU (each followed by a hazard nop);
-// mwcc 2.3.3 drops a float asm operand, so the stored scales go through an
-// integer reinterpretation (another register, no nop) and the computed ones
-// through a stack union (frame 0x50, not 0x40). The loop-tail nop placement
-// follows from the size difference.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 94.83% NEARMISS).
+// Fixes read from the original instructions:
+// - The row-scale helper takes the scale as a float and moves it into t0 with
+//   an asm float-to-GPR move before the VU0 scalar transfer, replacing the
+//   integer reinterpretation / stack union. For a scale stored in memory mwcc
+//   turns that move into a direct integer load into t0, as in the original;
+//   the stack frame shrinks to the original's size.
+// - inline VU0 asm (user-approved 2026-10-28 for the VU0 class, incl. the
+//   float-to-GPR move before a VU0 transfer): VU0 macro instructions and the
+//   float-to-GPR move are one instruction per asm statement; everything else
+//   is C. No explicit nop is written: mwcc inserts the hazard nop after the
+//   move itself.
 //
 // Evaluates a model's skeleton: scales the staged object matrix by the model
 // scale, then for every bone builds the animated rotation (quaternion blend
@@ -70,14 +61,15 @@ extern Vec4 D_70003440[4];   /* animation matrix */
 extern Vec4 D_70003480[4];   /* rest matrix, then the combined local matrix */
 extern float D_70003600[4];  /* blended quaternion */
 
-/* dst.xyz = src.xyz * s (s passed as its bit pattern), dst.w = src.w */
-static inline void vu0_scale_xyz(Vec4 *dst, Vec4 *src, int s)
+/* dst.xyz = src.xyz * s (s handed to VU0 through t0), dst.w = src.w */
+static inline void vu0_scale_xyz(Vec4 *dst, Vec4 *src, float s)
 {
     Vec4 *d = dst;
     Vec4 *a = src;
 
     asm("lqc2 vf4, 0x0(%0)" : : "r"(a));
-    asm("qmtc2.ni %0, vf5" : : "r"(s));
+    asm("mfc1 $8, %0" : : "f"(s));
+    asm("qmtc2.ni $8, vf5");
     asm("vmulx.xyz vf4, vf4, vf5x");
     asm("sqc2 vf4, 0x0(%0)" : : "r"(d) : "memory");
 }
@@ -140,8 +132,6 @@ static inline void vu0_scale_matrix(Vec4 *dst, Vec4 *src, Vec4 *v)
     asm("sqc2 vf7, 0x30(%0)" : : "r"(d) : "memory");
 }
 
-typedef union { float f; int i; } FBits;
-
 void func_001C69A0(Model *model)
 {
     int i;
@@ -151,14 +141,13 @@ void func_001C69A0(Model *model)
     for (i = 0; i < model->bone_count; i++) {
         Bone *bone = model->bone[i];
         float k;
-        FBits s;
 
         quat_nlerp(D_70003600, bone->qa, bone->qb, bone->t);
         quat_to_mat3((float *)D_70003440, D_70003600, bone);
 
-        vu0_scale_xyz(&D_70003440[0], &D_70003440[0], *(int *)&bone->scale[0]);
-        vu0_scale_xyz(&D_70003440[1], &D_70003440[1], *(int *)&bone->scale[1]);
-        vu0_scale_xyz(&D_70003440[2], &D_70003440[2], *(int *)&bone->scale[2]);
+        vu0_scale_xyz(&D_70003440[0], &D_70003440[0], bone->scale[0]);
+        vu0_scale_xyz(&D_70003440[1], &D_70003440[1], bone->scale[1]);
+        vu0_scale_xyz(&D_70003440[2], &D_70003440[2], bone->scale[2]);
 
         func_001029C0(D_70003480);
         func_00102C58(D_70003480, D_70003480, bone->rest_rot);
@@ -167,12 +156,9 @@ void func_001C69A0(Model *model)
         D_70003480[3].z = bone->rest_trans[2];
 
         k = 1.0f / 4096.0f;
-        s.f = k * (float)bone->rest_scale[0];
-        vu0_scale_xyz(&D_70003480[0], &D_70003480[0], s.i);
-        s.f = k * (float)bone->rest_scale[1];
-        vu0_scale_xyz(&D_70003480[1], &D_70003480[1], s.i);
-        s.f = k * (float)bone->rest_scale[2];
-        vu0_scale_xyz(&D_70003480[2], &D_70003480[2], s.i);
+        vu0_scale_xyz(&D_70003480[0], &D_70003480[0], k * (float)bone->rest_scale[0]);
+        vu0_scale_xyz(&D_70003480[1], &D_70003480[1], k * (float)bone->rest_scale[1]);
+        vu0_scale_xyz(&D_70003480[2], &D_70003480[2], k * (float)bone->rest_scale[2]);
 
         vu0_mul_matrix(D_70003480, D_70003440, D_70003480);
 
