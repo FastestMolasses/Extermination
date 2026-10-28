@@ -19,7 +19,8 @@
 // (arg1[0]==0 && arg1[2]==0) ? 5.0f + arg1[2] : arg1[2]  (the +5.0 bias on Z
 // only when both X and Z are zero). Then writes the raw vec into 0x70003600..
 // (0x7000360C = 1.0f) and runs the matrix pipeline: two func_00102718 builds
-// (D_70003620 and D_70003630 from the 0x3610/0x3600 blocks), two func_00102760
+// (D_70003620 from the 0x3610/0x3600 blocks, then D_70003630 from the
+// 0x3620/0x3600 blocks), two func_00102760
 // normalizes, func_001029C0(arg0) (identity load), then three func_001031E0
 // applies that splat D_70003620/30/00 into the object matrix rows at arg0+0,
 // arg0+0x10, arg0+0x20.
