@@ -1,3 +1,6 @@
+// DATA, NOT CODE (found 2026-10-28): a run of small negative floats in the
+// 0xBD8..0xBDC exponent range that splat split as a function; it has no C
+// form. Reclassifying it as data in config is a separate split change.
 // Asm-void leaf, encoded entirely as .word directives — used when
 // expressing the function in source-level C or even labeled asm would
 // be impractical or would force mwcc into non-matching codegen.
