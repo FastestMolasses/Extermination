@@ -1,50 +1,50 @@
-// NEARMISS func_001F3FA0  (vram 0x001F3FA0, 0x64 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 72.60% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// loop-invariant-%hi-CSE / addressing-mode: target recomputes %hi(D_004E1340) plus the running base register (a3) and stores the halfword at %lo(D_004E1340) off that, every iteration; mwcc hoists the full address materialization of &D_004E1340 out of the loop (and when forced gp-rel via a small decl, emits %...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
 
-// Initializes 0x80 elements of a 0x90-byte-stride array based at
-// D_0028F700+0x4E12C0: clears 9 quadwords (0x90 bytes) per element, then
-// sets a 16-bit flag at element offset 0x80 (symbol D_004E1340) to 1.
-// Finally zeroes gp-rel globals D_00275C40 and D_00275C44.
-// NEARMISS: logic byte-exact (nested clear loop + flag store + the two
-// gp-rel zero stores). Residual is an addressing-mode / loop-invariant
-// CSE artifact: the target recomputes %hi(D_004E1340) inside the loop and
-// adds the running base pointer (%hi plus base, then a halfword store at %lo off it), while
-// mwcc hoists the full &D_004E1340 address out of the loop, plus a
-// one-off register-allocation cascade (a2/a3/a4 vs a3/a1/...). The split
-// '%gp_rel(D_00275C40/44) absolute D_0028F700/D_004E1340' addressing mix
-// is reproduced, but mwcc will not be steered into the per-iteration %hi
-// recompute without permuter-style scheduling pressure.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 72.60% NEARMISS).
+// Fixes read from the original instructions:
+// - The 0x4E1340 "symbol" is not a variable: it is the constant offset of an
+//   element's flag field inside the big block at D_0028F700 (element array at
+//   +0x4E12C0, 0x90-byte stride, flag at element offset 0x80). Writing the
+//   access as a struct member gives the per-iteration large-offset store the
+//   original has; the old pointer-plus-symbol spelling made mwcc hoist it.
+// - The element loop indexes the array (for i in 0..0x7F) instead of carrying
+//   a byte pointer.
+// - The clear counter is initialised before the element pointer is taken
+//   (pointer declared first, assigned after), which fixes the schedule and
+//   register choice.
+
+// Initializes 0x80 elements of a 0x90-byte-stride array at offset 0x4E12C0
+// of the block D_0028F700: clears the first 9 quadwords (0x90 bytes) of each
+// element, then sets the 16-bit flag at element offset 0x80 to 1. Finally
+// zeroes the gp-relative globals D_00275C40 and D_00275C44.
 typedef int s128 __attribute__((mode(TI)));
+typedef struct {
+    s128 q[8];
+    short flag;
+    char pad[14];
+} Elem;
+typedef struct {
+    char pad[0x4E12C0];
+    Elem elems[0x80];
+} Big;
 extern int D_00275C40;
 extern int D_00275C44;
-extern char D_0028F700[16];
-extern short D_004E1340;
+extern Big D_0028F700;
 
 void func_001F3FA0(void) {
-    char *base = D_0028F700;
-    int i = 0;
-    do {
-        s128 *p = (s128 *)(base + 0x4E12C0);
+    int i;
+    for (i = 0; i < 0x80; i++) {
+        s128 *p;
         int n = 9;
+        p = (s128 *)&D_0028F700.elems[i];
         do {
             *p = 0;
             n -= 1;
             p += 1;
         } while (n != 0);
-        *(short *)(base + (int)&D_004E1340) = 1;
-        i += 1;
-        base += 0x90;
-    } while (i < 0x80);
+        D_0028F700.elems[i].flag = 1;
+    }
     D_00275C40 = 0;
     D_00275C44 = 0;
 }

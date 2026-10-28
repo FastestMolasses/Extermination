@@ -126,12 +126,6 @@ exit branch goes, before recording a wall.
 | func_0010CE28 | 0x0010CE28 | 0xBC | 90.70% | ee-gcc 2.9-991111-01 | Logic/frame/externs all correct (store-reload of D_00276E10 reproduced via volatile read;  |
 | func_001063E8 | 0x001063E8 | 0xA4 | 78.83% | ee-gcc 2.9-991111-01 | ee-gcc regalloc/rematerialization wall. Structure (guard + do-while watchdog poll loop on  |
 | func_00110508 | 0x00110508 | 0x100 | 93.88% | ee-gcc 2.9-991111-01 | eegcc list-scheduler + loop-rotation tail-duplication + GPR-coloring wall. Body logic full |
-| func_001190B8 | 0x001190B8 | 0x138 | 76.26% | ee-gcc 2.9-991111-01 | eegcc global-address %hi-caching / coloring wall. Body fully decoded and correct (init: fu |
-| func_00113A58 | 0x00113A58 | 0xF8 | 74.68% | ee-gcc 2.9-991111-01 | eegcc frame-stride + global GPR-coloring wall (no permuter lever). Three independent facto |
-| func_001115D0 | 0x001115D0 | 0xB0 | 74.52% | ee-gcc 2.9-991111-01 | ee-gcc address-base register-allocation + reload-scheduling permutation. Logic/structure c |
-| func_0010EFD0 | 0x0010EFD0 | 0x140 | 73.67% | ee-gcc 2.9-991111-01 | eegcc hand-coded-asm delay-loop wall. Fully decompiled: calls func_0010E088(0); retry-loop |
-| func_0010F870 | 0x0010F870 | 0x88 | 73.56% | ee-gcc 2.9-991111-01 | Busy-wait delay loop in target is emitted as a %hi/%lo(D_FFFFF) pair using li... |
-| func_00102530 | 0x00102530 | 0xD0 | 73.15% | ee-gcc 2.9-991111-01 | eegcc regalloc + inner-loop idiom near-miss. Clean -O2 C reaches 73% (permuter plateaued ~ |
 | func_00110368 | 0x00110368 | 0x130 | 71.57% | ee-gcc 2.9-991111-01 | eegcc global-address %hi-caching / coloring wall (+ loop branch-likely shape). Body fully  |
 | func_00102468 | 0x00102468 | 0xC4 | 70.76% | ee-gcc 2.9-991111-01 | Same frame-size stride wall as func_001021B0 (identical spin-wait pattern with mode/timeou |
 | func_00111950 | 0x00111950 | 0x68 | 70.38% | ee-gcc 2.9-991111-01 | Body is logically byte-correct (same instruction count, same relocs, same control flow: if |
@@ -161,7 +155,6 @@ exit branch goes, before recording a wall.
 | func_00111F18 | 0x00111F18 | 0x170 | 51.49% | ee-gcc 2.9-991111-01 | Two confirmed-s84 ee-gcc walls. (1) eegcc forward-branch-likely wall: expected emits bgezl |
 | func_00106948 | 0x00106948 | 0x168 | 50.74% | ee-gcc 2.9-991111-01 | eegcc reg-alloc wall / saved-register-count divergence (confirmed s84). Instruction-for-in |
 | func_001B11E0 | 0x001B11E0 | 0x58 | 79.32% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation/scheduling permutation: identical opcodes (byte loads, shifts, masks, address pairs ... |
-| func_001F3FA0 | 0x001F3FA0 | 0x64 | 72.60% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | loop-invariant-%hi-CSE / addressing-mode: target recomputes the %hi of D_004E1340 and the base add inside the loop |
 | func_001EAF00 | 0x001EAF00 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical wall to func_001EACF0 (same template, const 5.0f, table D_002557D0, flag 1): FP- |
 | func_001EBBB0 | 0x001EBBB0 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Identical wall to func_001EACF0 (same template, const 3.0f, table D_002561F0, flag 1): FP- |
 | func_001EF780 | 0x001EF780 | 0x1B4 | 98.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register coloring / paired-single allocation + order of materializing the two call-argu |
@@ -192,7 +185,7 @@ exit branch goes, before recording a wall.
 | func_001EC9A0 | 0x001EC9A0 | 0x7C | 80.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order/instruction-scheduling permutation (same class as func_001EC3F0/fun |
 | func_001ECE70 | 0x001ECE70 | 0x7C | 80.58% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-constant emit-order/instruction-scheduling permutation (same class as func_001EC3F0/fun |
 | func_001AF800 | 0x001AF800 | 0x84 | 59.06% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two compounding 2.3.1 artifacts neither 991 nor 233 fixes (991=73.42% best; 233 regresses  |
-| func_00228320 | 0x00228320 | 0x8C | 76.63% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation / instruction-scheduling: CW keeps the 3-int stack temp via dead-store |
+| func_00228320 | 0x00228320 | 0x8C | 81.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | register-allocation / instruction-scheduling: CW keeps the 3-int stack temp via dead-store |
 | func_00206BF0 | 0x00206BF0 | 0xC8 | 97.40% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Single-store addressing-mode/scheduling artifact: the CW target materializes &v34 into a r |
 | func_001D2730 | 0x001D2730 | 0x100 | 95.52% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring permutation: target colors bit->s1/flags->s0/hit->s2, mwcc picks bit->s0 |
 | gs_readback_queue_drain | 0x001D7410 | 0x100 | 99.77% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected callee (dma_wait_and_submit for the stale alias sub_D2_TADR_08x); locals reorder |
@@ -247,7 +240,6 @@ exit branch goes, before recording a wall.
 | func_001A7870 | 0x001A7870 | 0x30C | 93.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: O(N^2) all-pairs entity check over D_00275B90[D_00275B98]  |
 | func_001DD2F0 | 0x001DD2F0 | 0x30C | 89.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: two near-identical GS/DMA quad-strip particle builders. Ea |
 | func_001C5930 | 0x001C5930 | 0x318 | 69.04% | mwcc 2.3.3 | Corrected inverted area-title selector gate; all256 selectors checked against original branches. Other object residuals remain; assembly links. |
-| func_001BA1F0 | 0x001BA1F0 | 0x31C | 73.65% | mwcc 2.3.3 | Corrected signed skip gates, opcode18 stops and stale record sequencing; original/compiled-C/native oracle passes43 cases. Other object differences remain; assembly links. |
 | func_00197D20 | 0x00197D20 | 0x324 | 96.36% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot placement and the scheduling of the float temporaries in states 1 and 2 (the ta |
 | func_001E10A0 | 0x001E10A0 | 0x340 | 60.43% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Cross-compiler FP list-scheduling divergence: mwcc233/991202's -O4,p scheduler hoists the  |
 | func_001C1F50 | 0x001C1F50 | 0x344 | 72.13% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure/constants/call-arg-order fully recovered: two independent linear dispatch c |
@@ -328,7 +320,6 @@ exit branch goes, before recording a wall.
 | func_00103DC8 | 0x00103DC8 | 0x420 | 51.59% | ee-gcc 2.9-991111-01 | eegcc register-allocation + list-scheduler wall. The control flow, every arithmetic expres |
 | func_00115850 | 0x00115850 | 0x5FC | 68.60% | ee-gcc 2.9-991111-01 | eegcc register-allocation / spill-placement wall. Instruction stream and control flow are  |
 | func_00115E50 | 0x00115E50 | 0x744 | 63.70% | ee-gcc 2.9-991111-01 | eegcc register-allocation wall (parameter spill decision). Logic is fully recovered: the t |
-| func_0011CE20 | 0x0011CE20 | 0x94C | 75.73% | ee-gcc 2.9-991111-01 | eegcc strength-reduction / register-allocation wall. Full algorithm recovered: signed (pre |
 | func_0010DEB8 | 0x0010DEB8 | ? | 97.92% | ee-gcc 2.9-991111-01 | eegcc GPR-coloring + list-scheduler wall, confined to the prologue/qword-copy region. Obje |
 | func_00134090 | 0x00134090 | 0x270 | 93.90% | mwcc24 | jr-table lane 2026-09-23: func_00122BB8 is the engine rand() and takes no argument (the ol |
 | func_001F0720 | 0x001F0720 | 0x334 | 98.88% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset |
@@ -353,7 +344,6 @@ exit branch goes, before recording a wall.
 | gs_vram_readback | 0x00100EB8 | 0x68C | 97.89% | ee-gcc 2.9-991111-01 | jr-table (external-table dispatch) wall + eegcc coloring: the PSM switch dispatches throug |
 | func_00116598 | 0x00116598 | 0x820 | 62.35% | ee-gcc 2.9-991111-01 | eegcc register pressure / dual-pipeline scheduling. Structure is recovered (frame 0xb0 mat |
 | func_001E04E0 | 0x001E04E0 | 0x264 | 58.46% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two stacked walls; logic is fully recovered (setup calls, packet header/GIFtag layout, bot |
-| func_001F4190 | 0x001F4190 | ? | 75.74% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP register-coloring + list-scheduling wall across the whole particle loop (153 of 470 row |
 | bone_root_pulse | 0x001C06E0 | 0x94C | 98.25% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.27% via mwcc 2.3.3 (-O4,p -sdatathreshold 8); logic and structure fully recovered (593  |
 | func_001C2770 | 0x001C2770 | 0x1278 | 98.27% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.257% on mwcc 2.3.3 (-O4,p -sdatathreshold 0); 20 of 1182 instructions differ, all diagn |
 | func_0022BBC0 | 0x0022BBC0 | 0x1794 | 89.07% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | BODY CORRECTED 2026-09-27 against the original instructions (see FINDINGS "NEARMISS body corrections from the AREA01 wave-2 lanes"). Earlier diagnosis, partly superseded: 88.728% on mwcc 2.3.3 (-O4,p -sdatathreshold 0), 1509 instructions. Body/structure fully r |

@@ -614,3 +614,23 @@ func_001DAE10 85.68 (the remaining block is VU0 macro code; a 100% version with
 inline VU0 asm is kept outside src/ because inline asm is approved for
 func_001DB480 only). Rejected: a 100% func_001B11E0 spelling that needs a local
 assigned inside an expression and never read.
+
+### Queue batch 30 (2026-10-27)
+
+10 byte-matched: func_001190B8 (sound: typed TempoBlock with volatile state
+words), func_0011CE20 (fdlibm `__kernel_rem_pio2f` in newlib's shape: the
+q0 == 0 shift is 8, the tables are const, scalbnf is (float, int); its file-local
+constants become `static const` data, so it routes `local_data` in this batch;
+batch 31 spells them as macros), func_00113A58 (RPC: SignalSema takes the id by
+value; the 8-byte result copy is a memcpy from the uncached address),
+func_001115D0 (the RPC completion callback; all eight RPC state words volatile),
+func_001F4190 (particles: each velocity component is stored right after its own
+random draw), func_0010EFD0 (libkernel file-I/O client init: func_0010E8A8 is
+SifCallRpc with all nine arguments), func_001BA1F0 (script runner: one
+`do { switch } while` loop; the stay and advance scans differ),
+func_0010F870 (`-fno-schedule-insns`, as two matched files already use),
+func_00102530 (SDK DMA wait: the channel as a volatile register block, CHCR
+bitfields cleared through a temporary copy), func_001F3FA0 (a large offset
+symbol is a struct field offset inside D_0028F700). Improved and parked:
+func_00228320 81.51 (mwcc copies the 12-byte template through a float register
+where the original uses integer loads).

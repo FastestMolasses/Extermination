@@ -1,227 +1,171 @@
-// NEARMISS func_0011CE20  (vram 0x0011CE20, 0x94C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 75.73% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc strength-reduction / register-allocation wall. Full algorithm recovered: signed (prec-3)/8 with the movn/movz select, the four 20-entry stack arrays at sp+0x00/0x50/0xA0/0xF0, the FIR convolution, the base-256 limb carry loop with its cvt.w.s/mfc1/mtc1/cvt.s.w round-to-int idiom, the ldexp(...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern int D_0026C538[];
-extern float D_0026C548[];
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 75.73% NEARMISS).
+// Fixes read from the original instructions:
+//  - The routine is newlib/fdlibm __kernel_rem_pio2f (float Payne-Hanek
+//    argument reduction); rewritten in that library's own source shape
+//    (x, y, e0, nx, prec, ipio2), with its zero/one/two8/twon8 constants and
+//    the prec switch for compressing fq[] into y[].
+//  - Callee func_0011E148 is scalbnf(float x, int n) and func_0011DF98 is
+//    floorf; the old C declared scalbnf with its arguments swapped.
+//  - For q0 == 0 the high bit test shifts iq[jz-1] right by 8 (as in newlib's
+//    float version), confirmed by the original.
+//  - The init_jk (D_0026C538) and PIo2 (D_0026C548) tables are const; a
+//    non-const extern changed the prologue's spill scheduling.
+//
+// func_0011CE20 = __kernel_rem_pio2f: reduces a large float argument modulo
+// pi/2 using the 2/pi digit table ipio2 (8-bit limbs), returns the octant
+// n & 7 and writes the reduced value as 1-3 floats in y[] by precision.
+// Algorithm: FIR convolution of x[] with the table into q[], base-256 limb
+// distillation into iq[], octant extraction with scalbnf/floorf, 1-q
+// complement with carry when the fraction exceeds one half, recomputation
+// with more table terms when the result cancels to zero, then conversion
+// back to floats and multiplication by PIo2.
 
-extern float func_0011E148(int n, float x);
+extern const int D_0026C538[];
+extern const float D_0026C548[];
+
+extern float func_0011E148(float x, int n);
 extern float func_0011DF98(float x);
 
-int func_0011CE20(float *w, float *out, int prec, int nw, int mode, int *xin) {
-    int d[20];
-    float b[20];
-    float c[20];
-    float e[20];
-    int nb, sh, n1, ns, last, top, ip, ret;
-    int round, carry, cnt, any, j, k, m, v, hb;
-    float acc, sum, q, scale, hi;
+static const float zero = 0.0f, one = 1.0f, two8 = 2.5600000000e+02f, twon8 = 3.9062500000e-03f;
 
-    nb = (prec - 3) / 8;
-    if (nb < 0) {
-        nb = 0;
-    }
-    sh = prec - (nb + 1) * 8;
-    n1 = nw - 1;
-    ns = D_0026C538[mode];
-    last = n1 + ns;
-    j = nb - n1;
-    if (last >= 0) {
-        for (k = 0; k <= last; k++, j++) {
-            if (j < 0) {
-                b[k] = 0.0f;
-            } else {
-                b[k] = (float)xin[j];
-            }
-        }
-    }
-    if (ns >= 0) {
-        for (k = 0; k <= ns; k++) {
-            sum = 0.0f;
-            for (m = 0; m <= n1; m++) {
-                sum += w[m] * b[n1 + k - m];
-            }
-            e[k] = sum;
-        }
-    }
-    top = ns;
+int func_0011CE20(float *x, float *y, int e0, int nx, int prec, const int *ipio2)
+{
+	int jz,jx,jv,jp,jk,carry,n,iq[20],i,j,k,m,q0,ih;
+	float z,fw,f[20],fq[20],q[20];
 
-again:
-    acc = e[top];
-    if (top > 0) {
-        for (k = 0, m = top; m > 0; m--, k++) {
-            q = (float)(int)(acc * (1.0f / 256.0f));
-            d[k] = (int)(acc - q * 256.0f);
-            acc = e[m - 1] + q;
-        }
-    }
+	jk = D_0026C538[prec];
+	jp = jk;
 
-    acc = func_0011E148(sh, acc);
-    round = 0;
-    acc = acc - func_0011DF98(acc * 0.125f) * 8.0f;
-    ip = (int)acc;
-    acc = acc - (float)ip;
-    if (sh > 0) {
-        v = d[top - 1];
-        hb = v >> (8 - sh);
-        ip += hb;
-        v -= hb << (8 - sh);
-        round = v >> (7 - sh);
-        d[top - 1] = v;
-    } else if (sh == 0) {
-        round = d[top - 1] >> 8;
-    } else if (acc >= 0.5f) {
-        round = 2;
-    }
+	jx =  nx-1;
+	jv = (e0-3)/8; if(jv<0) jv=0;
+	q0 =  e0-8*(jv+1);
 
-    if (round > 0) {
-        ip++;
-        carry = 0;
-        if (top > 0) {
-            for (k = 0, m = top; m != 0; m--, k++) {
-                if (carry) {
-                    d[k] = 0xFF - d[k];
-                } else if (d[k] != 0) {
-                    d[k] = 0x100 - d[k];
-                    carry = 1;
-                }
-            }
-        }
-        if (sh > 0) {
-            if (sh == 1) {
-                d[top - 1] &= 0x7F;
-            } else if (sh == 2) {
-                d[top - 1] &= 0x3F;
-            }
-        }
-        if (round == 2) {
-            acc = 1.0f - acc;
-            if (carry) {
-                acc = acc - func_0011E148(sh, 1.0f);
-            }
-        }
-    }
+	j = jv-jx; m = jx+jk;
+	for(i=0;i<=m;i++,j++) f[i] = (j<0)? zero : (float) ipio2[j];
 
-    if (acc == 0.0f) {
-        any = 0;
-        for (k = top - 1; k >= ns; k--) {
-            any |= d[k];
-        }
-        if (any == 0) {
-            cnt = 1;
-            if (d[ns - 1] == 0) {
-                do {
-                    cnt++;
-                } while (d[ns - cnt] == 0);
-            }
-            for (k = top + 1; k <= top + cnt; k++) {
-                b[n1 + k] = (float)xin[nb + k];
-                sum = 0.0f;
-                for (m = 0; m <= n1; m++) {
-                    sum += w[m] * b[n1 + k - m];
-                }
-                e[k] = sum;
-            }
-            top = top + cnt;
-            goto again;
-        }
-    }
+	for (i=0;i<=jk;i++) {
+	    for(j=0,fw=0.0f;j<=jx;j++) fw += x[j]*f[jx+i-j]; q[i] = fw;
+	}
 
-    if (acc == 0.0f) {
-        do {
-            top--;
-            sh -= 8;
-        } while (d[top] == 0);
-    } else {
-        acc = func_0011E148(-sh, acc);
-        if (acc >= 256.0f) {
-            q = (float)(int)(acc * (1.0f / 256.0f));
-            d[top] = (int)(acc - q * 256.0f);
-            d[top + 1] = (int)q;
-            top++;
-            sh += 8;
-        } else {
-            d[top] = (int)acc;
-        }
-    }
-    ret = ip & 7;
+	jz = jk;
+recompute:
+	for(i=0,j=jz,z=q[jz];j>0;i++,j--) {
+	    fw    =  (float)((int)(twon8* z));
+	    iq[i] =  (int)(z-two8*fw);
+	    z     =  q[j-1]+fw;
+	}
 
-    scale = func_0011E148(sh, 1.0f);
-    for (k = top; k >= 0; k--) {
-        e[k] = scale * (float)d[k];
-        scale = scale * (1.0f / 256.0f);
-    }
+	z  = func_0011E148(z,(int)q0);
+	z -= (float)8.0*func_0011DF98(z*(float)0.125);
+	n  = (int) z;
+	z -= (float)n;
+	ih = 0;
+	if(q0>0) {
+	    i  = (iq[jz-1]>>(8-q0)); n += i;
+	    iq[jz-1] -= i<<(8-q0);
+	    ih = iq[jz-1]>>(7-q0);
+	}
+	else if(q0==0) ih = iq[jz-1]>>8;
+	else if(z>=(float)0.5) ih=2;
 
-    for (k = top; k >= 0; k--) {
-        sum = 0.0f;
-        for (m = 0; m <= ns && m <= top - k; m++) {
-            sum += D_0026C548[m] * e[k + m];
-        }
-        c[top - k] = sum;
-    }
+	if(ih>0) {
+	    n += 1; carry = 0;
+	    for(i=0;i<jz ;i++) {
+		j = iq[i];
+		if(carry==0) {
+		    if(j!=0) {
+			carry = 1; iq[i] = 0x100- j;
+		    }
+		} else  iq[i] = 0xff - j;
+	    }
+	    if(q0>0) {
+	        switch(q0) {
+	        case 1:
+	    	   iq[jz-1] &= 0x7f; break;
+	    	case 2:
+	    	   iq[jz-1] &= 0x3f; break;
+	        }
+	    }
+	    if(ih==2) {
+		z = one - z;
+		if(carry!=0) z -= func_0011E148(one,(int)q0);
+	    }
+	}
 
-    if (mode < 3) {
-        if (mode > 0) {
-            hi = c[0];
-            sum = 0.0f;
-            for (k = top; k >= 0; k--) {
-                sum += c[k];
-            }
-            out[0] = sum;
-            if (round != 0) {
-                out[0] = -sum;
-            }
-            sum = hi - sum;
-            for (k = 1; k <= top; k++) {
-                sum += c[k];
-            }
-            out[1] = sum;
-            if (round != 0) {
-                out[1] = -sum;
-            }
-        } else if (mode == 0) {
-            sum = 0.0f;
-            for (k = top; k >= 0; k--) {
-                sum += c[k];
-            }
-            out[0] = sum;
-            if (round != 0) {
-                out[0] = -sum;
-            }
-        }
-    } else if (mode == 3) {
-        for (k = top; k > 0; k--) {
-            hi = c[k - 1] + c[k];
-            c[k] = c[k] + (c[k - 1] - hi);
-            c[k - 1] = hi;
-        }
-        for (k = top; k >= 2; k--) {
-            hi = c[k - 1] + c[k];
-            c[k] = c[k] + (c[k - 1] - hi);
-            c[k - 1] = hi;
-        }
-        sum = 0.0f;
-        for (k = top; k >= 2; k--) {
-            sum += c[k];
-        }
-        if (round != 0) {
-            out[0] = -c[0];
-            out[1] = -c[1];
-            out[2] = -sum;
-        } else {
-            out[2] = sum;
-            out[0] = c[0];
-            out[1] = c[1];
-        }
-    }
-    return ret;
+	if(z==zero) {
+	    j = 0;
+	    for (i=jz-1;i>=jk;i--) j |= iq[i];
+	    if(j==0) {
+		for(k=1;iq[jk-k]==0;k++);
+
+		for(i=jz+1;i<=jz+k;i++) {
+		    f[jx+i] = (float) ipio2[jv+i];
+		    for(j=0,fw=0.0f;j<=jx;j++) fw += x[j]*f[jx+i-j];
+		    q[i] = fw;
+		}
+		jz += k;
+		goto recompute;
+	    }
+	}
+
+	if(z==(float)0.0) {
+	    jz -= 1; q0 -= 8;
+	    while(iq[jz]==0) { jz--; q0-=8;}
+	} else {
+	    z = func_0011E148(z,-(int)q0);
+	    if(z>=two8) {
+		fw = (float)((int)(twon8*z));
+		iq[jz] = (int)(z-two8*fw);
+		jz += 1; q0 += 8;
+		iq[jz] = (int) fw;
+	    } else iq[jz] = (int) z ;
+	}
+
+	fw = func_0011E148(one,(int)q0);
+	for(i=jz;i>=0;i--) {
+	    q[i] = fw*(float)iq[i]; fw*=twon8;
+	}
+
+	for(i=jz;i>=0;i--) {
+	    for(fw=0.0f,k=0;k<=jp&&k<=jz-i;k++) fw += D_0026C548[k]*q[i+k];
+	    fq[jz-i] = fw;
+	}
+
+	switch(prec) {
+	    case 0:
+		fw = 0.0f;
+		for (i=jz;i>=0;i--) fw += fq[i];
+		y[0] = (ih==0)? fw: -fw;
+		break;
+	    case 1:
+	    case 2:
+		fw = 0.0f;
+		for (i=jz;i>=0;i--) fw += fq[i];
+		y[0] = (ih==0)? fw: -fw;
+		fw = fq[0]-fw;
+		for (i=1;i<=jz;i++) fw += fq[i];
+		y[1] = (ih==0)? fw: -fw;
+		break;
+	    case 3:
+		for (i=jz;i>0;i--) {
+		    fw      = fq[i-1]+fq[i];
+		    fq[i]  += fq[i-1]-fw;
+		    fq[i-1] = fw;
+		}
+		for (i=jz;i>1;i--) {
+		    fw      = fq[i-1]+fq[i];
+		    fq[i]  += fq[i-1]-fw;
+		    fq[i-1] = fw;
+		}
+		for (fw=0.0f,i=jz;i>=2;i--) fw += fq[i];
+		if(ih==0) {
+		    y[0] =  fq[0]; y[1] =  fq[1]; y[2] =  fw;
+		} else {
+		    y[0] = -fq[0]; y[1] = -fq[1]; y[2] = -fw;
+		}
+	}
+	return n&7;
 }

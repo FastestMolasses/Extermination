@@ -40,7 +40,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00102368,func_00102368,240,nearmiss,0,lowmem
 0x00102458,func_00102458,12,readable,0,lowmem
 0x00102468,func_00102468,196,nearmiss,5,lowmem
-0x00102530,func_00102530,208,nearmiss,0,lowmem
+0x00102530,func_00102530,208,readable,0,lowmem
 0x00102600,func_00102600,36,readable,0,lowmem
 0x00102628,func_00102628,12,readable,0,lowmem
 0x00102638,func_00102638,28,word,0,lowmem
@@ -472,7 +472,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0010EEF8,func_0010EEF8,64,word,0,lowmem
 0x0010EF38,func_0010EF38,112,readable,1,lowmem
 0x0010EFA8,func_0010EFA8,36,readable,5,lowmem
-0x0010EFD0,func_0010EFD0,320,nearmiss,1,lowmem
+0x0010EFD0,func_0010EFD0,320,readable,1,lowmem
 0x0010F110,sub__9PsIIlibkernl2000_3,44,readable,1,lowmem
 0x0010F140,func_0010F140,52,readable,1,lowmem
 0x0010F178,func_0010F178,384,readable,0,lowmem
@@ -482,7 +482,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0010F520,func_0010F520,304,readable,0,lowmem
 0x0010F650,func_0010F650,388,readable,0,lowmem
 0x0010F7D8,func_0010F7D8,152,readable,0,lowmem
-0x0010F870,func_0010F870,136,nearmiss,1,lowmem
+0x0010F870,func_0010F870,136,readable,1,lowmem
 0x0010F8F8,func_0010F8F8,112,readable,2,lowmem
 0x0010F968,func_0010F968,120,readable,1,lowmem
 0x0010F9E0,func_0010F9E0,240,nearmiss,0,lowmem
@@ -532,7 +532,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001114B8,func_001114B8,100,readable,1,lowmem
 0x00111520,func_00111520,108,readable,0,lowmem
 0x00111590,func_00111590,60,readable,0,lowmem
-0x001115D0,func_001115D0,176,nearmiss,1,lowmem
+0x001115D0,func_001115D0,176,readable,1,lowmem
 0x00111680,func_00111680,404,readable,0,lowmem
 0x00111818,func_00111818,160,readable,0,lowmem
 0x001118B8,func_001118B8,148,readable,5,lowmem
@@ -565,7 +565,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001137F0,func_001137F0,232,readable,0,lowmem
 0x001138D8,func_001138D8,188,readable,1,lowmem
 0x00113998,func_00113998,188,readable,0,lowmem
-0x00113A58,func_00113A58,248,nearmiss,0,lowmem
+0x00113A58,func_00113A58,248,readable,0,lowmem
 0x00113B50,func_00113B50,228,readable,0,lowmem
 0x00113C38,func_00113C38,44,readable,1,lowmem
 0x00113C68,func_00113C68,52,readable,1,lowmem
@@ -633,7 +633,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00118E60,func_00118E60,96,readable,1,lowmem
 0x00118EC0,func_00118EC0,448,readable,1,lowmem
 0x00119080,func_00119080,52,readable,1,lowmem
-0x001190B8,func_001190B8,312,nearmiss,2,lowmem
+0x001190B8,func_001190B8,312,readable,2,lowmem
 0x001191F0,func_001191F0,76,readable,2,lowmem
 0x00119240,func_00119240,144,readable,1,lowmem
 0x001192D0,func_001192D0,64,readable,2,lowmem
@@ -756,7 +756,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x0011C7B0,func_0011C7B0,992,c_local_data,3,lowmem
 0x0011CB90,func_0011CB90,312,word,3,lowmem
 0x0011CCC8,func_0011CCC8,344,word,2,lowmem
-0x0011CE20,func_0011CE20,2380,nearmiss,1,lowmem
+0x0011CE20,func_0011CE20,2380,c_local_data,1,lowmem
 0x0011D770,func_0011D770,260,word,2,lowmem
 0x0011D878,func_0011D878,660,c_local_data,1,lowmem
 0x0011DB10,func_0011DB10,72,word,1,lowmem
@@ -1879,7 +1879,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001BA080,func_001BA080,276,readable,0,math_vector
 0x001BA1A0,func_001BA1A0,24,readable,20,math_vector
 0x001BA1C0,func_001BA1C0,48,readable,1,math_vector
-0x001BA1F0,func_001BA1F0,796,nearmiss,24,math_vector
+0x001BA1F0,func_001BA1F0,796,readable,24,math_vector
 0x001BA510,func_001BA510,48,readable,1,math_vector
 0x001BA540,func_001BA540,60,readable,1,math_vector
 0x001BA580,func_001BA580,616,readable,1,math_vector
@@ -2449,10 +2449,10 @@ vram,name,size_bytes,status,callers,subsystem
 0x001F3340,func_001F3340,728,nearmiss,2,fx_render
 0x001F3620,func_001F3620,2060,readable,3,fx_render
 0x001F3E30,func_001F3E30,364,readable,3,fx_render
-0x001F3FA0,func_001F3FA0,100,nearmiss,1,fx_render
+0x001F3FA0,func_001F3FA0,100,readable,1,fx_render
 0x001F4010,func_001F4010,168,readable,5,fx_render
 0x001F40C0,func_001F40C0,200,readable,1,fx_render
-0x001F4190,func_001F4190,1704,nearmiss,1,fx_render
+0x001F4190,func_001F4190,1704,readable,1,fx_render
 0x001F4840,func_001F4840,440,readable,0,fx_render
 0x001F4A00,func_001F4A00,8,readable,5,fx_render
 0x001F4A10,func_001F4A10,480,nearmiss,2,fx_render

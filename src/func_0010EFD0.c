@@ -1,64 +1,84 @@
-// NEARMISS func_0010EFD0  (vram 0x0010EFD0, 0x140 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 73.67% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc hand-coded-asm delay-loop wall. Fully decompiled: calls func_0010E088(0); retry-loop calling func_0010E6F8(&D_00279210,0x80000001,0) until *(D_00279210+0x24)!=0 (busy-wait between tries); clears field+4 across the 0x100-byte table at D_00279110 in 0x10 strides; func_0010DFD8(&D_00279080,0x40); func_0010E8A8(&D...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 73.67% NEARMISS).
+// Fixes read from the original instructions:
+// - SifCallRpc (func_0010E8A8) takes nine arguments: the trailing end_function and
+//   end_param (both 0) were missing; the original passes them in the last argument
+//   register and on the stack.
+// - The bind-retry delay is a plain counted-down register loop (`i = 0x100000;
+//   while (i--);`), not a volatile counter; the nops in it are the assembler's
+//   short-loop padding.
+// - The 16-entry queue table is cleared with a typed record pointer loop, and the
+//   reply word is copied with memcpy(.., 4) (unaligned word copy), not an int load.
+//
+// libkernel file-I/O client init (sceFsInit shape): SifInitRpc(0); bind the
+// 0x80000001 file-I/O RPC server into the client record at D_00279210, retrying
+// with a busy-wait until its server field is set (bind failure returns -1);
+// clear the +0x4 word of each of the 16 request records at D_00279110; write back
+// the 0x40-byte buffer at D_00279080; call RPC 0xFF synchronously with a 4-byte
+// reply into D_00279040 (failure returns 0xFFFEFFFF); copy the reply word into
+// D_00279238, set D_00241C88 = 1 and return 0.
 
-extern int func_0010E088(int);
-extern int func_0010E6F8(void *, unsigned int, int);
-extern int func_0010DFD8(void *, int);
-extern int func_0010E8A8(void *, int, int, int, int, int *, int);
+typedef struct SifRpcClientData {
+    unsigned int hdr[4];
+    unsigned int command;
+    unsigned int buff;
+    unsigned int cbuff;
+    unsigned int end_function;
+    unsigned int end_param;
+    unsigned int server;
+} SifRpcClientData_t;
 
-extern unsigned char D_00279210[];
-extern unsigned char D_00279110[];
+typedef struct FioQ {
+    unsigned int f0;
+    unsigned int f4;
+    unsigned int f8;
+    unsigned int fC;
+} FioQ;
+
+extern void func_0010E088(int mode);
+extern int func_0010E6F8(SifRpcClientData_t *cd, unsigned int rpc_number, int mode);
+extern void func_0010DFD8(void *ptr, int size);
+extern int func_0010E8A8(SifRpcClientData_t *client, int rpc_number, int mode,
+                         void *send, int ssize, void *receive, int rsize,
+                         void (*end_function)(void *), void *end_para);
+
+extern SifRpcClientData_t D_00279210;
+extern FioQ D_00279110[16];
 extern unsigned char D_00279040[];
 extern unsigned char D_00279080[];
-extern unsigned char D_00279238[];
+extern int D_00279238;
 extern int D_00241C88;
+
+extern void *memcpy(void *dst, const void *src, unsigned int n);
 
 int func_0010EFD0(void)
 {
-    int ret;
+    int i;
+    FioQ *p;
 
     func_0010E088(0);
 
-    for (;;) {
-        ret = func_0010E6F8(D_00279210, 0x80000001u, 0);
-        if (ret < 0)
+    while (1) {
+        if (func_0010E6F8(&D_00279210, 0x80000001, 0) < 0)
             return -1;
-        if (*(int *)(D_00279210 + 0x24) != 0)
+        if (D_00279210.server != 0)
             break;
-        {
-            volatile int i;
-            for (i = 0xFFFFF0000; i != -1; i++)
-                ;
-        }
+        i = 0x100000;
+        while (i--)
+            ;
     }
 
-    {
-        unsigned char *p = D_00279110;
-        unsigned char *end = p + 0x100;
-        if (p < end) {
-            do {
-                *(int *)(p + 4) = 0;
-                p += 0x10;
-            } while (p < end);
-        }
-    }
+    for (p = D_00279110; p < &D_00279110[16]; p++)
+        p->f4 = 0;
 
     func_0010DFD8(D_00279080, 0x40);
 
-    if (func_0010E8A8(D_00279210, 0xFF, 0, 0, 0, (int *)D_00279040, 4) < 0)
+    if (func_0010E8A8(&D_00279210, 0xFF, 0, 0, 0, D_00279040, 4, 0, 0) < 0)
         return (int)0xFFFEFFFF;
 
-    *(int *)(D_00279238) = *(int *)(D_00279040);
+    memcpy(&D_00279238, D_00279040, 4);
     D_00241C88 = 1;
     return 0;
 }

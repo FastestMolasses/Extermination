@@ -1,58 +1,78 @@
-// NEARMISS func_001190B8  (vram 0x001190B8, 0x138 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 76.26% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc global-address %hi-caching / coloring wall. Body fully decoded and correct (init: func_001191F0(0x65,0,&local,&local,0x40,0x40); seven func_00121A28(region,0,size) clears of D_0027CCC0/C6C0/E0C0/F740/F7C0/817C0/819C0; loop i=0x2F..0 writing 0xFFFF and 0x78 shorts at D_0027CCC0+0x4E with 0x6A stride; finalize D...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern void func_001191F0(int a, int b, void *c, void *d, int e, int f);
+/*
+ * Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 76.26% NEARMISS).
+ * Fixes read from the original instructions:
+ * - The voice table and the tempo/state block are typed records (Voice[48],
+ *   TempoBlock) addressed directly, as in the byte-matched sound siblings
+ *   (func_001181B0): one cached high half for D_0027F740 and gcc's own reversed
+ *   loop counter instead of a hand-made element pointer.
+ * - The three state words at D_0027F740 + 0x40/0x44/0x48 are volatile (shared with
+ *   func_001152B0 / func_001157F0, which read them as volatile words); this keeps
+ *   their stores in source order around the epilogue.
+ * - func_001191F0 is declared with its src/ definition's six int parameters.
+ *
+ * Sound-system reset: posts request 0x65 through func_001191F0 with a 64-byte
+ * parameter block {0x1E, arg0, .., 0} as both send and receive buffer; clears the
+ * voice table (D_0027CCC0, 0x13E0 bytes), D_0027C6C0, D_0027E0C0, the state block
+ * D_0027F740, D_0027F7C0, D_002817C0 and D_002819C0 with func_00121A28; sets the
+ * tempo D_0027F740.f3A to 60; marks all 48 voices with f06 = 0xFFFF and f4E = 120;
+ * then clears f48, sets f44 to 1 and clears f40.
+ */
+
+typedef struct {
+    char pad_00[0x06];
+    unsigned short f06;      /* 0x06 */
+    char pad_08[0x46];
+    unsigned short f4E;      /* 0x4E */
+    char pad_50[0x1A];
+} Voice;                     /* 0x6A */
+
+typedef struct {
+    char pad_00[0x3A];
+    unsigned short f3A;      /* 0x3A */
+    char pad_3C[0x04];
+    volatile int f40;                 /* 0x40 */
+    volatile int f44;                 /* 0x44 */
+    volatile int f48;                 /* 0x48 */
+    char pad_4C[0x04];
+} TempoBlock;
+
+extern int func_001191F0(int a0, int a1, int a2, int a3, int a4, int a5);
 extern void func_00121A28(void *dst, int val, int size);
 
-extern unsigned char D_0027F740[];
-extern unsigned char D_0027CCC0[];
+extern Voice D_0027CCC0[48];
+extern TempoBlock D_0027F740;
 extern unsigned char D_0027C6C0[];
 extern unsigned char D_0027E0C0[];
 extern unsigned char D_0027F7C0[];
 extern unsigned char D_002817C0[];
 extern unsigned char D_002819C0[];
-
 void func_001190B8(int arg0)
 {
     int local[16];
     int i;
-    unsigned char *p;
-    unsigned char *f740;
 
     local[0] = 0x1E;
     local[1] = arg0;
     local[4] = 0;
-    func_001191F0(0x65, 0, local, local, 0x40, 0x40);
+    func_001191F0(0x65, 0, (int)local, (int)local, 0x40, 0x40);
 
     func_00121A28(D_0027CCC0, 0, 0x13E0);
     func_00121A28(D_0027C6C0, 0, 0x600);
     func_00121A28(D_0027E0C0, 0, 0x1680);
-    f740 = D_0027F740;
-    func_00121A28(f740, 0, 0x50);
+    func_00121A28(&D_0027F740, 0, 0x50);
     func_00121A28(D_0027F7C0, 0, 0x2000);
     func_00121A28(D_002817C0, 0, 0x200);
     func_00121A28(D_002819C0, 0, 0x100);
 
-    *(short *)(f740 + 0x3A) = 0x3C;
-
-    p = D_0027CCC0 + 0x4E;
-    for (i = 0x2F; i >= 0; i--) {
-        *(short *)(p - 0x48) = (short)0xFFFF;
-        *(short *)(p) = 0x78;
-        p += 0x6A;
+    D_0027F740.f3A = 0x3C;
+    for (i = 0; i < 48; i++) {
+        D_0027CCC0[i].f06 = 0xFFFF;
+        D_0027CCC0[i].f4E = 0x78;
     }
-
-    *(int *)(f740 + 0x48) = 0;
-    *(int *)(f740 + 0x44) = 1;
-    *(int *)(f740 + 0x40) = 0;
+    D_0027F740.f48 = 0;
+    D_0027F740.f44 = 1;
+    D_0027F740.f40 = 0;
 }

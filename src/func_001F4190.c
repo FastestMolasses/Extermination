@@ -1,16 +1,18 @@
-// NEARMISS func_001F4190  (vram 0x001F4190, ?) — readable decompilation, NOT byte-identical.
-//
-// objdiff 75.74% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP register-coloring + list-scheduling wall across the whole particle loop (153 of 470 rows differ, 75.74%). The CFG, the jr-table dispatch (jtbl_0026EA00, all 6 case bodies byte-identical including the dead default zero store to +0x3A20), the frame (0x70 with f20/f21 saved), the prologue/epilogue, th...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 75.74% NEARMISS).
+// Fixes read from the original instructions:
+//  - Each random draw is spelled as the matched effect-driver twins do:
+//    r = (float)value; r = r / 65535.0f; r += 0.0001f; then the seed advances.
+//  - The launch angle is computed right after the first draw, before the
+//    second draw.
+//  - Each velocity component is stored right after its own draw (draw, store,
+//    draw, store, ...), not after all three draws.
+//  - The scratchpad vectors and the two scalar slots are relocated externs
+//    (D_700038A0/B0/C0/D0, D_70003A20/A24), not volatile literal addresses.
+//  - The three render ids are read as an int array: words 20, 21 + i % 2, 23.
+//
 // SEMANTICS: spawns one burst of `cfg->count` particles/debris pieces around an actor.
 //   self = the emitting actor (self+0x100..0x108 = its world position,
 //          self+0xD0 = its orientation basis, self[0xD] = its kind id).
@@ -50,6 +52,9 @@ extern float D_700036E0[];
 extern float D_700038A0[];
 extern float D_700038B0[];
 extern float D_700038C0[];
+extern float D_700038D0[];
+extern float D_70003A20;
+extern float D_70003A24;
 
 void func_001F4190(unsigned char *self, unsigned char *arg1, unsigned char *cfg)
 {
@@ -75,90 +80,106 @@ void func_001F4190(unsigned char *self, unsigned char *arg1, unsigned char *cfg)
     life = *(int *)(arg1 + 4) - age;
     rnd = *(int *)(arg1 + 0);
     i = 0;
-    *(volatile float *)0x70003A20 = (float)age;
+    D_70003A20 = (float)age;
     while (i < *(int *)(cfg + 0x4C)) {
-        r0 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
-        rnd = rnd * 37 + 11;
-        r1 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
+        r0 = (float)((rnd >> 16) & 0xFFFF);
+        r0 = r0 / 65535.0f;
+        r0 += 0.0001f;
         rnd = rnd * 37 + 11;
         ang = 6.28318548f * r0 - 3.14159274f;
-        *(volatile float *)0x700038A0 = *(float *)(self + 0x100) + *(float *)cfg * func_0011DE90(ang);
-        *(volatile float *)0x700038A4 = *(float *)(self + 0x104)
+        r1 = (float)((rnd >> 16) & 0xFFFF);
+        r1 = r1 / 65535.0f;
+        r1 += 0.0001f;
+        rnd = rnd * 37 + 11;
+        D_700038A0[0] = *(float *)(self + 0x100) + *(float *)cfg * func_0011DE90(ang);
+        D_700038A0[1] = *(float *)(self + 0x104)
             + *(float *)(cfg + 4) * func_0011DE90(6.28318548f * r1 - 3.14159274f);
-        *(volatile float *)0x700038A8 = *(float *)(self + 0x108) + *(float *)(cfg + 8) * func_0011E2A8(ang);
-        *(volatile float *)0x700038AC = 1.0f;
-        r2 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
+        D_700038A0[2] = *(float *)(self + 0x108) + *(float *)(cfg + 8) * func_0011E2A8(ang);
+        D_700038A0[3] = 1.0f;
+        r2 = (float)((rnd >> 16) & 0xFFFF);
+        r2 = r2 / 65535.0f;
+        r2 += 0.0001f;
         rnd = rnd * 37 + 11;
-        r3 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
+        D_700038B0[0] = *(float *)(cfg + 0x10) * r2 - *(float *)(cfg + 0x20);
+        r3 = (float)((rnd >> 16) & 0xFFFF);
+        r3 = r3 / 65535.0f;
+        r3 += 0.0001f;
         rnd = rnd * 37 + 11;
-        r4 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
+        D_700038B0[1] = *(float *)(cfg + 0x14) * r3 - *(float *)(cfg + 0x24);
+        r4 = (float)((rnd >> 16) & 0xFFFF);
+        r4 = r4 / 65535.0f;
+        r4 += 0.0001f;
         rnd = rnd * 37 + 11;
-        *(volatile float *)0x700038B0 = *(float *)(cfg + 0x10) * r2 - *(float *)(cfg + 0x20);
-        *(volatile float *)0x700038B4 = *(float *)(cfg + 0x14) * r3 - *(float *)(cfg + 0x24);
-        *(volatile float *)0x700038B8 = *(float *)(cfg + 0x18) * r4 - *(float *)(cfg + 0x28);
-        *(volatile float *)0x700038BC = 1.0f;
+        D_700038B0[2] = *(float *)(cfg + 0x18) * r4 - *(float *)(cfg + 0x28);
+        D_700038B0[3] = 1.0f;
         func_001026A0(D_700038B0, self + 0xD0, D_700038B0);
         func_001028D0(D_700038B0, D_700038B0, self + 0x100);
-        r5 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
+        r5 = (float)((rnd >> 16) & 0xFFFF);
+        r5 = r5 / 65535.0f;
+        r5 += 0.0001f;
         rnd = rnd * 37 + 11;
         t = 3.14159274f * (360.0f * r5) / 180.0f;
         func_001CA3B0(D_700038C0, t, t, t);
-        r6 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
+        r6 = (float)((rnd >> 16) & 0xFFFF);
+        r6 = r6 / 65535.0f;
+        r6 += 0.0001f;
         rnd = rnd * 37 + 11;
         a = *(float *)(cfg + 0x40) + *(float *)(cfg + 0x44) * r6;
-        *(volatile float *)0x700038D0 = a;
-        *(volatile float *)0x700038D4 = a;
-        *(volatile float *)0x700038D8 = a;
-        *(volatile float *)0x700038DC = 1.0f;
+        D_700038D0[0] = a;
+        D_700038D0[1] = a;
+        D_700038D0[2] = a;
+        D_700038D0[3] = 1.0f;
         switch (self[0xD]) {
         case 21:
         case 24:
         case 25:
         case 26:
-            *(volatile float *)0x70003A24 = 12.0f;
+            D_70003A24 = 12.0f;
             break;
         case 15:
         case 16:
         case 19:
-            *(volatile float *)0x70003A24 = 8.0f;
+            D_70003A24 = 8.0f;
             break;
         case 11:
-            *(volatile float *)0x70003A24 = 9.0f;
+            D_70003A24 = 9.0f;
             break;
         case 12:
-            *(volatile float *)0x70003A24 = 6.0f;
+            D_70003A24 = 6.0f;
             break;
         case 13:
         case 14:
         case 20:
-            *(volatile float *)0x70003A24 = 4.0f;
+            D_70003A24 = 4.0f;
             break;
         default:
-            *(volatile float *)0x70003A20 = 0.0f;
+            D_70003A20 = 0.0f;
             break;
         }
-        r7 = (float)((rnd >> 16) & 0xFFFF) / 65535.0f + 9.99999975e-05f;
+        r7 = (float)((rnd >> 16) & 0xFFFF);
+        r7 = r7 / 65535.0f;
+        r7 += 0.0001f;
         rnd = rnd * 37 + 11;
         t2 = 3.14159274f
-            * (*(volatile float *)0x70003A20 * (*(volatile float *)0x70003A24 * r7)) / 180.0f;
-        *(volatile float *)0x70003A24 = t2;
+            * (D_70003A20 * (D_70003A24 * r7)) / 180.0f;
+        D_70003A24 = t2;
         func_001CA3B0(D_700036E0, t2, t2, t2);
         func_001CA4D0(D_700038C0, D_700038C0, D_700036E0);
-        *(volatile float *)0x70003A24 = 1.0f;
+        D_70003A24 = 1.0f;
         if (life < 20) {
-            *(volatile float *)0x70003A24 = (float)life / 20.0f;
+            D_70003A24 = (float)life / 20.0f;
         }
-        sc = *(volatile float *)0x70003A20;
-        *(volatile float *)0x700038B4 = *(volatile float *)0x700038B4 + *(float *)(cfg + 0x48) * sc;
-        *(volatile float *)0x700038A0 = *(volatile float *)0x700038A0 + *(volatile float *)0x700038B0 * sc;
-        *(volatile float *)0x700038A4 = *(volatile float *)0x700038A4 + *(volatile float *)0x700038B4 * sc;
-        *(volatile float *)0x700038A8 = *(volatile float *)0x700038A8 + *(volatile float *)0x700038B8 * sc;
+        sc = D_70003A20;
+        D_700038B0[1] = D_700038B0[1] + *(float *)(cfg + 0x48) * sc;
+        D_700038A0[0] = D_700038A0[0] + D_700038B0[0] * sc;
+        D_700038A0[1] = D_700038A0[1] + D_700038B0[1] * sc;
+        D_700038A0[2] = D_700038A0[2] + D_700038B0[2] * sc;
         quat_to_mat3(D_700036A0, D_700038C0, D_700038A0);
-        func_00102900(D_700036A0, D_700036A0, *(volatile float *)0x700038D0 * *(volatile float *)0x70003A24);
-        func_00102900(D_700036B0, D_700036B0, *(volatile float *)0x700038D4 * *(volatile float *)0x70003A24);
-        func_00102900(D_700036C0, D_700036C0, *(volatile float *)0x700038D8 * *(volatile float *)0x70003A24);
-        func_001F3E30(D_700036A0, cfg + 0x30, *(int *)(cfg + 0x50),
-                      *(int *)(cfg + (i % 2) * 4 + 0x54), *(int *)(cfg + 0x5C));
+        func_00102900(D_700036A0, D_700036A0, D_700038D0[0] * D_70003A24);
+        func_00102900(D_700036B0, D_700036B0, D_700038D0[1] * D_70003A24);
+        func_00102900(D_700036C0, D_700036C0, D_700038D0[2] * D_70003A24);
+        func_001F3E30(D_700036A0, cfg + 0x30, ((int *)cfg)[20],
+                      ((int *)cfg)[21 + i % 2], ((int *)cfg)[23]);
         i++;
     }
 }
