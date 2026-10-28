@@ -1,15 +1,17 @@
-// NEARMISS sub_sceMpegGetPicture_decode_error  (vram 0xceMpegGetPicture_decode_error, 0x2D8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Two residual classes, both backend permutations on an otherwise byte-faithful 202-instruction body. (1) SAVED-REGISTER COLORING in the blit loop: CodeWarrior gives the loop-INVARIANT frame width/height s3/s4 and the loop-carried strip offsets s5/s6; mwcc inverts it (invariants -> s5/s6, offsets -...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.64% NEARMISS).
+// Fixes read from the original instructions:
+//  - the picture wait is a plain top-tested `while ((r = get()) == 0) pump();`
+//    loop (the original tests the call result directly and copies it in the
+//    delay slot), not an if-guarded do/while;
+//  - the frame width/height are 64-bit locals (`long long`), matching the
+//    blit routine's 64-bit stack arguments; this frees the saved registers
+//    so the strip offsets land where the original has them;
+//  - local declaration order (strip counter first, then width/height, then
+//    the two strip offsets) fixes the remaining saved-register colouring.
+// The old "compiler artifact" verdict was wrong.
 
 // Full-screen MPEG playback pump: decode one picture, DMA it to the GS, repeat.
 // arg0 is the stream/player handle: h[0]/h[1] are the frame width/height that
@@ -71,9 +73,9 @@ int sub_sceMpegGetPicture_decode_error(int *h) {
     int r;
     int st;
     DmaChan *ch;
-    int w;
-    int ht;
     int i;
+    long long w;
+    long long ht;
     int off1;
     int off2;
 
@@ -85,12 +87,8 @@ int sub_sceMpegGetPicture_decode_error(int *h) {
                 func_00204090(D_002734C0);
                 break;
             }
-            r = func_00203C30(&D_007A55A0);
-            if (r == 0) {
-                do {
-                    func_00203980();
-                    r = func_00203C30(&D_007A55A0);
-                } while (r == 0);
+            while ((r = func_00203C30(&D_007A55A0)) == 0) {
+                func_00203980();
             }
             ch = dmac_channel_base(8);
             func_00102468(ch, 0, 0);

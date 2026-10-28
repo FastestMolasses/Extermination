@@ -1,15 +1,19 @@
-// NEARMISS func_0015EC50  (vram 0x0015EC50, 0x11A0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Same two artifacts as anim_matrix_multi; 1080/1128 instructions byte-identical. All logic recovered and cross-checked instruction-by-instruction: the 6 level/sub-level exclusion-box chains (including the nested shared-Y test that only level 0xF uses), the forward/side probe combination and the descen...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.50% NEARMISS).
+// Fixes read from the original instructions:
+// - The scratchpad values the original accessed as relocated externs (idiom-32)
+//   are named externs: the probe hit point 0x70003050/58, the distance scratch
+//   0x70003A20/28/2C, the camera record 0x700031B0/B8/D0/E0, and the probe
+//   vector reads/writes at 0x700038B0/B4/B8 and 0x700038A0 that sit at branch
+//   targets. As externs mwcc may hoist loads above stores to other addresses and
+//   stops speculating the scratchpad upper half into branch delay slots.
+//   The constant-vector store blocks stay literal (as externs they reorder).
+// - The squared distance reads the stored z (0x70003A28) directly, not a local.
+// - In the height-table scan, a qualifying entry that is not low enough leaves
+//   the loop (break) into the shared "return 0" tail instead of its own return.
+// - func_00102948 takes untyped pointers (its definition copies one quadword).
 
 //
 // "Can this actor step down / drop off the ledge in front of it?" test.
@@ -34,12 +38,23 @@ extern float D_002489E0[];
 extern float D_700030F0[];
 extern unsigned short D_70003170[];
 extern float D_700036A0[];
+extern float D_700038B8;
+extern float D_700038B4;
+extern unsigned char *D_700031D0;
+extern int D_700031E0;
+extern float D_70003050;
+extern float D_70003058;
+extern float D_700031B0;
+extern float D_700031B8;
+extern float D_70003A20;
+extern float D_70003A28;
+extern float D_70003A2C;
 extern float D_700038A0[];
 extern float D_700038B0[];
 extern float D_700038C0[];
 extern float D_700038D0[];
 
-extern void func_00102948(float *dst, float *src);
+extern void func_00102948(void *dst, void *src);
 extern void func_001026A0(float *dst, float *m, float *v);
 extern void func_00102918(float *dst, float *m, float *v);
 extern void func_001029C0(float *m);
@@ -54,7 +69,6 @@ int func_0015EC50(unsigned char *e) {
     float pos[4];
     float dist;
     float probe;
-    float dz;
     float px;
     float pz;
     int hit;
@@ -166,32 +180,30 @@ int func_0015EC50(unsigned char *e) {
     *(float *)0x700038B4 += 1.0f;
     if (func_0019AD00(e, D_700038B0, 7) != 0) {
         func_00177510();
-        *(float *)0x70003A20 = *(float *)(e + 0xB0) - *(float *)0x70003050;
-        dz = *(float *)(e + 0xB8) - *(float *)0x70003058;
-        *(float *)0x70003A28 = dz;
-        dist = func_0011E748(*(float *)0x70003A20 * *(float *)0x70003A20 + dz * dz);
+        D_70003A20 = *(float *)(e + 0xB0) - D_70003050;
+        D_70003A28 = *(float *)(e + 0xB8) - D_70003058;
+        dist = func_0011E748(D_70003A20 * D_70003A20 + D_70003A28 * D_70003A28);
         hit = 1;
     } else {
-        *(float *)0x700038B4 += 10.0f;
+        D_700038B4 += 10.0f;
         if (func_0019AD00(e, D_700038B0, 7) != 0) {
             func_00177510();
-            *(float *)0x70003A20 = *(float *)(e + 0xB0) - *(float *)0x70003050;
-            dz = *(float *)(e + 0xB8) - *(float *)0x70003058;
-            *(float *)0x70003A28 = dz;
-            dist = func_0011E748(*(float *)0x70003A20 * *(float *)0x70003A20 + dz * dz);
+            D_70003A20 = *(float *)(e + 0xB0) - D_70003050;
+            D_70003A28 = *(float *)(e + 0xB8) - D_70003058;
+            dist = func_0011E748(D_70003A20 * D_70003A20 + D_70003A28 * D_70003A28);
             hit = 1;
         } else {
             hit = 0;
         }
     }
     if (hit != 0) {
-        px = *(float *)0x70003050;
-        pz = *(float *)0x70003058;
+        px = D_70003050;
+        pz = D_70003058;
         pos[0] = px;
         pos[2] = pz;
     } else {
-        px = *(float *)0x700038B0;
-        pz = *(float *)0x700038B8;
+        px = D_700038B0[0];
+        pz = D_700038B8;
         pos[0] = px;
         pos[2] = pz;
     }
@@ -235,34 +247,33 @@ int func_0015EC50(unsigned char *e) {
     }
     pos[1] = *(float *)(e + 0xB4) - 1.0f;
     if (e[0x319] & 1) {
-        func_00102948(D_700038D0, (float *)(e + 0xB0));
+        func_00102948(D_700038D0, e + 0xB0);
         *(float *)0x700038D4 -= 1.0f;
     } else {
-        *(int *)0x700038A0 = 0;
+        D_700038A0[0] = 0.0f;
         *(float *)0x700038A4 = -1.0f;
         *(float *)0x700038A8 = -2.0f;
         *(float *)0x700038AC = 1.0f;
         func_001026A0(D_700038D0, (float *)(e + 0xD0), D_700038A0);
     }
     if (func_0019AFE0(e, pos, D_700038D0, 6) != 0) {
-        if ((*(short *)(*(int *)0x700031D0 + 0x1A) & 0xFF00) == 0x2000) {
+        if ((*(short *)(D_700031D0 + 0x1A) & 0xFF00) == 0x2000) {
             if (hit != 0) {
-                *(float *)0x70003A20 = *(float *)(e + 0xB0) - *(float *)0x700031B0;
-                dz = *(float *)(e + 0xB8) - *(float *)0x700031B8;
-                *(float *)0x70003A28 = dz;
-                *(float *)0x70003A2C =
-                    func_0011E748(*(float *)0x70003A20 * *(float *)0x70003A20 + dz * dz);
-                if (dist <= 13.5f + *(float *)0x70003A2C) {
+                D_70003A20 = *(float *)(e + 0xB0) - D_700031B0;
+                D_70003A28 = *(float *)(e + 0xB8) - D_700031B8;
+                D_70003A2C =
+                    func_0011E748(D_70003A20 * D_70003A20 + D_70003A28 * D_70003A28);
+                if (dist <= 13.5f + D_70003A2C) {
                     return 0;
                 }
             }
-            tgt = *(unsigned char **)0x700031D0;
-            *(float *)0x700038B0 = *(float *)0x700031B0 + 4.5f * *(float *)(tgt + 0x24);
-            *(float *)0x700038B8 = *(float *)0x700031B8 + 4.5f * *(float *)(tgt + 0x2C);
-            *(float *)0x700038B4 = *(float *)(e + 0xB4);
+            tgt = D_700031D0;
+            D_700038B0[0] = D_700031B0 + 4.5f * *(float *)(tgt + 0x24);
+            D_700038B8 = D_700031B8 + 4.5f * *(float *)(tgt + 0x2C);
+            D_700038B4 = *(float *)(e + 0xB4);
             func_0019BC40(D_700038B0);
-            if (*(int *)0x700031E0 != 0) {
-                for (i = *(int *)0x700031E0 - 1; i >= 0; i--) {
+            if (D_700031E0 != 0) {
+                for (i = D_700031E0 - 1; i >= 0; i--) {
                     if (D_70003170[i] & 1) {
                         if (D_700030F0[i] <= 4.01f + *(float *)(e + 0xB4)) {
                             *(float *)(e + 0x254) = D_700030F0[i] - *(float *)(e + 0xB4);
@@ -272,7 +283,7 @@ int func_0015EC50(unsigned char *e) {
                                 e[0x1F0] = 0xC;
                                 return 1;
                             }
-                            return 0;
+                            break;
                         }
                     }
                 }

@@ -1,15 +1,20 @@
-// NEARMISS func_0015A2C0  (vram 0x0015A2C0, 0x48C bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The body follows the original instructions;
-// the residual diff is code generation only:
-// Body corrected 2026-09-25 against the original instructions (001E9E60 gets (self, halfword +0x0E); 001AFC10 takes self only; was 96.63%). Residual: register coloring / scheduling of the top-level state dispatch (target keeps the selector in a2, beql into the 001AFC10 call).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003B64 0x70003B68
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.98% NEARMISS).
+// Fixes read from the original instructions:
+// - The top-level dispatch is a switch on the state byte (cases 0, 1, and 2/3
+//   sharing the 001AFC10 call, every case ending in break), not an if/goto chain.
+// - The frame counters at 0x70003B64/0x70003B68 are relocated scratchpad externs
+//   (idiom-32), so mwcc stops speculating their upper half into branch slots.
+// - The timer increments are compound `+= 1.0f` on the field (operand order).
+// - The random table index is built in place in one local: >> 16, *= 3, >>= 15.
+//
+// Per-frame update of a two-mode object: state 0 initialises it (table
+// row from +0x54, random mode pick for modes 1/2 from D_002481B0/D_002481D0),
+// state 1 runs the mode-1 ramp/hold timer or the mode-2 countdown, states
+// 2 and 3 hand off to 001AFC10.
 
 extern int func_00122BB8(void);
 extern int func_0015A200(unsigned char *parent, int kind, int pairIdx);
@@ -27,6 +32,8 @@ extern unsigned char D_008106EC;
 extern unsigned char D_008106ED;
 extern float D_700038A0;
 extern float D_700038A8;
+extern volatile int D_70003B64;
+extern volatile int D_70003B68;
 
 void func_0015A2C0(unsigned char *self) {
     int state;
@@ -36,19 +43,8 @@ void func_0015A2C0(unsigned char *self) {
     int row;
 
     state = *(unsigned char *)(self + 4);
-    if (state == 3) {
-        goto state23;
-    }
-    if (state == 2) {
-        goto state23;
-    }
-    if (state == 1) {
-        goto state1;
-    }
-    if (state != 0) {
-        return;
-    }
-    {
+    switch (state) {
+    case 0:
         tbl = D_00248120 + (*(short *)(self + 0x54)) * 5;
         *(float **)(self + 0x30) = tbl;
         *(self + 0xC) = 0;
@@ -67,7 +63,7 @@ void func_0015A2C0(unsigned char *self) {
         case 0:
             break;
         case 1:
-            row = *(int *)0x70003B68 & 3;
+            row = D_70003B68 & 3;
             *(short *)(self + 0x56) = D_002481B0[(row << 3) + (D_008106EC & 7)];
             D_008106EC += 1;
             if (*(short *)(self + 0x56) == 1) {
@@ -76,7 +72,7 @@ void func_0015A2C0(unsigned char *self) {
             }
             break;
         case 2:
-            row = *(int *)0x70003B68 & 3;
+            row = D_70003B68 & 3;
             *(short *)(self + 0x56) = D_002481D0[(row << 3) + (D_008106ED & 7)];
             D_008106ED += 1;
             if (*(short *)(self + 0x56) == 1) {
@@ -87,10 +83,8 @@ void func_0015A2C0(unsigned char *self) {
         }
         *(float *)(self + 0x80) = 0.0f;
         *(self + 0xB) = 0;
-        return;
-    }
-state1:
-    {
+        break;
+    case 1:
         func_001E9E60(self, *(unsigned short *)(self + 0xE));
         if (*(short *)(self + 0x56) == 1) {
             sub = *(unsigned char *)(self + 5);
@@ -98,8 +92,8 @@ state1:
             case 0:
                 *(float *)(self + 0x80) = *(float *)(self + 0x20) / 100.0f;
                 if (*(self + 0xA) != 0) {
-                    f = *(float *)(self + 0x20) + 1.0f;
-                    *(float *)(self + 0x20) = f;
+                    *(float *)(self + 0x20) += 1.0f;
+                    f = *(float *)(self + 0x20);
                     if (!(f < 100.0f)) {
                         *(self + 5) = *(unsigned char *)(self + 5) + 1;
                         *(float *)(self + 0x20) = 60.0f;
@@ -111,7 +105,7 @@ state1:
                 }
                 break;
             case 1:
-                if (!(*(int *)0x70003B64 & 0x7F)) {
+                if (!(D_70003B64 & 0x7F)) {
                     func_001FBD50(self, 0x42F, 0, 300.0f);
                 }
                 *(float *)(self + 0x80) = *(float *)(self + 0x20) / 60.0f;
@@ -136,8 +130,8 @@ state1:
                 switch (sub) {
                 case 0:
                     if (*(self + 0xA) != 0) {
-                        f = *(float *)(self + 0x20) + 1.0f;
-                        *(float *)(self + 0x20) = f;
+                        *(float *)(self + 0x20) += 1.0f;
+                        f = *(float *)(self + 0x20);
                         if (!(f <= 120.0f)) {
                             if (func_0015A200(self, 0xD, 0) != 0) {
                                 *(unsigned short *)(self + 0x2E) = *(unsigned short *)(self + 0x2E) + 1;
@@ -146,8 +140,10 @@ state1:
                                 *(self + 5) = 2;
                             } else {
                                 *(self + 5) = 1;
-                                row = (func_00122BB8() >> 0x10) * 3;
-                                *(float *)(self + 0x20) = D_002481F0[row >> 0xF];
+                                row = func_00122BB8() >> 0x10;
+                                row *= 3;
+                                row >>= 0xF;
+                                *(float *)(self + 0x20) = D_002481F0[row];
                             }
                         }
                     } else {
@@ -166,8 +162,10 @@ state1:
         }
         func_001B17A0(self);
         *(self + 0xA) = 0;
-        return;
+        break;
+    case 2:
+    case 3:
+        func_001AFC10(self);
+        break;
     }
-state23:
-    func_001AFC10(self);
 }

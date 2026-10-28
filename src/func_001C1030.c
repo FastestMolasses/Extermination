@@ -1,21 +1,15 @@
-// NEARMISS func_001C1030  (vram 0x001C1030, 0x4D0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order permutation (arg0 copy colored to $s0 vs target's $s1) plus one operand-order/sign-extend scheduling artifact in the state-1/sub-state-0 timer decrement (target computes `field34 - (v36&0xFFF)` via a reversed subu operand order with an extra dsll32/dsra32 64-bit sign-ext...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
-// Corrected 2026-10-01 against the original instructions (docs/FINDINGS.md "NEARMISS body
-// corrections from the level side-track lanes"): state 2 sub-state 0 starts clip 0 on the actor,
-// anim_clip_init(self, 0, 0.0, 0.0): a0 is never rewritten on that path and a1 is 0 (the
-// earlier text passed (0, 2, ...)).
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.72% NEARMISS).
+// Fixes read from the original instructions:
+//  - the two distance components are stored through the relocated scratch extern
+//    D_700038A0 (elements 0 and 2) instead of literal addresses, so the second
+//    reference load is scheduled above the first store (idiom-32 alias rule);
+//  - the request word's 0x1000 test re-narrows the value to short, and the
+//    countdown is decremented with a compound `-=`;
+//  - the turn counter is tested through the pre-decrement's value
+//    (`--counter == 0`) rather than by re-reading the field.
 //
 // Actor animation/AI state machine. State 0: registers the actor via
 // func_001B10B0(arg0, 0x26, 0x27) (bails if already registered), inits bones,
@@ -66,7 +60,7 @@ extern float D_70003600[4];
 extern float D_700036A0[4];
 extern float D_700036D0[4];
 extern float D_70003800[4];
-extern float D_700038A0;
+extern float D_700038A0[4];
 extern float D_70003A20;
 extern float D_70003A24;
 
@@ -93,16 +87,16 @@ void func_001C1030(char *arg0) {
         *(float *)0x700038A4 = 0.0f;
         *(float *)0x700038A8 = 0.0f;
         *(float *)0x700038AC = 1.0f;
-        func_001026A0(&D_700038A0, D_700036A0, &D_700038A0);
-        if (func_0019A570(arg0 + 0xB0, &D_700038A0, 4, 0) != 0) {
-            *(float *)0x700038A0 = D_700031B0 - *(float *)(arg0 + 0xB0);
-            *(float *)0x700038A8 = D_700031B8 - *(float *)(arg0 + 0xB8);
+        func_001026A0(D_700038A0, D_700036A0, D_700038A0);
+        if (func_0019A570(arg0 + 0xB0, D_700038A0, 4, 0) != 0) {
+            D_700038A0[0] = D_700031B0 - *(float *)(arg0 + 0xB0);
+            D_700038A0[2] = D_700031B8 - *(float *)(arg0 + 0xB8);
             D_70003A20 = func_0011E748(*(float *)0x700038A0 * *(float *)0x700038A0 + *(float *)0x700038A8 * *(float *)0x700038A8);
             *(float *)(arg0 + 0x60) = D_70003A20 / 20.0f;
         }
-        func_00102948(&D_700038A0, arg0 + 0xB0);
+        func_00102948(D_700038A0, arg0 + 0xB0);
         *(float *)0x700038A4 = *(float *)0x700038A4 - 40.0f;
-        if (func_0019A570(arg0 + 0xB0, &D_700038A0, 4, 0) != 0) {
+        if (func_0019A570(arg0 + 0xB0, D_700038A0, 4, 0) != 0) {
             float dy = D_700031B4 - *(float *)(arg0 + 0xB4);
             D_70003A20 = dy;
             D_70003A20 = func_0011E748(dy * dy);
@@ -117,8 +111,8 @@ void func_001C1030(char *arg0) {
         {
             short v36 = *(short *)(arg0 + 0x36);
             if (v36 != 0) {
-                if (v36 & 0x1000) {
-                    *(short *)(arg0 + 0x34) = *(short *)(arg0 + 0x34) - (v36 & 0xFFF);
+                if ((short)v36 & 0x1000) {
+                    *(short *)(arg0 + 0x34) -= v36 & 0xFFF;
                     if (*(short *)(arg0 + 0x34) <= 0) {
                         *(char *)(arg0 + 0) = 2;
                         *(unsigned char *)(arg0 + 4) = 2;
@@ -152,8 +146,7 @@ void func_001C1030(char *arg0) {
             func_00102BB0(D_70003400, D_70003400, *(float *)(arg0 + 0xC4));
             func_00102948(D_70003430, arg0 + 0xA0);
             func_001026A0(arg0 + 0xB0, D_70003400, D_70003600);
-            *(short *)(arg0 + 0x28) = *(short *)(arg0 + 0x28) - 1;
-            if (*(short *)(arg0 + 0x28) == 0) {
+            if (--*(short *)(arg0 + 0x28) == 0) {
                 *(char *)(arg0 + 0) = 1;
                 *(unsigned char *)(arg0 + 5) = 0;
                 func_00102948(arg0 + 0xB0, arg0 + 0xA0);

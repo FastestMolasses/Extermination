@@ -1,15 +1,19 @@
-// NEARMISS func_00134500  (vram 0x00134500, 0x3D8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.82% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NEARMISS 96.82% (233) / 90.79% (991202) -- essentially body-complete. Two residual mwcc scheduling artifacts, neither fixable from source: (1) idiom-13-adjacent -- 2.3.3 speculatively turns the arg1+4 decrement/store into a `bnezl` (branch-likely) with the subtract filled into its own delay slot,...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.82% NEARMISS).
+// Fixes read from the original instructions (the old "branch-likely scheduling
+// artifact" verdict was a control-flow spelling issue):
+//  - state 1: the timer test is `if (timer != 0) decrement; else { clear state; break; }`
+//    (non-zero arm first), not an early-out on zero.
+//  - the near/far mode choice is one `||` condition (far, or a random bit set -> 6,
+//    else 5), and each arm clears the state byte itself (the store is duplicated per arm).
+//
+// State machine for an idle/wander behaviour: state 0 seeds a random timer and a
+// heading (random or toward a target point); state 1 counts the timer down, either
+// steering around a fixed scratchpad point or re-picking a heading, and picks the
+// next mode when done. Finally the heading is turned toward the target angle at a
+// rate of 2 (or 4) degrees per frame.
 
 extern void anim_clip_init(unsigned char *self, int clip, float a, float b);
 extern int func_00122BB8(void);
@@ -49,13 +53,14 @@ void func_00134500(unsigned char *arg0, unsigned char *arg1) {
         }
         break;
     case 1:
-        if (*(int *)(arg1 + 4) == 0) {
+        if (*(int *)(arg1 + 4) != 0) {
+            *(int *)(arg1 + 4) = *(int *)(arg1 + 4) - 1;
+        } else {
             *(unsigned char *)(arg0 + 5) = 0;
             *(unsigned char *)(arg0 + 6) = 0;
             break;
         }
         {
-            *(int *)(arg1 + 4) = *(int *)(arg1 + 4) - 1;
             if (*(signed char *)(arg1 + 0x5C) != 0) {
                 float delta;
 
@@ -90,16 +95,13 @@ void func_00134500(unsigned char *arg0, unsigned char *arg1) {
                     *(float *)(arg1 + 0x24) = func_001B1240(arg0 + 0xB0, D_00810360, D_00810368);
                 }
                 if (*(short *)(arg1 + 0x50) == 0) {
-                    if (*(float *)(arg1 + 0x34) < 50.0f) {
-                        if ((func_00122BB8() >> 0x13) & 1) {
-                            *(unsigned char *)(arg0 + 5) = 6;
-                        } else {
-                            *(unsigned char *)(arg0 + 5) = 5;
-                        }
-                    } else {
+                    if (!(*(float *)(arg1 + 0x34) < 50.0f) || ((func_00122BB8() >> 0x13) & 1)) {
                         *(unsigned char *)(arg0 + 5) = 6;
+                        *(unsigned char *)(arg0 + 6) = 0;
+                    } else {
+                        *(unsigned char *)(arg0 + 5) = 5;
+                        *(unsigned char *)(arg0 + 6) = 0;
                     }
-                    *(unsigned char *)(arg0 + 6) = 0;
                 }
             }
         }

@@ -1,25 +1,21 @@
-// NEARMISS func_00198440  (vram 0x00198440, 0x204 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.67% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// FP-coloring + scheduling near-miss. Body byte-identical after fixing the float const (0.4f=0x3ECCCCCD, NOT 0.1f), routing func_001026A0/func_00103230 first arg through the D_70003610 symbol (the float reloads stay raw 0x70003610), reordering the arg2==2 && r!=0 test, caching the three scratchpad ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 4
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.67% NEARMISS).
+// Fixes read from the original instructions:
+//  - The four scratchpad header words (0x70003600..0x7000360C) are written as four
+//    separate scratchpad symbols (one extern per address, idiom-32), not through a
+//    local pointer to a literal address. That fixes the float register colouring of
+//    the three loads and keeps the D_70003610 argument address after the stores.
+//  - The three header values are stored straight from their globals (no locals).
 
 // Builds a transform/offset workspace in the EE scratchpad (0x70003600 region):
 // writes (-D_002754E8, D_002754F0, D_002754EC, 0), calls func_001026A0 to populate
 // D_70003610, then composes object position (arg0[4..6], [8..10]) from the entity
 // at *(arg1+0x20)+0xA0.. and the scratchpad results. arg2 selects 3 path variants.
-// NEARMISS 96.7% (mwcc 2.3.3): logic fully recovered & body byte-identical; sole
-// residual is FPU register coloring (f2/f1/f0 vs f0/f1/f8) + one address-compute
-// scheduled one slot early. Note 0.4f (0x3ECCCCCD) is the scale constant; the
-// [16]/[4] array extern types are a matching device to pin sdata placement so
-// D_002754E8/EC/F0 stay gp-rel while D_008105D0/E0/106C6/D_700038A0 use %hi/%lo.
+// Note 0.4f (0x3ECCCCCD) is the scale constant; the
+// array extern types keep the scratchpad/BSS symbols out of small data (absolute
+// addressing) while the D_002754E8/EC/F0 scalars stay gp-relative.
 extern int func_001026A0(float *, int, float *);
 extern int func_0018C850(void *, float, float);
 extern int func_0018C920(float *, void *, float);
@@ -36,19 +32,18 @@ extern unsigned char D_008106C6[16];
 extern float D_700038A0[4];
 extern float D_70003600[4];
 extern float D_70003610[4];
+extern float D_70003604[];
+extern float D_70003608[];
+extern int D_7000360C[];
 
 void func_00198440(float *arg0, int arg1, int arg2) {
     int s0 = *(int *)(arg1 + 0x20);
     int s1;
-    float *sp = (float *)0x70003600;
-    float f2 = -D_002754E8;
-    float f1 = D_002754F0;
-    float f0 = D_002754EC;
 
-    sp[0] = f2;
-    sp[1] = f1;
-    sp[2] = f0;
-    *(int *)0x7000360C = 0;
+    D_70003600[0] = -D_002754E8;
+    D_70003604[0] = D_002754F0;
+    D_70003608[0] = D_002754EC;
+    D_7000360C[0] = 0;
     s1 = s0 + 0x1F0;
     func_001026A0(D_70003610, *(int *)(s0 + 0x110) + 0x90, D_70003600);
     arg0[4] = *(float *)(s0 + 0xA0) + *(float *)0x70003610;

@@ -1,17 +1,14 @@
-// NEARMISS func_001963A0  (vram 0x001963A0, 0x5C4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.59% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation-order permutation: mwcc233 colors the switch(arg0[1]) dispatch temp into $a1 (target uses $v1, loading it via $a0 before the paddub self/other copies), which cascades into a repeated FP-register-coloring swap ($f1/$f3 vs $f1/$f2) in the position-clamp float update, occurring i...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-// NEARMISS 96.6% (mwcc233; 991202 = 91.4%) — logic fully recovered.
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.59% NEARMISS).
+// Fixes read from the original instructions:
+//  - state 0 increments self[1] by re-reading the byte after the s16 store
+//    (`self[1] += 1`), not from the cached dispatch value; this frees the
+//    dispatch temp and restores the original register colouring.
+//  - the height nudge is a compound add on the field
+//    (`self[0x14] += (42 + target_h) - self[0x14]`), which fixes the FP
+//    register order of the four nudge sites.
 //
 // Actor "approach/anim distance" tick, called with arg0 = self actor record, arg1 = other/target
 // actor record (world position at arg1+0xA0/0xA4/0xA8, "band" float at arg1+0xB4).
@@ -20,7 +17,7 @@
 // self+0x10..0x1C (a position/xy0/scale-ish float set) toward one of two fixed targets depending
 // on whether arg1[0xA4] (target's Z/height) is <= 176.9:
 //   state 0: zero self[8](s16)/self[2], set self+0x10..0x1C to a fixed pose A (>176.9: state->3)
-//            or pose B (<=176.9: state->1), and advance self[1] to state+1 (0->1) as a side effect
+//            or pose B (<=176.9: state->1), and advance self[1] by one (re-read, 0->1) as a side effect
 //            before the branch overwrites it again for the two sub-cases.
 //   state 1: smooth self+0x10 toward &D_008105D0 (func_0018C920, step 0.2), push self[0x14] into
 //            D_008105D0 (func_0018C850); if still >176.9, snap to pose A, nudge self[0x14] by
@@ -62,15 +59,12 @@ extern unsigned char D_00810702;
 
 void func_001963A0(char *arg0, char *arg1)
 {
-    int st;
-    float f;
     int mode;
 
-    st = *(unsigned char *)(arg0 + 1);
-    switch (st) {
+    switch (*(unsigned char *)(arg0 + 1)) {
     case 0:
         *(short *)(arg0 + 8) = 0;
-        *(unsigned char *)(arg0 + 1) = st + 1;
+        *(unsigned char *)(arg0 + 1) += 1;
         *(char *)(arg0 + 2) = 0;
         if (!(*(float *)(arg1 + 0xA4) <= 176.9f)) {
             *(int *)(arg0 + 0x10) = 0x42E60000;
@@ -95,8 +89,7 @@ void func_001963A0(char *arg0, char *arg1)
             *(float *)(arg0 + 0x14) = 266.0f;
             *(int *)(arg0 + 0x18) = 0x43664CCD;
             *(int *)(arg0 + 0x1C) = 0x3F800000;
-            f = *(float *)(arg0 + 0x14);
-            *(float *)(arg0 + 0x14) = f + ((42.0f + *(float *)(arg1 + 0xA4)) - f);
+            *(float *)(arg0 + 0x14) += (42.0f + *(float *)(arg1 + 0xA4)) - *(float *)(arg0 + 0x14);
             if (!(*(float *)(arg0 + 0x14) <= 266.0f)) {
                 *(float *)(arg0 + 0x14) = 266.0f;
             }
@@ -112,8 +105,7 @@ void func_001963A0(char *arg0, char *arg1)
             *(float *)(arg0 + 0x14) = 266.0f;
             *(int *)(arg0 + 0x18) = 0x43664CCD;
             *(int *)(arg0 + 0x1C) = 0x3F800000;
-            f = *(float *)(arg0 + 0x14);
-            *(float *)(arg0 + 0x14) = f + ((42.0f + *(float *)(arg1 + 0xA4)) - f);
+            *(float *)(arg0 + 0x14) += (42.0f + *(float *)(arg1 + 0xA4)) - *(float *)(arg0 + 0x14);
             if (!(*(float *)(arg0 + 0x14) <= 266.0f)) {
                 *(float *)(arg0 + 0x14) = 266.0f;
             }
@@ -123,8 +115,7 @@ void func_001963A0(char *arg0, char *arg1)
         break;
 
     case 3:
-        f = *(float *)(arg0 + 0x14);
-        *(float *)(arg0 + 0x14) = f + ((42.0f + *(float *)(arg1 + 0xA4)) - f);
+        *(float *)(arg0 + 0x14) += (42.0f + *(float *)(arg1 + 0xA4)) - *(float *)(arg0 + 0x14);
         if (!(*(float *)(arg0 + 0x14) <= 266.0f)) {
             *(float *)(arg0 + 0x14) = 266.0f;
         }
@@ -140,8 +131,7 @@ void func_001963A0(char *arg0, char *arg1)
         break;
 
     case 4:
-        f = *(float *)(arg0 + 0x14);
-        *(float *)(arg0 + 0x14) = f + ((42.0f + *(float *)(arg1 + 0xA4)) - f);
+        *(float *)(arg0 + 0x14) += (42.0f + *(float *)(arg1 + 0xA4)) - *(float *)(arg0 + 0x14);
         if (!(*(float *)(arg0 + 0x14) <= 266.0f)) {
             *(float *)(arg0 + 0x14) = 266.0f;
         }

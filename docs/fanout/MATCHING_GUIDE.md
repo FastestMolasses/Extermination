@@ -118,3 +118,23 @@ NEARMISS improved and parked: func_001D89D0 99.89 (one flag-byte reload in
 v0 instead of v1; callers pass a 4th argument that func_001D8690's definition
 lacks), func_001EF780 97.69 (easing-tail constant order shared with the
 func_001EF510 family), func_001D0720 97.31 (compiler mix).
+
+### Queue batch 2 (2026-10-27)
+
+19 byte-matched: func_0015A2C0 (an if/goto chain that is a `switch`),
+func_00217090 and its twin func_00218640 (literal addresses for the
+0x002821Bx / 0x00810CAx words keep source order; the twin's slot-search loop
+spelling), func_00185760 (a 16-byte struct copy, not a u128 cast),
+func_0010AA80 (an unused int return declared void), func_00115068 (the name
+buffer is +0x20 of the D_0027B100 block), func_001B1630 (volatile anchor
+floats, as its twin), dma_wait_and_submit (five copies of the register dump
+that ee-gcc cross-jumps into one), func_00134500, func_00157F60 (returns int
+1), func_001C1030, func_001FEE60 (twin func_002032C0's shape), func_00146110,
+func_00198440 (one array extern per scratchpad word), func_001963A0,
+sub_sceMpegGetPicture_decode_error (a top-tested wait loop; `long long`
+frame size), func_001328D0 (each success path its own `|= 4`), func_0015EC50,
+sub_BASCUS_97112_DS00_00_EX_DATA_00_2 (inner switch cases `return`; twin's
+SaveTask struct). Improved and parked: func_0014B7B0 99.86 (one FPU
+coalescing choice), func_001EF780 98.06 and func_001EF1C0 96.80 (the family
+tail as an in-place `*p += (0.02f - *p) / 10.0f`; the remaining residual is
+the constant-argument order at the func_001CFB50 calls), func_001370C0 97.53.

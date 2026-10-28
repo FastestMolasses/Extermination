@@ -1,15 +1,22 @@
-// NEARMISS func_00146110  (vram 0x00146110, 0x394 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.74% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Same class as the sibling func_0014B7B0 (already-parked NEARMISS): register-allocation/scheduling artifacts in the spad transform-block writes when self->posB0..BC is copied into both work vectors plus one +constant offset. All calls/args/branch structure/anim dispatch logic byte-identical; only ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.74% NEARMISS).
+// Fixes read from the original instructions:
+//  - The two scratchpad work vectors at 0x700038A0 / 0x700038B0 are plain
+//    (non-volatile) 4-float structs: copy self->posB0..BC into both, then
+//    add 5 to the first's y, set its w to 1, add 30 to the second's y and set
+//    its w to 1. The old volatile-literal spelling pinned the load of the
+//    first y after the second vector's stores (wrong float registers).
+//  - Each speed path stores its result straight into out+0x44 and jumps to
+//    a shared "return 1"; a single store after a merged speed temp put the
+//    return value ahead of the store and emptied the branch delay slots.
+//
+// Behaviour: sets up a scratchpad point (0, 3, 10, 1), transforms it by self,
+// then calls func_001B2BF0; its flag bits choose how out+0x44 is computed
+// (func_001B3580 on the entity at 0x700031D0's position, or func_001B37D0
+// with 10, 20). One path runs func_0019A570 / func_0019AD00 checks and, when
+// both report 0, sets self bytes 5 and 6 to 3 and 0 and returns 2.
 
 extern void func_001B2B10(void *self, void *a, void *b);
 extern void func_001028B8(void *a, void *b, void *c);
@@ -20,8 +27,9 @@ extern int func_00122BB8(void);
 extern int func_0019A570(void *a, void *b, int c, int d);
 extern int func_0019AD00(void *self, void *a, int n);
 
-extern int D_700038A0;
-extern int D_700038B0;
+typedef struct V4 { float x, y, z, w; } V4;
+extern V4 D_700038A0;
+extern V4 D_700038B0;
 extern volatile float D_700038D0;
 
 typedef struct Ent {
@@ -40,7 +48,6 @@ int func_00146110(Self *self, char *out) {
     float sp30[4];
     Ent *e;
     int flags;
-    float speed;
 
     *(volatile int *)0x700038A0 = 0;
     *(volatile float *)0x700038A4 = 3.0f;
@@ -55,11 +62,11 @@ int func_00146110(Self *self, char *out) {
             e = *(Ent **)0x700031D0;
             sp30[0] = e->f24; sp30[1] = e->f28; sp30[2] = e->f2C;
             sp30[3] = 1.0f;
-            speed = func_001B3580(self, sp30);
+            *(float *)(out + 0x44) = func_001B3580(self, sp30);
         } else {
-            speed = func_001B37D0(self, 10.0f, 20.0f);
+            *(float *)(out + 0x44) = func_001B37D0(self, 10.0f, 20.0f);
         }
-        goto block_18;
+        goto done;
     }
 
     if (flags & 4) {
@@ -68,20 +75,18 @@ int func_00146110(Self *self, char *out) {
         sp30[3] = 1.0f;
         if (!((15.0f + self->posB4) < D_700038D0)) {
             if (e->f1A != 0x46 && ((func_00122BB8() >> 6) & 3)) {
-                float a4;
-                *(volatile float *)0x700038A0 = self->posB0;
-                *(volatile float *)0x700038A4 = self->posB4;
-                *(volatile float *)0x700038A8 = self->posB8;
-                *(volatile float *)0x700038AC = self->posBC;
-                a4 = *(volatile float *)0x700038A4 + 5.0f;
-                *(volatile float *)0x700038B0 = self->posB0;
-                *(volatile float *)0x700038B4 = self->posB4;
-                *(volatile float *)0x700038B8 = self->posB8;
-                *(volatile float *)0x700038BC = self->posBC;
-                *(volatile float *)0x700038A4 = a4;
-                *(volatile float *)0x700038AC = 1.0f;
-                *(volatile float *)0x700038B4 = *(volatile float *)0x700038B4 + 30.0f;
-                *(volatile float *)0x700038BC = 1.0f;
+                D_700038A0.x = self->posB0;
+                D_700038A0.y = self->posB4;
+                D_700038A0.z = self->posB8;
+                D_700038A0.w = self->posBC;
+                D_700038B0.x = self->posB0;
+                D_700038B0.y = self->posB4;
+                D_700038B0.z = self->posB8;
+                D_700038B0.w = self->posBC;
+                D_700038A0.y += 5.0f;
+                D_700038A0.w = 1.0f;
+                D_700038B0.y += 30.0f;
+                D_700038B0.w = 1.0f;
                 if (func_0019A570(&D_700038A0, &D_700038B0, 6, 0) == 0) {
                     *(volatile int *)0x700038A0 = 0;
                     *(volatile float *)0x700038A4 = 15.5f;
@@ -99,8 +104,8 @@ int func_00146110(Self *self, char *out) {
             goto block_13;
         }
     block_13:
-        speed = func_001B3580(self, sp30);
-        goto block_18;
+        *(float *)(out + 0x44) = func_001B3580(self, sp30);
+        goto done;
     }
 
     if ((self->posB4 - 20.0f) < *(volatile float *)0x700038D0) {
@@ -112,8 +117,7 @@ int func_00146110(Self *self, char *out) {
         }
         return 0;
     }
-    speed = func_001B37D0(self, 10.0f, 20.0f);
-block_18:
-    *(float *)(out + 0x44) = speed;
+    *(float *)(out + 0x44) = func_001B37D0(self, 10.0f, 20.0f);
+done:
     return 1;
 }

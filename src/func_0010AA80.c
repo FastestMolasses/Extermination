@@ -1,21 +1,24 @@
-// NEARMISS func_0010AA80  (vram 0x0010AA80, 0xC0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 98.75% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// Logic/frame(0x60)/externs all correct; return type void confirmed (no trailing return-value clear). Residual diff: the two volatile MMIO stores *(0x10002000)=0 and *(0x1000B400)=0x101 are not scheduled into the delay slots of the preceding func_001063E8 / func_001063B8 calls (gcc leaves a nop there and places the store before the call); rest of the note: docs/NEARMISS.md.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // EEGCC_AS: 2.96
-// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 98.75% NEARMISS).
+// Fixes read from the original instructions:
+//  - the 2.96 gas fills the call delay slots with the following MMIO stores, as the
+//    original does;
+//  - func_001063E8 is declared returning void here: an unused int-returning call keeps
+//    the return register live after the call and shifted the scratch-register choice
+//    for the MMIO addresses and the 28-bit address mask.
+//
+// Behaviour: brackets a hardware transfer with func_00109B20(D_002412F4, buf) calls
+// (buf[0] = 2 before, 3 after). Waits via func_001063E8, clears the register at
+// 0x10002000, waits again, then programs DMA channel registers at 0x1000B400:
+// address = a1 masked to 28 bits, count 4, control 0x101; then func_001063B8(a0) and a
+// final wait.
 
 extern int func_00109B20(int a0, void *a1);
-extern int func_001063E8(void);
-extern int func_001063B8(int a0);
+extern void func_001063E8(void);
+extern void func_001063B8(unsigned int a0);
 extern int D_002412F4;
 
 void func_0010AA80(int a0, int a1) {

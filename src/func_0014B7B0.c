@@ -1,8 +1,14 @@
 // NEARMISS func_0014B7B0  (vram 0x0014B7B0, 0x358 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.50% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation/scheduling artifacts inside the spad (0x700038xx) transform-block writes: mwcc233 CSEs the D_700038A4+10.0f add into a temp register whose store gets interleaved differently than the target's fixed-register schedule (persistent DIFF_DELETE on one add.s in that block regardless...
+// objdiff 99.86% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Matching wave
+// 2026-10-27 (was 96.50%): each result path stores its speed into out+0x44 itself before the
+// shared "return 1" (not one store after a join); the probe-end lift is a compound
+// `*(0x700038B4) += 40.0f`; the probe-start lift reads 0x700038A4 into a temp before the
+// second-vector copy and adds 10.0f after it.
+// Remaining differences: one FPU register choice in the probe-start lift: the original keeps
+// the reloaded 0x700038A4 value in the copy-temp register and puts the sum in the 10.0f
+// constant's register (sum = value + 10.0f); mwcc 2.3.3 here coalesces the sum with the
+// value (one add operand order and three register numbers differ).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -40,7 +46,6 @@ int func_0014B7B0(Self *self, char *out) {
     float sp30[4];
     Ent *e;
     int flags;
-    float speed;
 
     *(volatile int *)0x700038A0 = 0;
     *(volatile float *)0x700038A4 = 3.0f;
@@ -55,9 +60,9 @@ int func_0014B7B0(Self *self, char *out) {
             e = *(Ent **)0x700031D0;
             sp30[0] = e->f24; sp30[1] = e->f28; sp30[2] = e->f2C;
             sp30[3] = 1.0f;
-            speed = func_001B3580(self, sp30);
+            *(float *)(out + 0x44) = func_001B3580(self, sp30);
         } else {
-            speed = func_001B37D0(self, 10.0f, 45.0f);
+            *(float *)(out + 0x44) = func_001B37D0(self, 10.0f, 45.0f);
         }
         goto block_18;
     }
@@ -73,14 +78,15 @@ int func_0014B7B0(Self *self, char *out) {
                 *(volatile float *)0x700038A4 = self->posB4;
                 *(volatile float *)0x700038A8 = self->posB8;
                 *(volatile float *)0x700038AC = self->posBC;
-                a4 = *(volatile float *)0x700038A4 + 10.0f;
+                a4 = *(volatile float *)0x700038A4;
                 *(volatile float *)0x700038B0 = self->posB0;
                 *(volatile float *)0x700038B4 = self->posB4;
                 *(volatile float *)0x700038B8 = self->posB8;
                 *(volatile float *)0x700038BC = self->posBC;
+                a4 = a4 + 10.0f;
                 *(volatile float *)0x700038A4 = a4;
                 *(volatile float *)0x700038AC = 1.0f;
-                *(volatile float *)0x700038B4 = *(volatile float *)0x700038B4 + 40.0f;
+                *(volatile float *)0x700038B4 += 40.0f;
                 *(volatile float *)0x700038BC = 1.0f;
                 if (func_0019A570(&D_700038A0, &D_700038B0, 6, 0) == 0) {
                     *(volatile int *)0x700038A0 = 0;
@@ -99,15 +105,14 @@ int func_0014B7B0(Self *self, char *out) {
             goto block_13;
         }
     block_13:
-        speed = func_001B3580(self, sp30);
+        *(float *)(out + 0x44) = func_001B3580(self, sp30);
         goto block_18;
     }
 
     if ((self->posB4 - 45.0f) < D_700038D0) {
         return 0;
     }
-    speed = func_001B37D0(self, 10.0f, 45.0f);
+    *(float *)(out + 0x44) = func_001B37D0(self, 10.0f, 45.0f);
 block_18:
-    *(float *)(out + 0x44) = speed;
     return 1;
 }

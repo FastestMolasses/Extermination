@@ -1,15 +1,16 @@
-// NEARMISS func_00185760  (vram 0x00185760, 0x2B0 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 96.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation permutation confined to the opening prologue block. Structurally identical to the target for the entire body; the sole residual is register-coloring in the D_002487D0 quadword-copy + func_00103230 call-setup sequence (v0/v1/a0/a1 permuted, one branch-offset shift caused by tha...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 96.91% NEARMISS).
+// Fixes read from the original instructions:
+// - D_002487D0 and the stack tint are a 16-byte struct copied by struct
+//   assignment (not a u128 cast store); this gives the original's explicit
+//   source-address computation and register choice in the opening block.
+// - The struct copy comes before the arg0+0xC0 / arg0+0x1F0 pointer setup.
+// - The four colour words are D_700038B0[0..3] of a volatile extern array,
+//   not literal-address volatile stores/loads; this leaves the unconditional
+//   branch at the end of the bright arm with an unfilled delay slot as in
+//   the original.
 
 // Weapon-fire / muzzle-flash trigger. Advances the RNG twice (func_00122BB8),
 // snapshots the identity-ish quadword D_002487D0 to the stack, scales arg0's
@@ -29,7 +30,7 @@
 // D_008106E0-dependent tint vector (full white vs. dim amber) and the same
 // 260.0f scale.
 //
-// NEARMISS 96.91% with mwcc 2.3.3 (mwcps2-2.3.3-000906). Keys applied:
+// Earlier keys that still hold:
 // (1) D_008106E0 is a scalar global 5.8MB away from $gp yet the target uses
 // absolute lui/%hi %lo addressing for it (not gp_rel) -- over-declaring it
 // int[4] (array-over-declaration idiom) fixes this at -sdatathreshold 8.
@@ -44,8 +45,6 @@
 // order. (4) `s2[0xA] = 0x80` must be written through an explicit
 // `unsigned char *` cast so mwcc materializes the positive 0x80 immediate
 // (addiu +0x80) instead of sign-extending a `char` literal to -0x80.
-// Residual: pure register-coloring permutation in the D_002487D0 copy /
-// func_00103230 call-setup prologue -- parked for the permuter pass.
 
 extern int func_00122BB8(void);
 extern void func_00103230(void *, void *, float);
@@ -57,18 +56,18 @@ extern void func_001031E0(void *, void *);
 extern void func_001CD520(int, int, void *, long long, float, float, float, int);
 extern void func_001E2BA0(void *, void *, void *, float);
 
-typedef int u128 __attribute__((mode(TI)));
 
-extern u128 D_002487D0;
+typedef struct { float w[4]; } Q;
+extern Q D_002487D0;
 extern int D_00275B00;
 extern int D_008106E0[4];
 extern float D_700031B0[4];
 extern int D_700038A0[4];
-extern int D_700038B0[4];
+extern volatile int D_700038B0[4];
 extern int D_700038C0[4];
 
 void func_00185760(char *arg0) {
-    int sp40[4];
+    Q sp40;
     char *s0;
     char *s2;
     int v1;
@@ -79,9 +78,9 @@ void func_00185760(char *arg0) {
     func_00122BB8();
     func_00122BB8();
 
+    sp40 = D_002487D0;
     c0 = arg0 + 0xC0;
     s0 = arg0 + 0x1F0;
-    *(u128 *)sp40 = D_002487D0;
     func_00103230(D_700038A0, c0, 260.0f);
     func_001028B8(D_700038A0, D_700038A0, arg0 + 0xA0);
     *(volatile int *)0x700038AC = 0x3F800000;
@@ -102,38 +101,38 @@ void func_00185760(char *arg0) {
     v1 = (func_00122BB8() >> 0xF) & 0x1F;
 
     if (D_008106E0[0] != 0) {
-        *(volatile int *)0x700038B0 = v1 + 0x70;
-        *(volatile int *)0x700038B4 = v1 + 0x40;
-        *(volatile int *)0x700038B8 = v1 + 0x20;
-        *(volatile int *)0x700038BC = 0x80;
+        D_700038B0[0] = v1 + 0x70;
+        D_700038B0[1] = v1 + 0x40;
+        D_700038B0[2] = v1 + 0x20;
+        D_700038B0[3] = 0x80;
         f12 = 5.0f;
     } else {
-        *(volatile int *)0x700038B0 = v1 + 0x50;
-        *(volatile int *)0x700038B4 = 0;
-        *(volatile int *)0x700038B8 = 0;
-        *(volatile int *)0x700038BC = 0x80;
+        D_700038B0[0] = v1 + 0x50;
+        D_700038B0[1] = 0;
+        D_700038B0[2] = 0;
+        D_700038B0[3] = 0x80;
         f12 = 3.0f;
     }
 
-    packed = (*(volatile int *)0x700038BC << 24)
-        | (*(volatile int *)0x700038B8 << 16)
-        | (*(volatile int *)0x700038B4 << 8)
-        | *(volatile int *)0x700038B0;
+    packed = (D_700038B0[3] << 24)
+        | (D_700038B0[2] << 16)
+        | (D_700038B0[1] << 8)
+        | D_700038B0[0];
 
     func_001CD520(0, 2, D_700038A0, 0x20045BA5154222DCLL, f12, f12, 2.0f, packed);
     func_00102948(D_700038C0, arg0 + 0x1F0);
 
     if (D_008106E0[0] != 0) {
-        sp40[0] = 0x3F800000;
-        sp40[1] = 0x3F19999A;
-        sp40[2] = 0x3E4CCCCD;
-        sp40[3] = 0x3F800000;
+        sp40.w[0] = 1.0f;
+        sp40.w[1] = 0.6f;
+        sp40.w[2] = 0.2f;
+        sp40.w[3] = 1.0f;
     } else {
-        sp40[0] = 0x3F333333;
-        sp40[1] = 0;
-        sp40[2] = 0;
-        sp40[3] = 0x3F800000;
+        sp40.w[0] = 0.7f;
+        sp40.w[1] = 0.0f;
+        sp40.w[2] = 0.0f;
+        sp40.w[3] = 1.0f;
     }
 
-    func_001E2BA0(D_700038C0, D_700038A0, sp40, 260.0f);
+    func_001E2BA0(D_700038C0, D_700038A0, &sp40, 260.0f);
 }

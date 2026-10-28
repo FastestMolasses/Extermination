@@ -1,6 +1,6 @@
 // NEARMISS func_001EF780  (vram 0x001EF780, 0x1B4 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.69% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
+// objdiff 98.06% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
 // diff is a genuine compiler artifact that no source change fixes here:
 // Remaining differences: (1) inside the loop the target materializes the 1e-6f argument before the 1.0f argument (ours: 1.0f first); (2) in the easing tail the target colours the loaded field into the lower FP register and the 0.02f constant into the higher one (ours: swapped). Tail store-through spelling (field = f + (0.02f - f) / 10.0f) took it from 97.60 to 97.69. Not fixed by constant spellings, int-staged constants, separate/extra locals, struct/array access, compilers 991202/2.4, or a 9-minute permuter run (no improvement from score 115). The sibling functions 001ECFB0..001EF1C0 share both residuals.
 //
@@ -66,8 +66,10 @@ void func_001EF780(int arg0, int arg1) {
         func_001CFBE0(arg1, 1, D_00257B40, D_0081F8F0, 0);
         pm += 4;
     }
-    f = *(float *)((char *)D_00275C34 + 8);
-    *(float *)((char *)D_00275C34 + 8) = f + (0.02f - f) / 10.0f;
+    {
+        float *p = (float *)((char *)D_00275C34 + 8);
+        *p += (0.02f - *p) / 10.0f;
+    }
     f = *(float *)((char *)D_00275C34 + 8);
     if (f < 0.02f) {
         f = 0.02f;

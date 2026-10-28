@@ -1,8 +1,8 @@
 // NEARMISS func_001370C0  (vram 0x001370C0, 0x2E8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Paired float-register scheduling/coloring artifact (FPU-coloring class): after the func_001B15D0 call (whose result occupies the $f0/$f1 pair), the target immediately reloads *(float*)(rec+0xB4) directly into the ODD HALF of that same register pair ($f1 / "fv0f") for the subsequent store-back and...
+// objdiff 97.53% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful.
+// Splitting the (20 + target y) sum into its own local ahead of the scratch store raised it from 96.88%.
+// Remaining differences: the target loads rec+0xB4 before materialising 20.0f, stores it to the scratch y (0x700038A4) BEFORE the subtraction (through a self-move of that register), leaving the clamp branch's delay slot empty; ours sinks the store into that delay slot (4 bytes shorter). Literal-address, extern (gp/array), chained-assignment, local-copy and inline-helper spellings all tried.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -53,6 +53,7 @@ void func_001370C0(int arg0, unsigned char arg1) {
     float t;
     float ang;
     float d;
+    float b;
 
     rec = func_001AFA90(2);
     if (rec == 0) {
@@ -91,8 +92,9 @@ void func_001370C0(int arg0, unsigned char arg1) {
     *(int *)0x700038B4 = 0;
     *(int *)0x700038A4 = 0;
     t = func_001B15D0(D_700038A0, D_700038B0);
-    d = (20.0f + *(float *)0x700038D4) - *(float *)(rec + 0xB4);
+    b = 20.0f + *(float *)0x700038D4;
     *(float *)0x700038A4 = *(float *)(rec + 0xB4);
+    d = b - *(float *)0x700038A4;
     if (d < 0.0f) {
         d = 0.0f;
     }
