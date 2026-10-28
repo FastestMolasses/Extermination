@@ -1,17 +1,12 @@
-// NEARMISS func_001AD740  (vram 0x001AD740, 0x7B8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.98% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Object similarity does not prove semantic equivalence.
-// Remaining differences in this candidate (round 6, 2026-09-23):
-// Two instructions: the saturating increment of D_0081070A lands in v1 in place (v1 += 1, then
-// masked into s2) where the target writes a fresh v0 that already holds the 0xFF compare constant. The
-// outer jump-table relocation rows are the local .rodata symbol name only.
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 99.98% NEARMISS).
+// Fix read from the original instructions:
+// - The saturating bump of D_0081070A reads the byte into its own int and writes
+//   either raw + 1 or the literal 0xFF into an unsigned char result (the original
+//   reuses the 0xFF compare constant's register as the result on the equal path);
+//   the unsigned char result also supplies the 0xFF mask, so no separate masked copy.
 
 // SEMANTICS: Game-over / continue frame task (sibling of func_001AD4E0). The task
 // slot pointer lives in scratchpad 0x70003B6C; the outer state byte is slot+0xA and
@@ -55,17 +50,10 @@
 //      func_001D1EA0(0).
 //   6  teardown: slot+9 = 4, slot+0xA = 0, D_00810D38 = 0.
 //
-// NEARMISS 99.98 with mwcc 2.3.3 (mwcps2-2.3.3-000906) -O4,p -sdatathreshold 8
-// (round 6). Small globals are over-declared as arrays (idiom #20) to force
+// Build notes: small globals are over-declared as arrays (idiom #20) to force
 // absolute addressing while D_00275BD8 stays gp-rel at threshold 8;
 // D_00810700/701/702 are additionally `volatile` so the 0xB store keeps source
-// order. 0x70003B6C is a relocated scratchpad extern (idiom-32), which removed
-// the old delay-slot residuals, and the saturating increment is spelled
-// `next = D_0081070A[0]; if (next != 0xFF) next++;`.
-// RESIDUAL (1 instruction + its use): the target computes next + 1 into a fresh
-// v0 (the register holding the 0xFF compare constant); mwcc increments in place
-// in v1. Declaration order, int/u8/u32 types, ternary, if/else, loop-counter
-// reuse and compound spellings were all measured and leave it.
+// order. 0x70003B6C is a relocated scratchpad extern (idiom-32).
 extern unsigned char *D_70003B6C[16];               /* PS2 scratchpad @ 0x70003B6C */
 
 extern void func_001ABF90(long long, long long, long long, long long);
@@ -117,8 +105,7 @@ void func_001AD740(void) {
     int n;
     int saved;
     int raw;
-    int next;
-    int nxt;
+    unsigned char next;
 
     p = D_70003B6C[0];
     switch (p[0xA]) {
@@ -186,12 +173,13 @@ void func_001AD740(void) {
                 n = n + 1;
             }
         }
-        next = D_0081070A[0];
-        if (next != 0xFF) {
-            next++;
+        raw = D_0081070A[0];   /* saturating bump of the continue counter */
+        if (raw != 0xFF) {
+            next = raw + 1;
+        } else {
+            next = 0xFF;
         }
         saved = D_00810750[0];
-        nxt = next & 0xFF;
         func_001AF2C0();
         D_00810750[0] = saved;
         D_00810700[0] = 0xB;
@@ -199,7 +187,7 @@ void func_001AD740(void) {
         D_00810702[0] = 0;
         D_00810730[D_00810700[0]] = D_00810701[0];
         func_001C40B0(0x10, 8);
-        D_0081070A[0] = nxt;
+        D_0081070A[0] = next;
         if (flag != 0) {
             func_001C40B0(0x1E, 0x14);
             func_001C40B0(0x1F, 5);

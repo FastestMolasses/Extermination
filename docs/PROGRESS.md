@@ -1,3 +1,17 @@
+## 2026-10-28 — queue batch 54: func_001AD740 byte-matched; recovered decomp2 round 5; INCLUDE_ASM marker fix
+
+func_001AD740 byte-matched (the saturating counter bump with an unsigned char
+result). The interrupted decomp2 round 5 (2026-10-21) is committed:
+func_001764E0 83.54 -> 97.08 and func_00197D20 96.36 -> 98.71 (NEARMISS,
+corrected bodies). Commit 0c168c2 had put a comment above `// INCLUDE_ASM` in
+the eight data stubs func_0025F0D4..func_0025F144; build.py recognises a stub
+only by its first line, so it compiled them and the pinned .rodata shifted
+(boot-elf FAIL); the marker is back on line one. Gate: fresh build +
+verify_all all six stages pass, boot ELF byte-identical, 2763/2765 units;
+provenance clean. The build-audit lane (Codex, 6 commits) is merged
+(4c4c93a); its test_build_audit.py has one environment-dependent error
+("build roots must not overlap") in this checkout.
+
 ## 2026-10-28 — queue batch 53: callee signatures reconciled (third round, 46 files)
 
 Definitions and declarations follow how the original calls each function

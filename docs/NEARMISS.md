@@ -182,7 +182,7 @@ exit branch goes, before recording a wall.
 | func_001C3DB0 | 0x001C3DB0 | 0x2FC | 99.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | fp-register-coloring + list-scheduler-interleave: body/structure fully recovered (cross-pr |
 | func_001A7870 | 0x001A7870 | 0x30C | 93.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: O(N^2) all-pairs entity check over D_00275B90[D_00275B98]  |
 | func_001DD2F0 | 0x001DD2F0 | 0x30C | 89.51% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered: two near-identical GS/DMA quad-strip particle builders. Ea |
-| func_00197D20 | 0x00197D20 | 0x324 | 96.36% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot placement and the scheduling of the float temporaries in states 1 and 2 (the ta |
+| func_00197D20 | 0x00197D20 | 0x324 | 98.71% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Delay-slot placement and the scheduling of the float temporaries in states 1 and 2 (the ta |
 | func_0014B7B0 | 0x0014B7B0 | 0x358 | 99.86% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-allocation/scheduling artifacts inside the spad (0x700038xx) transform-block writ |
 | func_00208750 | 0x00208750 | 0x35C | 99.81% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Stack-frame-layout / base-pointer-sharing wall: target hoists &D_00265160 into ONE registe |
 | func_001D7C30 | 0x001D7C30 | 0x370 | 99.68% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Correct scratch matrix extent from4 floats to16; original64-byte SDK matrix writes require |
@@ -208,7 +208,7 @@ exit branch goes, before recording a wall.
 | func_001936E0 | 0x001936E0 | 0x6AC | 99.24% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body/structure fully recovered (melee-grab/lunge-attack FSM; real switch(kind) case values |
 | func_0020F950 | 0x0020F950 | 0x6D8 | 99.90% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 3-state actor-tick dispatcher (mode 0 init / mode 1 setup / mode 2 render-config), gated b |
 | func_0016F600 | 0x0016F600 | 0x6EC | 98.99% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27); see the file header for the fixes and the residual. |
-| func_001764E0 | 0x001764E0 | 0x6F4 | 83.54% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected body (func_00176C80(arg0)). Left: earlier diagnosis unchanged (call sequence dif |
+| func_001764E0 | 0x001764E0 | 0x6F4 | 97.08% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Corrected body (func_00176C80(arg0)). Left: earlier diagnosis unchanged (call sequence dif |
 | func_00139240 | 0x00139240 | 0x7A8 | 99.15% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | FP-companion register coloring on direct lwc1 loads (documented un-leverable class): in th |
 | func_001A5C30 | 0x001A5C30 | 0x808 | 96.33% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Register-coloring / RA-order permutation (body-shape identical): (1) FP temp coloring swap |
 | func_002101C0 | 0x002101C0 | 0x83C | 87.91% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | NEARMISS 89.09% mwcc/991202 (233 87.91% - target FILLS branch slots with lui/li, so 991202 |
@@ -250,7 +250,6 @@ exit branch goes, before recording a wall.
 | func_0010D2C8 | 0x0010D2C8 | 0x5C8 | 89.23% | ee-gcc 2.9-991111-01 | NOT an mwcc unit — this is an ee-gcc (SDK/lowmem) function: sd/ld 64-bit callee saves at 1 |
 | func_001A50A0 | 0x001A50A0 | 0x600 | 99.61% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 69 of 387 instructions differ; the instruction SEQUENCE is aligned 1:1 with the target eve |
 | func_001916C0 | 0x001916C0 | 0x674 | 99.31% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 98.80% / 409 vs 409 instructions, identical instruction multiset, ZERO logic or control-fl |
-| func_001AD740 | 0x001AD740 | 0x7B8 | 99.98% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Two instructions: the saturating increment of D_0081070A is incremented in place in one register and then masked into a saved register, where the t... |
 | func_001E4CE0 | 0x001E4CE0 | 0x910 | 99.96% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Body corrected (matching wave 2026-10-27): func_001CD2B0 takes four floats; 0x70003A30 rel |
 | func_001429D0 | 0x001429D0 | 0xAEC | 99.94% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | Prologue only: the target copies a0 to s1 before a1 to s0 and puts the a1 copy in the dispatch beqz delay slot, so th... |
 | func_00128C10 | 0x00128C10 | 0xB6C | 97.97% | mwcc 2.3.3 (mwcps2-2.3.3-000906) | 97.97% (26 of ~730 instrs). Both jr-table dispatches are byte-identical in code; the 9-ent |

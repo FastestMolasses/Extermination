@@ -1,8 +1,8 @@
 // NEARMISS func_00197D20  (vram 0x00197D20, 0x324 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 96.36% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
+// objdiff 98.71% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). Object similarity does not prove semantic equivalence.
 // Remaining differences in this candidate:
-// Delay-slot placement and the scheduling of the float temporaries in states 1 and 2 (the target keeps the D_00810CA7 / switch values in $a0 / $v1 where mwcc uses $v1 / $v0, and loads the 0x70003A24 re-read before the D_008105D0 store); mwcc 2.3.3, 2.4 and 991202, three inner-switch label orders an...
+// One compare: the inner switch's last compare (41) is a branch-if-equal to the 41 / 12 body plus a branch to the default, where the target has one branch-if-not-equal to the default; label orders, the default's position, if/else and goto forms and mwcc 2.4 / 991202 tried (an if/else form changes delay-slot filling in the whole function).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -10,6 +10,7 @@
 //
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+// TU_STATIC: func_00191210
 
 //
 // Camera hold step (decomp2 lane round 3: body corrected, 89.28% -> 96.36%).
@@ -38,6 +39,11 @@
 // em_camera_aim.c already follows the instructions. Also: every case ends in
 // `break` (idiom-27) and the inner switch labels are 41, 12 / default / 42, 13
 // (the target compares 13, 42, 12, 41).
+// Decomp2 lane round 5 (96.36% -> 98.71%): func_00191210 is a same-TU static
+// callee (`// TU_STATIC:`), which reproduces the register use around its two
+// calls, and the angle stored at 0x70003A24 is the relocated extern
+// D_70003A24 (idiom-32), so the target loads the re-read for func_0011DE90
+// before the D_008105D0 store.
 
 extern void func_00102948(void *dst, void *src);
 extern float func_0011DE90(float a); /* cos */
@@ -47,7 +53,8 @@ extern float func_0011E748(float a);
 extern void func_0018C4B0(void *dst, float val, float rate);
 extern void func_0018C6A0(void *dst, void *src, float rate);
 extern int func_0018D7B0(char *a, int b);
-extern void func_00191210(void);
+static void func_00191210(void);
+#include "src/func_00191210.c"
 extern void func_001912B0(char *a);
 extern void func_00197490(char *, char *, int);
 extern void func_00197740(char *a, char *b);
@@ -66,6 +73,7 @@ extern float D_008105D8;
 extern unsigned char D_00810CA5;
 extern unsigned char D_00810CA7;
 extern char D_70003040[];
+extern float D_70003A24;
 
 void func_00197D20(char *arg0, char *arg1) {
     unsigned char st;
@@ -100,9 +108,9 @@ void func_00197D20(char *arg0, char *arg1) {
             *(float *)0x70003A20 = d2;
             if (d2 < 8.0f) {
                 ang = func_001B1470(func_0011E620(dx, dz));
-                *(float *)0x70003A24 = ang;
+                D_70003A24 = ang;
                 D_008105D0 = *(float *)(arg1 + 0xA0) + 8.0f * func_0011E2A8(ang);
-                D_008105D8 = *(float *)(arg1 + 0xA8) + 8.0f * func_0011DE90(*(float *)0x70003A24);
+                D_008105D8 = *(float *)(arg1 + 0xA8) + 8.0f * func_0011DE90(D_70003A24);
             }
         }
         func_00191210();
