@@ -1,8 +1,14 @@
 // NEARMISS func_001FB3E0  (vram 0x001FB3E0, 0x524 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 86.64% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Single jump table, and the jtbl_0026EBF0 dispatch IS byte-identical (reloc clean) — the residual is all body scheduling/regalloc, ~45 instructions of ~350, in five clusters. (a) 20-byte struct copy of D_00264890 into the stack local: CW ends it with the +0x10 word copied through v0, mwcc with...
+// objdiff 99.54% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 86.64%; matching wave 2026-10-27).
+// Fixes this wave: the loader state bytes/words at D_00282150..D_002821A7 are ONE struct
+// (field accesses keep CW's store/load order); the handle table is a 2-D array
+// D_00281D50[bucket][slot]; case 0 uses `state++`; the epilogue compare is written
+// `total <= done`; dest is unsigned; no volatile reads are needed.
+// Remaining differences: (a) the 20-byte copy of D_00264890 ends with its +0x10 word
+// moved through a GPR in the original, through an FPR here (every struct/array/initialiser
+// spelling tried gives the FPR copy); (b) in state 6 `src += entry size` loads its two
+// operands into swapped registers (3 instructions).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -52,35 +58,40 @@
 //   arg0+0x0C, return 0; once they are all done, clear both state bytes and
 //   return the 0x40-aligned end of the payload.
 //
-//   NOTE: the array over-declarations (D_00282150[8], D_00282190[2], ...) are
-//   idiom #20 MATCHING DEVICES: with -sdatathreshold 4 they push these globals
-//   past the small-data threshold so they keep the original's absolute
-//   %hi/%lo addressing while D_00275B18/D_00275B1C stay gp-relative. Only element
-//   [0] is ever touched; the declared sizes carry no semantics. The `volatile`
-//   reads are likewise matching devices (they reproduce CW's re-loads).
+//   NOTE: the loader block is one struct at D_00282150 (outer/inner state bytes,
+//   completed count, retry flag, bucket, scratch handle, destination, source,
+//   cursor); being larger than -sdatathreshold 4 it keeps absolute addressing
+//   while D_00275B18/D_00275B1C stay gp-relative.
 
 struct S20 { int w[5]; };
 
-extern int func_001195A8(int a);
+extern int func_001195A8(unsigned int a);
 extern int func_0010F8F8(int a);
-extern void func_0010F968(int a);
+extern int func_0010F968(int a);
 extern int func_001FB910(char *a, int b, int c);
 extern int func_00119450(int a);
 extern int func_001194B8(int a, char *b, int c);
-extern void func_001199F0(int a, int b);
+extern int func_001199F0(unsigned int a, int b);
 
 extern struct S20 D_00264890;
 extern int D_00281D30[64];
-extern int D_00281D50[512];
-extern char D_00282150[8];
-extern char D_00282151[8];
-extern char D_00282159[8];
-extern char D_0028215C[8];
-extern int D_00282190[2];
-extern int D_00282194[2];
-extern int D_00282198[2];
-extern char *D_0028219C[2];
-extern char *D_002821A4[2];
+extern int D_00281D50[][20];
+struct Loader {
+    char outer;          /* 0x00 */
+    char state;          /* 0x01 */
+    char pad02[7];
+    char done;           /* 0x09 */
+    char pad0A[2];
+    char retry;          /* 0x0C */
+    char pad0D[0x33];
+    int bucket;          /* 0x40 */
+    int buf;             /* 0x44 */
+    unsigned int dest;   /* 0x48 */
+    char *src;           /* 0x4C */
+    int pad50;
+    char *cursor;        /* 0x54 */
+};
+extern struct Loader D_00282150;
 extern int D_00275B18;
 extern int D_00275B1C;
 
@@ -88,72 +99,67 @@ int func_001FB3E0(char *arg0) {
     struct S20 lut;
     int i;
     char *q;
-    int j;
     char *p;
     char st;
     int r;
-    int *slot;
 
     lut = D_00264890;
-    q = D_002821A4[0];
+    q = D_00282150.cursor;
     p = arg0 + 0x20;
-    st = D_00282151[0];
+    st = D_00282150.state;
     switch (st) {
     case 0:
-        D_00282151[0] = D_00282151[0] + 1;
-        D_00282159[0] = 0;
-        D_00282190[0] = 0x63;
-        D_002821A4[0] = p + *(int *)(arg0 + 8) * 16;
-        D_0028219C[0] = arg0 + *(int *)(arg0 + 0x18);
+        D_00282150.state++;
+        D_00282150.done = 0;
+        D_00282150.bucket = 0x63;
+        D_00282150.cursor = p + *(int *)(arg0 + 8) * 16;
+        D_00282150.src = arg0 + *(int *)(arg0 + 0x18);
         break;
     case 1:
-        if (*(int *)(q + 8) != D_00282190[0]) {
-            D_00282190[0] = *(int *)(q + 8);
+        if (*(int *)(q + 8) != D_00282150.bucket) {
+            D_00282150.bucket = *(int *)(q + 8);
             i = 0;
-            j = 0;
-            while (i < D_00281D30[D_00282190[0]]) {
-                func_001195A8(*(int *)(j + ((char *)D_00281D50 + D_00282190[0] * 0x50)));
-                j += 4;
+            while (i < D_00281D30[D_00282150.bucket]) {
+                func_001195A8(D_00281D50[D_00282150.bucket][i]);
                 i++;
             }
-            D_00281D30[D_00282190[0]] = 0;
-            D_00282198[0] = lut.w[D_00282190[0]];
+            D_00281D30[D_00282150.bucket] = 0;
+            D_00282150.dest = lut.w[D_00282150.bucket];
         }
-        D_00282194[0] = func_0010F8F8(*(int *)q + 0x10);
-        D_00282151[0] = D_00282151[0] + 1;
-        D_0028215C[0] = 0;
+        D_00282150.buf = func_0010F8F8(*(int *)q + 0x10);
+        D_00282150.state++;
+        D_00282150.retry = 0;
         break;
     case 2:
-        if (func_001FB910(D_0028219C[0], D_00282194[0] & ~0xF, *(int *)q) == 0) {
-            D_00282151[0] = D_00282151[0] + 1;
+        if (func_001FB910(D_00282150.src, D_00282150.buf & ~0xF, *(int *)q) == 0) {
+            D_00282150.state++;
         }
         break;
     case 3:
         if (D_00275B1C != 0) {
-            D_00282151[0] = st + 1;
+            D_00282150.state = st + 1;
         } else if (func_00119450(0) != 0) {
-            D_00282151[0] = D_00282151[0] + 1;
+            D_00282150.state++;
         }
         break;
     case 4:
-        if (D_00282198[0] & 0x3F) {
-            D_00282198[0] = D_00282198[0] + 0x40;
-            D_00282198[0] = D_00282198[0] & ~0x3F;
+        if (D_00282150.dest & 0x3F) {
+            D_00282150.dest = D_00282150.dest + 0x40;
+            D_00282150.dest = D_00282150.dest & ~0x3F;
         }
-        r = func_001194B8(D_00282194[0] & ~0xF, arg0 + *(int *)(q + 4), D_00282198[0]);
-        slot = (int *)(D_00281D30[D_00282190[0]] * 4 + ((char *)D_00281D50 + D_00282190[0] * 0x50));
-        *slot = r;
-        if (*slot == -1) {
+        r = func_001194B8(D_00282150.buf & ~0xF, arg0 + *(int *)(q + 4), D_00282150.dest);
+        D_00281D50[D_00282150.bucket][D_00281D30[D_00282150.bucket]] = r;
+        if (D_00281D50[D_00282150.bucket][D_00281D30[D_00282150.bucket]] == -1) {
             break;
         }
+        D_00282150.state++;
         D_00275B18 = 0x50;
-        D_00282151[0] = D_00282151[0] + 1;
     case 5:
         if (D_00275B1C != 0) {
             if (D_00275B18 != 0) {
                 D_00275B18 = D_00275B18 - 1;
             } else {
-                D_00282151[0] = D_00282151[0] + 1;
+                D_00282150.state++;
                 if (func_00119450(0) == 1) {
                     D_00275B1C = 0;
                 }
@@ -161,32 +167,32 @@ int func_001FB3E0(char *arg0) {
         } else {
             r = func_00119450(0);
             if (r == 1) {
-                D_00282151[0] = D_00282151[0] + 1;
+                D_00282150.state++;
             } else if (r < 0) {
-                D_00282151[0] = 4;
-                func_001195A8(*(int *)(D_00281D30[D_00282190[0]] * 4 + ((char *)D_00281D50 + D_00282190[0] * 0x50)));
+                D_00282150.state = 4;
+                func_001195A8(D_00281D50[D_00282150.bucket][D_00281D30[D_00282150.bucket]]);
             } else if (D_00275B18 != 0) {
                 D_00275B18 = D_00275B18 - 1;
             } else {
                 D_00275B1C = 1;
-                D_00282151[0] = D_00282151[0] + 1;
+                D_00282150.state++;
             }
         }
         break;
     case 6:
-        D_00282151[0] = 1;
-        func_001199F0(*(int *)(D_00281D30[D_00282190[0]] * 4 + ((char *)D_00281D50 + D_00282190[0] * 0x50)), 0x64);
-        func_0010F968(D_00282194[0]);
-        D_00282198[0] = D_00282198[0] + *(volatile int *)q;
-        D_0028219C[0] = D_0028219C[0] + *(volatile int *)q;
-        D_00281D30[D_00282190[0]] = D_00281D30[D_00282190[0]] + 1;
-        D_002821A4[0] = q + 0x10;
-        D_00282159[0] = D_00282159[0] + 1;
+        D_00282150.state = 1;
+        func_001199F0(D_00281D50[D_00282150.bucket][D_00281D30[D_00282150.bucket]], 0x64);
+        func_0010F968(D_00282150.buf);
+        D_00282150.dest = D_00282150.dest + *(int *)q;
+        D_00282150.src = D_00282150.src + *(int *)q;
+        D_00281D30[D_00282150.bucket] = D_00281D30[D_00282150.bucket] + 1;
+        D_00282150.cursor = q + 0x10;
+        D_00282150.done = D_00282150.done + 1;
         break;
     }
-    if ((unsigned int)D_00282159[0] >= *(unsigned int *)(arg0 + 0xC)) {
-        D_00282150[0] = 0;
-        D_00282151[0] = 0;
+    if (*(unsigned int *)(arg0 + 0xC) <= (unsigned int)D_00282150.done) {
+        D_00282150.outer = 0;
+        D_00282150.state = 0;
         return (int)(arg0 + (*(int *)(arg0 + 0x10) + 0x40)) & ~0x3F;
     }
     return 0;

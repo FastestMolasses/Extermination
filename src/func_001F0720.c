@@ -1,8 +1,13 @@
 // NEARMISS func_001F0720  (vram 0x001F0720, 0x334 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 86.25% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 86.25 with mwcc233 -O4,p -sdatathreshold 4 (o991 69.09, o24 86.25). Dispatch, all 7 preset arms, the age loop's beql, the `do { } while (k <= 0)` shape, the quadword copy loop and the entire four-packet DMA tail are structurally correct and byte-identical in ~150 of 210 instructions. The wall is ...
+// objdiff 98.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4) (was 86.25%).
+// Improved 2026-10-27 from the original instructions: the four GIF-tag address/size locals are
+// unsigned int (as int, mwcc folds them; the original keeps them in saved registers from entry),
+// the copy loop's count is the literal 0xC0, `count *= 60` replaces a separate total, the
+// per-slot divide converts `count` inline (the conversion is hoisted to the loop preheader),
+// `i` is declared before `slot`, and the size is shifted into place once before the chunk loop.
+// Remaining differences: saved-register colouring only -- the chunk counter `k` and the
+// last tag's address `addr3` swap s6/s2, and the size shift is scheduled one store later.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -58,25 +63,23 @@ extern char *D_00275670;
 void func_001F0720(int n)
 {
     char *lane;
+    int i;
     char *slot;
     char *pkt;
     char *mtx;
-    s128 *src;
     s128 *dst;
+    s128 *src;
     float scale;
-    float ftotal;
     float f;
-    int total;
     int count;
     int pal;
-    int i;
     int k;
     int t;
     int cnt;
-    int qwc;
-    int addr;
-    int addr2;
-    int addr3;
+    unsigned int addr2;
+    unsigned int addr;
+    unsigned int qwc;
+    unsigned int addr3;
 
     addr2 = 0xE;
     addr = 0x20;
@@ -124,17 +127,16 @@ void func_001F0720(int n)
     }
 
     lane = D_0028F700 + ((n * 3) << 10) + 0x4DBEC0;
-    total = count * 60;
-    ftotal = (float)total;
     slot = lane;
+    count *= 60;
     i = 0;
     do {
         t = *(int *)(slot + 0x58);
         if (t > 0) {
             *(int *)(slot + 0x58) = t - 1;
             t = *(int *)(slot + 0x58);
-            if (t < total) {
-                f = (float)t / ftotal;
+            if (t < count) {
+                f = (float)t / (float)count;
                 *(volatile float *)0x70003A20 = f;
                 *(float *)(slot + 0x4C) = scale * f;
             }
@@ -151,14 +153,15 @@ void func_001F0720(int n)
     *(int *)(pkt + 4) = 0x14000000;
     *(int *)(pkt + 8) = 0x11000000;
 
+    qwc <<= 16;
     k = 0;
     do {
         pkt = func_001CB5F0(D_007635C0, 0, 0xC1);
         *(s128 *)pkt = 0;
         *(int *)(pkt + 8) = 0x01000101;
-        *(int *)(pkt + 0xC) = (addr | (qwc << 16)) | 0x6C000000;
+        *(int *)(pkt + 0xC) = (addr | qwc) | 0x6C000000;
         dst = (s128 *)(pkt + 0x10);
-        cnt = qwc;
+        cnt = 0xC0;
         src = (s128 *)lane;
         do {
             *dst = *src;

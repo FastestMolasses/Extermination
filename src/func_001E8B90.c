@@ -1,15 +1,15 @@
 // NEARMISS func_001E8B90  (vram 0x001E8B90, 0x2EC bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 86.49% via mwcc 2.4 (-O4,p -sdatathreshold 8). The body follows the original instructions;
+// objdiff 99.01% via mwcc 2.3.3 (-O4,p -sdatathreshold 4). The body follows the original instructions;
 // the residual diff is code generation only:
-// Body corrected 2026-09-25 against the original instructions (record stride 0xA060, edge/corner neighbour weights; was 71.53% with the wrong body). Residual: register coloring (s0..s3 and FP temps) and the +0x9060 cell offset, which the target re-forms per access with a lui/addu pair while mwcc folds it into the pointer.
+// Body corrected 2026-09-25 against the original instructions (record stride 0xA060, edge/corner neighbour weights; was 71.53% with the wrong body). Wave 2026-10-27 (86.49% -> 99.01%): compiler is 2.3.3 (it re-forms the +0x9060 cell offset per access exactly like the original when the cell is indexed as float element 0x2418), the three weights are computed before the point is read, x' is computed before z', the neighbour loops test <= 1, local declaration order from a permuter run. Remaining differences: integer temp register colouring only (the original never uses a0/a1 for the area byte, col and the neighbour indices; this C uses them, shifting a2..t2 down by two).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
 // excluded from matched_code. Registry: docs/NEARMISS.md.
 //
-// COMPILER: mwcc24
-// CFLAGS: -O4,p -sdatathreshold 8
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 4
 
 //
 // Water-ripple stamp. Does nothing while the area byte D_00810700 is 0x15 or
@@ -27,29 +27,36 @@ extern unsigned char D_00810700[];
 extern unsigned char *D_00275C20;
 
 void func_001E8B90(unsigned char *arg0, float speed) {
-    float px, py, pz;
-    float wCenter, wEdge, wCorner;
-    float dx0, dz0, dx1, dz1;
-    int row, col;
+    int i;
+    int row;
+    unsigned char *p;
+    int idx;
+    int col;
+    float px;
+    float py;
+    float pz;
+    float wCenter;
+    float wEdge;
+    float wCorner;
+    float dx0;
+    float dz0;
+    float dx1;
+    unsigned char *colp;
+    float dz1;
     int colIdx;
     int rowIdx;
-    int colOff;
     int rowOff;
-    unsigned char *p;
-    unsigned char *colp;
-    unsigned char *cell;
-    int i;
-    int idx;
+    int colOff;
 
     if (D_00810700[0] == 0x15 || D_00810700[0] == 0x10) {
         return;
     }
     wCenter = -7.0f * speed;
+    wEdge = -5.0f * speed;
+    wCorner = -3.0f * speed;
     px = *(float *)(arg0 + 0);
     py = *(float *)(arg0 + 4);
     pz = *(float *)(arg0 + 8);
-    wEdge = -5.0f * speed;
-    wCorner = -3.0f * speed;
 
     i = 0;
     idx = 0;
@@ -64,8 +71,8 @@ void func_001E8B90(unsigned char *arg0, float speed) {
                     if (pz > dz0) {
                         dz1 = *(float *)(p + 0x34);
                         if ((pz <= (dz0 + dz1)) && (py < (11.0f + *(float *)(p + 4)))) {
-                            pz = (32.0f * (pz - dz0)) / dz1;
                             px = (32.0f * (px - dx0)) / dx1;
+                            pz = (32.0f * (pz - dz0)) / dz1;
                             row = float_to_int(pz);
                             col = float_to_int(px);
 
@@ -81,7 +88,7 @@ void func_001E8B90(unsigned char *arg0, float speed) {
                                 col = 0x1F;
                             }
 
-                            for (colOff = -1; colOff < 2; colOff++) {
+                            for (colOff = -1; colOff <= 1; colOff++) {
                                 colIdx = col + colOff;
                                 if (colIdx < 0) {
                                     colIdx = 0;
@@ -90,7 +97,7 @@ void func_001E8B90(unsigned char *arg0, float speed) {
                                 }
                                 colp = p + (colIdx * 4);
 
-                                for (rowOff = -1; rowOff < 2; rowOff++) {
+                                for (rowOff = -1; rowOff <= 1; rowOff++) {
                                     rowIdx = row + rowOff;
                                     if (rowIdx < 0) {
                                         rowIdx = 0;
@@ -99,11 +106,11 @@ void func_001E8B90(unsigned char *arg0, float speed) {
                                     }
 
                                     if (rowOff == 0 && colOff == 0) {
-                                        *(float *)(colp + (rowIdx << 7) + 0x9060) += wCenter;
+                                        ((float *)(colp + (rowIdx << 7)))[0x2418] += wCenter;
                                     } else if (rowOff == 0 || colOff == 0) {
-                                        *(float *)(colp + (rowIdx << 7) + 0x9060) += wEdge;
+                                        ((float *)(colp + (rowIdx << 7)))[0x2418] += wEdge;
                                     } else {
-                                        *(float *)(colp + (rowIdx << 7) + 0x9060) += wCorner;
+                                        ((float *)(colp + (rowIdx << 7)))[0x2418] += wCorner;
                                     }
                                 }
                             }

@@ -137,7 +137,7 @@ GPREL_FORCE_ASM = {
     "func_001647D0",
     # func_00181730 removed (matching wave 2026-10-27): byte-matched from C.
     # func_00198440 removed (matching wave 2026-10-27): byte-matched from C.
-    "func_001BD9F0",
+    # func_001BD9F0 removed (matching wave 2026-10-27): byte-matched from C.
     # Decomp lane round 4 (2026-10-20): func_001D3F60, func_001D40E0,
     # func_001D4440 and func_001E1E60 removed -- byte-matched from C (mwcc 2.3.3,
     # objdiff 100); the compiled objects link (audit_link_provenance).

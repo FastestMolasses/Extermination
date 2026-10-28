@@ -1,24 +1,32 @@
-// NEARMISS func_001114B8  (vram 0x001114B8, 0x64 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 85.20% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// Branch-likely wall: original emits a branch-likely bgezl on the returned value in the post-jal sign test, but the rebuilt ee-gcc 2.9-991111-01 cc1 never emits branch-likely of any form - confirmed across -O0/-O1/-O2/-mips2/-mips3, always produces a plain bltz plus an extra v0 = v1 copy, giving size 0x68 vs expected 0x70. All other ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s,
-// NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
-// unit / excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-extern int D_00279A80;
-extern unsigned char D_00279700[];
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 85.20% NEARMISS).
+// Fixes read from the original instructions:
+// - Not a branch-likely wall: written in the byte-matched siblings' shape (a record
+//   pointer to D_00279A80 kept in a local, an early `return 0` on a negative result,
+//   then the 0xC field read through the pointer), ee-gcc emits the original's
+//   forward branch-likely with the field load in its delay slot.
+//
+// SDK: configure the request record D_00279A80 (type 0x12) and send it via
+// func_0010E8A8 (record is both send and receive buffer, 0x80 bytes each);
+// on success return the reply word at +0xC, else 0.
+
+struct cfg {
+    int f0;     // 0x0 request type
+    int f4;     // 0x4
+    int f8;     // 0x8
+    int fC;     // 0xC reply value
+};
+extern struct cfg D_00279A80;
+extern char D_00279700[];
 extern int func_0010E8A8(void *a, int b, int c, void *d, int e, void *f, int g, int h, int i);
 
-int func_001114B8(void)
-{
-    int *s0 = &D_00279A80;
-
-    D_00279A80 = 0x12;
-    return func_0010E8A8(D_00279700, 1, 0, s0, 0x80, s0, 0x80, 0, 0) >= 0 ? s0[3] : 0;
+int func_001114B8(void) {
+    struct cfg *d = &D_00279A80;
+    d->f0 = 0x12;
+    if (func_0010E8A8(D_00279700, 1, 0, d, 0x80, d, 0x80, 0, 0) < 0) {
+        return 0;
+    }
+    return d->fC;
 }

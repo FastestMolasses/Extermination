@@ -443,3 +443,24 @@ for-loops; one gp-relative name buffer), func_001B2E50 (loop test re-reads the
 scratchpad count, as the matched twin func_001B2F70 does). Improved and
 parked: func_001CFFE0 97.89 (caller-saved colouring after a call),
 func_001A06A0 99.64 (two FP registers swapped).
+
+### Queue batch 22 (2026-10-27)
+
+7 byte-matched: func_00194DB0 (old body clamped only one side and snapped
+in-range values; level-3 yaw step is nested), func_001E0E80 (unsized array
+extern keeps one global absolute; ternary clamp; named quotient),
+func_001FE070 (old body never reset the width accumulator on a newline;
+`-sdatathreshold 4`), func_001BD9F0 (one switch with shared cases replaces two
+early returns), func_001114B8 (ee-gcc: an early return instead of a ternary
+gives the branch-likely the old header called impossible), func_001A9480 and
+func_001A8F40 (scratchpad radius words as relocated externs, squared in place,
+as the matched twins func_001A9360 and func_00156620 do). Improved and parked:
+func_001FB3E0 99.54 (the loader state is one struct), func_001F0720 98.88,
+func_0010D160 99.67 (instruction stream identical; its local .rodata needs
+pinning), func_0020F950 98.67 (callee arity; swapped wrap arms),
+func_001FD950 99.24, func_001E8B90 99.01 (mwcc 2.3.3, not 2.4).
+
+The strongest lever of batches 21-22: scratchpad vectors written through
+literal 0x7000xxxx addresses. As relocated extern arrays indexed by element,
+mwcc may move loads past the stores as the original does; literal addresses
+pin them. Several "scheduling" and "FP-colouring" walls were this.

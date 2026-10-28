@@ -529,7 +529,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00111318,func_00111318,204,readable,0,lowmem
 0x001113E8,func_001113E8,100,readable,0,lowmem
 0x00111450,func_00111450,104,readable,0,lowmem
-0x001114B8,func_001114B8,100,nearmiss,1,lowmem
+0x001114B8,func_001114B8,100,readable,1,lowmem
 0x00111520,func_00111520,108,readable,0,lowmem
 0x00111590,func_00111590,60,readable,0,lowmem
 0x001115D0,func_001115D0,176,nearmiss,1,lowmem
@@ -1569,7 +1569,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x00194240,func_00194240,620,readable,1,init_io
 0x001944B0,func_001944B0,2140,readable,1,init_io
 0x00194D10,func_00194D10,148,nearmiss,2,init_io
-0x00194DB0,func_00194DB0,884,nearmiss,1,init_io
+0x00194DB0,func_00194DB0,884,readable,1,init_io
 0x00195130,func_00195130,4720,nearmiss,1,init_io
 0x001963A0,func_001963A0,1476,readable,1,init_io
 0x00196970,func_00196970,880,readable,1,init_io
@@ -1659,11 +1659,11 @@ vram,name,size_bytes,status,callers,subsystem
 0x001A8CE0,func_001A8CE0,192,word,1,unknown_01
 0x001A8DA0,func_001A8DA0,220,readable,1,unknown_01
 0x001A8E80,func_001A8E80,188,readable,1,unknown_01
-0x001A8F40,func_001A8F40,188,nearmiss,1,unknown_01
+0x001A8F40,func_001A8F40,188,readable,1,unknown_01
 0x001A9000,func_001A9000,440,readable,1,unknown_01
 0x001A91C0,func_001A91C0,412,readable,1,unknown_01
 0x001A9360,func_001A9360,276,readable,1,unknown_01
-0x001A9480,func_001A9480,616,nearmiss,1,unknown_01
+0x001A9480,func_001A9480,616,readable,1,unknown_01
 0x001A96F0,func_001A96F0,192,word,1,unknown_01
 0x001A97B0,func_001A97B0,552,readable,1,unknown_01
 0x001A99E0,func_001A99E0,296,word,1,unknown_01
@@ -1917,7 +1917,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001BD370,func_001BD370,240,readable,1,math_vector
 0x001BD460,func_001BD460,256,readable,1,math_vector
 0x001BD560,func_001BD560,1168,readable,0,math_vector
-0x001BD9F0,func_001BD9F0,684,nearmiss,0,math_vector
+0x001BD9F0,func_001BD9F0,684,readable,0,math_vector
 0x001BDCA0,bone_wobble_decay_1,208,readable,1,anim_runtime
 0x001BDD70,bone_wobble_decay_0,228,readable,1,anim_runtime
 0x001BDE60,func_001BDE60,344,readable,0,math_vector
@@ -2324,7 +2324,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001E0CF0,func_001E0CF0,128,readable,1,weapon_equip
 0x001E0D70,func_001E0D70,124,readable,1,weapon_equip
 0x001E0DF0,func_001E0DF0,140,readable,1,weapon_equip
-0x001E0E80,func_001E0E80,400,nearmiss,1,weapon_equip
+0x001E0E80,func_001E0E80,400,readable,1,weapon_equip
 0x001E1010,func_001E1010,136,readable,1,weapon_equip
 0x001E10A0,func_001E10A0,832,nearmiss,1,weapon_equip
 0x001E13E0,func_001E13E0,892,nearmiss,1,weapon_equip
@@ -2562,7 +2562,7 @@ vram,name,size_bytes,status,callers,subsystem
 0x001FD950,func_001FD950,556,nearmiss,1,audio
 0x001FDB80,func_001FDB80,548,nearmiss,1,audio
 0x001FDDB0,func_001FDDB0,696,readable,1,audio
-0x001FE070,func_001FE070,1008,nearmiss,5,stream_cd
+0x001FE070,func_001FE070,1008,readable,5,stream_cd
 0x001FE460,func_001FE460,24,readable,2,stream_cd
 0x001FE480,func_001FE480,48,readable,6,stream_cd
 0x001FE4B0,func_001FE4B0,24,readable,1,stream_cd

@@ -1,15 +1,16 @@
-// NEARMISS func_00194DB0  (vram 0x00194DB0, 0x374 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 86.15% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Instruction-scheduling/materialization-order permutation. Body and structure are fully recovered and match through the first ~25 instructions (register-coloring only); the sole structural residual is that mwcc233 speculatively hoists the NEXT float constant's lui into a branch delay slot one inst...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 86.15% NEARMISS).
+// Fixes read from the original instructions:
+//  - The goal-angle clamps were logically wrong: each is "if above the upper
+//    bound use it, else if below the lower bound use it" (the old C never
+//    clamped the upper side and wrongly snapped in-range values).
+//  - The pitch clamp is "hi = pitch; if above -1497 use -1497, else if below
+//    -1657 use -1657", and hi += 1497 is its own statement before the scale.
+//  - The level-3 test is nested: level 3 steps only when the wrapped delta
+//    exceeds 45 deg; other levels always step (two separate step calls).
+//  - +0x14 is written as a float in both arms of an if/else (-3.0 / -13.0).
 
 // Steers an actor's yaw (arg0+0xAC) toward a target angle derived from arg1's
 // pitch field (+0xA8), clamped/wrapped into a piecewise angle range. If
@@ -18,8 +19,8 @@
 // this frame; otherwise it is stepped toward goal by func_001B12B0 at a
 // ~0.2 deg rate. Recomputes arg0's screen
 // offsets (+0x10/+0x18) from sin/cos of the new yaw scaled by var_f20 (94 or
-// 100 depending on whether arg1's pitch is below -1610). Sets +0x14 to -12.0
-// or -3.0 based on a flag bit at +0x5A, clamps +0x20 to >= -90 and +0x28 into
+// 100 depending on whether arg1's pitch is below -1610). Sets +0x14 to -13.0
+// or -3.0 based on a flag bit at +0x5A, clamps +0x20 to <= -90 and +0x28 into
 // [-1617,-1537], then calls func_0018C0C0/func_0018D7B0/func_0018C6A0/
 // func_0018C4B0 to push the updated transform.
 extern float func_0011DE90(float);
@@ -35,49 +36,43 @@ extern float D_008105D0;
 
 void func_00194DB0(char *arg0, char *arg1) {
     float pitch;
-    float lo;
     float hi;
     float goal;
     float scale;
     float delta;
-    int u;
 
     pitch = *(float *)(arg1 + 0xA8);
     scale = (pitch < -1610.0f) ? 94.0f : 100.0f;
 
-    if (!(pitch <= -1497.0f)) {
+    hi = pitch;
+    if (!(hi <= -1497.0f)) {
         hi = -1497.0f;
-    } else {
-        hi = pitch;
-        if (pitch < -1657.0f) {
-            hi = -1657.0f;
-        }
+    } else if (hi < -1657.0f) {
+        hi = -1657.0f;
     }
 
-    delta = (3.1415927f * (hi + 1497.0f)) / -160.0f;
+    hi += 1497.0f;
+    delta = (3.1415927f * hi) / -160.0f;
     if (pitch < -1577.0f) {
         goal = 1.5707964f + (3.1415927f - delta);
-        lo = 2.792527f;
-        if (goal <= 2.792527f) {
-            lo = 1.9198622f;
-            if (goal >= 1.9198622f) {
-                goal = lo;
-            }
+        if (!(goal <= 2.792527f)) {
+            goal = 2.792527f;
+        } else if (goal < 1.9198622f) {
+            goal = 1.9198622f;
         }
     } else {
         goal = (3.1415927f - delta) - 1.5707964f;
-        lo = 1.2217306f;
-        if (goal <= 1.2217306f) {
-            lo = 0.34906587f;
-            if (goal < 0.34906587f) {
-                goal = lo;
-            }
+        if (!(goal <= 1.2217306f)) {
+            goal = 1.2217306f;
+        } else if (goal < 0.34906587f) {
+            goal = 0.34906587f;
         }
     }
 
-    if (*(int *)(arg1 + 0x230) == 3 &&
-        func_0011DF78(func_001B1470(goal - *(float *)(arg0 + 0xAC))) <= 0.7853982f) {
-        /* delta small enough: leave arg0->0xAC unchanged */
+    if (*(int *)(arg1 + 0x230) == 3) {
+        if (!(func_0011DF78(func_001B1470(goal - *(float *)(arg0 + 0xAC))) <= 0.7853982f)) {
+            *(float *)(arg0 + 0xAC) = func_001B12B0(goal, *(float *)(arg0 + 0xAC), 0.0034906587f);
+        }
     } else {
         *(float *)(arg0 + 0xAC) = func_001B12B0(goal, *(float *)(arg0 + 0xAC), 0.0034906587f);
     }
@@ -85,11 +80,11 @@ void func_00194DB0(char *arg0, char *arg1) {
     *(float *)(arg0 + 0x10) = -142.0f + (scale * func_0011E2A8(*(float *)(arg0 + 0xAC)));
     *(float *)(arg0 + 0x18) = -1577.0f + (scale * func_0011DE90(*(float *)(arg0 + 0xAC)));
 
-    u = 0xC1500000;
     if (*(short *)(arg0 + 0x5A) & 1) {
-        u = 0xC0400000;
+        *(float *)(arg0 + 0x14) = -3.0f;
+    } else {
+        *(float *)(arg0 + 0x14) = -13.0f;
     }
-    *(int *)(arg0 + 0x14) = u;
 
     if (!(*(float *)(arg0 + 0x20) <= -90.0f)) {
         *(float *)(arg0 + 0x20) = -90.0f;

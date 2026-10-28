@@ -1,8 +1,13 @@
 // NEARMISS func_001FD950  (vram 0x001FD950, 0x22C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 85.83% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation + instruction-scheduling + branch-likely-sense permutation. Body fully recovered and logically correct (verified against asm). Residuals at 85.83% (mwcc 2.3.3, best build): (1) saved-reg coloring swap on tbl/counter/running-value (target s2/s1/s3, mine s1/s3/s2); (2) v1<->a1 c...
+// objdiff 99.24% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 8). Body logic verified
+// against the original (matching wave 2026-10-27: the timer decrement / return-0 tail now follows
+// the if/else, the mask clear is an unsigned store, the width loop increments after the store,
+// the max arms assign 0x100 then subtract, the loop counter is declared first, the index is
+// shifted in two statements).
+// Remaining differences: register colouring only: the initial 8-byte copy swaps the value and
+// address temporaries, and the centred-x arms put 0x100 and the halved width in each other's
+// temporaries (the original puts 0x100 in its own temporary, so its else-arm is not branch-likely).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -11,10 +16,6 @@
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 8
 
-//
-// NEARMISS (mwcc 2.3.3: 85.83%, pinned 991202: 72.63%) — body fully
-// recovered; residual is pure compiler-artifact (register coloring +
-// instruction scheduling + branch-likely sense), permuter territory.
 //
 // Radio/subtitle text presenter, called per frame on the message entity
 // (arg0). Reads the text-record index from entity+0x34 (low 31 bits, sign-
@@ -57,9 +58,9 @@ extern void func_001D06E0(char *p, int v);
 
 int func_001FD950(char *arg0) {
     int w[2];
+    int i;
     int tbl;
     int v;
-    int i;
     int x;
     unsigned long long idx;
     int field34;
@@ -68,7 +69,8 @@ int func_001FD950(char *arg0) {
 
     *(long long *)w = D_00275838;
     field34 = *(int *)(arg0 + 0x34);
-    idx = ((unsigned long long) field34 << 0x21) >> 0x21;
+    idx = (unsigned long long)field34 << 0x21;
+    idx >>= 0x21;
     if (field34 & 0x80000000) {
         tbl = D_0028A4E8[0];
     } else {
@@ -79,13 +81,15 @@ int func_001FD950(char *arg0) {
     i = 0;
     do {
         v = func_001FE530(D_00820ED0, v, 0);
-        i += 1;
         *p++ = func_001CC170(D_00820ED0);
+        i += 1;
     } while (i < 2);
     if (w[0] < w[1]) {
-        x = 0x100 - (w[1] >> 1);
+        x = 0x100;
+        x -= w[1] >> 1;
     } else {
-        x = 0x100 - (w[0] >> 1);
+        x = 0x100;
+        x -= w[0] >> 1;
     }
     func_001FE070(tbl, idx, x, 0xC2);
     if (*(int *)(arg0 + 0x6C) > 0) {
@@ -98,10 +102,7 @@ int func_001FD950(char *arg0) {
             *(int *)(arg0 + 0x64) |= 1 << *(unsigned char *)(arg0 + 0x51);
             *(unsigned char *)(arg0 + 0x51) = 0xFF;
         }
-        *(int *)(arg0 + 0x6C) -= 1;
-        return 0;
-    }
-    {
+    } else {
         char *rec = D_008106B0;
         int bit = 0;
         do {
@@ -112,11 +113,13 @@ int func_001FD950(char *arg0) {
                     }
                 }
                 *(char *)(rec + 0x24) = 2;
-                *(int *)(arg0 + 0x64) &= ~(1 << bit);
+                *(unsigned int *)(arg0 + 0x64) &= ~(1 << bit);
             }
             bit += 1;
             rec += 1;
         } while (bit < 0xC);
+        return 1;
     }
-    return 1;
+    *(int *)(arg0 + 0x6C) -= 1;
+    return 0;
 }
