@@ -67,9 +67,15 @@ that is a different, stale tree.
   entries func_0025F0D4..func_0025F144 and func_00243BA8 are still typed as
   functions in config; reclassify them in a careful split change). A second
   port audit (port main 13c8b46) covered the 60 port-referenced ones: one fix
-  (level-14 reach test 001AA2A0); three live-path fail-stop stubs now have
-  byte-matched C to translate from: 00178390 (ledge grab check),
-  001837B0 (0015B530 state 1), 001A99E0 (carry on a spinning object).
+  (level-14 reach test 001AA2A0). The three live-path fail-stop stubs that
+  gained byte-matched C were then translated and bound live (port main
+  f9d555e, each with an original-instruction reference test): 00178390
+  (ledge placement), 001837B0 (0015B530 state 1), 001A99E0 (carry on a
+  spinning object). Left: the ledge path's probe fill still fail-stops for
+  cell attribute 0x3D records (needs record +0x34); 001782A0 / 00178080 /
+  001838B0 / 00183910 are untranslated; the port's census row and
+  PLAYER_STAGE_WORKERS.md still call 00162DB0 / 00163B40 fail-stop although
+  the closure binder binds them.
   - VU0 class (user approval 2026-10-28: inline VU0 macro asm, one instruction
     per asm statement, MATCHING_GUIDE "Queue batch 45"-"Queue batch 48"): 30
     matched (14 libvu0 helpers, 16 game functions); about 30 near-misses now at
