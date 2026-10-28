@@ -1,8 +1,16 @@
 // NEARMISS func_00110508  (vram 0x00110508, 0x100 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 77.28% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the
-// residual diff is a genuine compiler artifact that no source change fixes here:
-// eegcc list-scheduler + loop-rotation tail-duplication + GPR-coloring wall. Body logic fully recovered (strlen-of-arg, length+0xB < 0x51 gate calling func_00122B58(D_0026B9C0,s) on the >=0x51 branch, else func_0010E088(0)/func_0010E248() then copy D_0026B9B0 string + the arg string into a 0x50 stack buffer, NUL-termi...
+// objdiff 93.88% via ee-gcc 2.9-991111-01 (-O2). Identified as the libkernel IOP reboot
+// routine (sceSifRebootIop shape): if strlen(img) + 11 > 0x50, print the "too long"
+// message (func_00122B58 = printf, D_0026B9C0 format) with img and return 0; otherwise
+// func_0010E088(0) / func_0010E248() (RPC init/exit pair), build "<D_0026B9B0 prefix>" +
+// img in a 0x50-byte stack buffer and RETURN func_00110368(buf, 0) (the IOP reset; its
+// result is the return value, not 0).
+// Remaining differences: the original walks img itself (callee-saved, also the printf
+// argument) in the second copy loop with no copy; walking img directly makes ee-gcc's
+// gcse hoist the first *img load above the first loop, and a separate walker costs one
+// register copy and swaps s0/s1 (img/prefix) and the dst register. Declaration orders,
+// inline helpers and block-local walkers tried.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s,
 // NOT from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff
@@ -13,51 +21,29 @@
 
 extern char D_0026B9B0[];
 extern char D_0026B9C0[];
-extern void func_00122B58(char *fmt, char *s);
-extern void func_0010E088(int);
+extern int func_00122B58(char *fmt, ...);
+extern int func_0010E088(int);
 extern void func_0010E248(void);
-extern void func_00110368(char *buf, int x);
+extern int func_00110368(char *buf, int x);
 
-int func_00110508(char *s) {
-    char buf[0x50];
-    char *base = &D_0026B9B0[0];
+int func_00110508(char *img) {
+    char param[0x50];
+    char *src = D_0026B9B0;
+    char *dst;
     char *p;
-    char *src;
-    unsigned char *dst;
 
-    p = s;
-    if (*p != 0) {
-        do {
-            p++;
-        } while (*p != 0);
-        if ((unsigned int)(p - (s - 0xB)) >= 0x51) {
-            func_00122B58(D_0026B9C0, s);
-            return 0;
-        }
-    } else {
-        if ((unsigned int)(p - (s - 0xB)) >= 0x51) {
-            func_00122B58(D_0026B9C0, s);
-            return 0;
-        }
+    for (p = img; *p; p++)
+        ;
+    if (p + 11 - img > 0x50U) {
+        func_00122B58(D_0026B9C0, img);
+        return 0;
     }
-
     func_0010E088(0);
     func_0010E248();
-
-    src = base;
-    dst = (unsigned char *)buf;
-    while (*src != 0) {
-        *dst = *src;
-        dst++;
-        src++;
-    }
-    src = s;
-    while (*src != 0) {
-        *dst = *src;
-        dst++;
-        src++;
-    }
+    dst = param;
+    while (*src) *dst++ = *src++;
+    p = img;
+    while (*p) *dst++ = *p++;
     *dst = 0;
-    func_00110368(buf, 0);
-    return 0;
+    return func_00110368(param, 0);
 }

@@ -1,105 +1,130 @@
-// NEARMISS func_00118418  (vram 0x00118418, 0x294 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 76.92% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc loop-IV strength-reduction wall — the target recomputes `mult i,0x6A` per iteration and carries 7 callee-saved values (frame 0x80); ee-gcc strength-reduces to a pointer IV and needs only 5 (frame 0x60), costing ~17 words. Compounded by an LICM hoist of *(int *)(D_00281AC0+0x14) out of the f...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // CFLAGS: -O2
 
-//
-// Sequencer command handler, dispatched on the event type at a0+0x34.
-//   type == 1: broadcast update — walk every playing channel (f00 == 1, state 2) that belongs to
-//              this event (f22 == a0->f24, f3E/f02 == the command byte pair, f06 == a0->f18) and
-//              re-arm it: set f48, copy the command's byte 3 into f58, mirror f4C into f5A, and
-//              recompute both f5C/f5E envelope times as (byte2 * 4) * D_0027F77A / 60 (D_0027F77A
-//              is the current tick rate; 60 = NTSC frames/sec).  Advances the stream by 6 bytes.
-//   otherwise: note-on — publish the command byte into the mixer block at D_00281AC0+0xC, then
-//              find the idle channel (f08 != 1, state 1, f00 == 1) matching this event's low
-//              nibble / id / handle, stamp its f4C, look its pitch up in the D_00242630 table via
-//              func_00117BA0, then hand the packed (w<<16)|h from func_001179E0 to func_001157F0.
-//              Advances the stream by 3 bytes.
-// q walks the command stream: *(int *)(a0 + 8) is the byte cursor, D_00281AC0+0x14 the base.
-// Returns the new cursor (the value stored back to a0+8). The broadcast path reads the cursor
-// once at entry; the note-on path reads it after the mixer-byte store and again after each
-// matched channel's calls (corrected 2026-10-01 against the original instructions; the
-// earlier text returned 0 -- docs/FINDINGS.md "NEARMISS body corrections from the level
-// side-track lanes").
-//
+/*
+ * Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 76.92% NEARMISS).
+ * Fixes read from the original instructions:
+ * - Written in the spelling of the byte-matched twin func_001181B0: typed Voice /
+ *   Event / SeqGlobals / TempoBlock records, the voice table indexed directly
+ *   (D_0027CCC0[i].field) in plain for (i < 48) loops with continue guards, the
+ *   event data pointer re-formed from ev->f08 + D_00281AC0.f14 at each use. The
+ *   old hand-made byte pointer walk was what looked like a strength-reduction wall.
+ * - func_00117BA0 is declared returning int here: the original shifts its result
+ *   arithmetically (its definition in src/ returns unsigned char, which compiles
+ *   to a logical shift and costs the match).
+ * - The function returns the new cursor through `return ev->f08 = ev->f08 + k;`.
+ *
+ * Sequencer command handler, dispatched on ev->f34.
+ *   f34 == 1: for every voice with f00 == 1, f1A == 2, f22 == ev->f24 whose
+ *             f3E / f02 equal data bytes 4 / 5 and f06 == ev->f18: set f48 = 1,
+ *             f58 = data[3], f5A = f4C, and f5C = f5E = (data[2] << 2) * tempo / 60
+ *             (tempo = D_0027F740.f3A). Advances ev->f08 by 6.
+ *   otherwise: copy data[2] to D_00281AC0.f0C[4]; for every voice whose f04 ==
+ *             (ev->f00 & 0xF), f22 == ev->f24, f06 == ev->f18, f08 != 1, f1A == 1
+ *             and f00 == 1: f4C = data[2], f32 = D_00242630[func_00117BA0(0, f0E) >> 2],
+ *             then pass func_001179E0's packed (hi << 16 | lo) result to
+ *             func_001157F0(1, i, hi, lo). Advances ev->f08 by 3.
+ * "data" is the event's byte record at ev->f08 + D_00281AC0.f14. Returns the new
+ * ev->f08.
+ */
 
-extern unsigned char D_0027CCC0[];
-extern unsigned char D_0027F740[];
-extern unsigned char D_00281AC0[];
-extern unsigned char D_00242630[];
+typedef struct {
+    unsigned short f00;      /* 0x00 */
+    unsigned short f02;      /* 0x02 */
+    unsigned short f04;      /* 0x04 */
+    unsigned short f06;      /* 0x06 */
+    unsigned short f08;      /* 0x08 */
+    char pad_0A[0x04];
+    unsigned short f0E;      /* 0x0E */
+    char pad_10[0x0A];
+    unsigned short f1A;      /* 0x1A */
+    char pad_1C[0x06];
+    unsigned short f22;      /* 0x22 */
+    char pad_24[0x0E];
+    unsigned short f32;      /* 0x32 */
+    char pad_34[0x0A];
+    unsigned short f3E;      /* 0x3E */
+    char pad_40[0x08];
+    unsigned short f48;      /* 0x48 */
+    char pad_4A[0x02];
+    unsigned short f4C;      /* 0x4C */
+    char pad_4E[0x0A];
+    unsigned short f58;      /* 0x58 */
+    unsigned short f5A;      /* 0x5A */
+    unsigned short f5C;      /* 0x5C */
+    unsigned short f5E;      /* 0x5E */
+    char pad_60[0x0A];
+} Voice;                     /* 0x6A */
 
-extern int func_00117BA0(int, int);
-extern int func_001179E0(int, unsigned char *);
-extern int func_001157F0(int, int, int, int);
+typedef struct {
+    char pad_00[0x0C];
+    unsigned char *f0C;      /* 0x0C */
+    char pad_10[0x04];
+    int f14;                 /* 0x14 */
+} SeqGlobals;
 
-int func_00118418(unsigned char *a0)
+typedef struct {
+    char pad_00[0x3A];
+    unsigned short f3A;      /* 0x3A */
+} TempoBlock;
+
+typedef struct {
+    unsigned char f00;       /* 0x00 */
+    char pad_01[0x07];
+    int f08;                 /* 0x08 */
+    char pad_0C[0x0C];
+    int f18;                 /* 0x18 */
+    char pad_1C[0x08];
+    unsigned short f24;      /* 0x24 */
+    char pad_26[0x0E];
+    unsigned short f34;      /* 0x34 */
+} Event;
+
+extern Voice D_0027CCC0[48];
+extern SeqGlobals D_00281AC0;
+extern TempoBlock D_0027F740;
+extern unsigned short D_00242630[];
+
+extern int func_00117BA0(int a0, int a1);
+extern int func_001179E0(int idx, Event *ev);
+extern int func_001157F0(int a, int idx, int hi, int lo);
+
+int func_00118418(Event *ev)
 {
-    unsigned char *p;
-    unsigned char *q;
-    unsigned char *base;
-    unsigned char *rate;
-    int cur;
+    unsigned char *d;
     int i;
-    int v;
 
-    if (*(unsigned short *)(a0 + 0x34) == 1) {
-        cur = *(int *)(a0 + 8);
-        base = D_00281AC0;
-        rate = D_0027F740;
-        p = D_0027CCC0;
-        do {
-            if (*(unsigned short *)(p + 0x0) == 1 &&
-                *(unsigned short *)(p + 0x1A) == 2 &&
-                *(unsigned short *)(p + 0x22) == *(unsigned short *)(a0 + 0x24)) {
-                q = (unsigned char *)(cur + *(int *)(base + 0x14));
-                if (*(unsigned short *)(p + 0x3E) == q[4] &&
-                    *(unsigned short *)(p + 0x2) == q[5] &&
-                    *(unsigned short *)(p + 0x6) == *(int *)(a0 + 0x18)) {
-                    *(unsigned short *)(p + 0x48) = 1;
-                    *(unsigned short *)(p + 0x58) = q[3];
-                    *(unsigned short *)(p + 0x5A) = *(unsigned short *)(p + 0x4C);
-                    *(unsigned short *)(p + 0x5C) =
-                        (q[2] << 2) * *(unsigned short *)(rate + 0x3A) / 60;
-                    *(unsigned short *)(p + 0x5E) =
-                        (q[2] << 2) * *(unsigned short *)(rate + 0x3A) / 60;
-                }
-            }
-            p += 0x6A;
-        } while ((int)p < (int)(D_0027CCC0 + 0x13E0));
-        cur += 6;
-    } else {
-        base = D_00281AC0;
-        *(unsigned char *)(*(int *)(base + 0xC) + 4) =
-            *(unsigned char *)(*(int *)(a0 + 8) + *(int *)(base + 0x14) + 2);
-        cur = *(int *)(a0 + 8);
-
-        for (i = 0; i < 0x30; i++) {
-            p = D_0027CCC0 + i * 0x6A;
-            if (*(unsigned short *)(p + 0x4) == (*a0 & 0xF) &&
-                *(unsigned short *)(p + 0x22) == *(unsigned short *)(a0 + 0x24) &&
-                *(unsigned short *)(p + 0x6) == *(int *)(a0 + 0x18) &&
-                *(unsigned short *)(p + 0x8) != 1 &&
-                *(unsigned short *)(p + 0x1A) == 1 &&
-                *(unsigned short *)(p + 0x0) == 1) {
-                q = (unsigned char *)(cur + *(int *)(base + 0x14));
-                *(unsigned short *)(p + 0x4C) = q[2];
-                *(unsigned short *)(p + 0x32) = *(unsigned short *)(
-                    D_00242630 + ((func_00117BA0(0, *(unsigned short *)(p + 0xE)) >> 2) << 1));
-                v = func_001179E0(i, a0);
-                func_001157F0(1, i, v >> 16, v & 0xFFFF);
-                cur = *(int *)(a0 + 8);
-            }
+    if (ev->f34 == 1) {
+        for (i = 0; i < 48; i++) {
+            if (D_0027CCC0[i].f00 != 1) continue;
+            if (D_0027CCC0[i].f1A != 2) continue;
+            if (D_0027CCC0[i].f22 != ev->f24) continue;
+            d = (unsigned char *)(ev->f08 + D_00281AC0.f14);
+            if (D_0027CCC0[i].f3E != d[4]) continue;
+            if (D_0027CCC0[i].f02 != d[5]) continue;
+            if (D_0027CCC0[i].f06 != ev->f18) continue;
+            D_0027CCC0[i].f48 = 1;
+            D_0027CCC0[i].f58 = d[3];
+            D_0027CCC0[i].f5A = D_0027CCC0[i].f4C;
+            D_0027CCC0[i].f5C = (d[2] << 2) * D_0027F740.f3A / 60;
+            D_0027CCC0[i].f5E = (d[2] << 2) * D_0027F740.f3A / 60;
         }
-        cur += 3;
+        return ev->f08 = ev->f08 + 6;
+    } else {
+        D_00281AC0.f0C[4] = ((unsigned char *)(ev->f08 + D_00281AC0.f14))[2];
+        for (i = 0; i < 48; i++) {
+            int r;
+            if (D_0027CCC0[i].f04 != (ev->f00 & 0xF)) continue;
+            if (D_0027CCC0[i].f22 != ev->f24) continue;
+            if (D_0027CCC0[i].f06 != ev->f18) continue;
+            if (D_0027CCC0[i].f08 == 1) continue;
+            if (D_0027CCC0[i].f1A != 1) continue;
+            if (D_0027CCC0[i].f00 != 1) continue;
+            D_0027CCC0[i].f4C = ((unsigned char *)(ev->f08 + D_00281AC0.f14))[2];
+            D_0027CCC0[i].f32 = D_00242630[func_00117BA0(0, D_0027CCC0[i].f0E) >> 2];
+            r = func_001179E0(i, ev);
+            func_001157F0(1, i, r >> 16, r & 0xFFFF);
+        }
+        return ev->f08 = ev->f08 + 3;
     }
-    *(int *)(a0 + 8) = cur;
-    return cur;
 }

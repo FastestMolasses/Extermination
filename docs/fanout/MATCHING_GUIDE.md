@@ -596,3 +596,21 @@ parked: func_0011EBA8 99.68 (newlib `_dtoa_r` with native doubles; the
 instruction stream is identical, but its local .rodata block needs pinning and
 the soft-float routines need their libgcc names), func_001D98A0 95.25,
 func_0011A4E8 83.30, func_0010CE28 90.70.
+
+### Queue batch 29 (2026-10-27)
+
+5 byte-matched: func_001186B0 and func_00119650 (sound side, typed records as in
+func_00118078; the flag test written `== 0` with the mask arm first; byte
+copies in the original's order), func_001FE9E0 (a plain switch with a `ret`
+local, as in func_001FECB0), func_00118418 (typed Voice/Event records, plain
+loops with `continue` guards; func_00117BA0's result is used as a signed int
+while its definition returns unsigned char, to reconcile), func_001AF220 (the
+three patched state bytes are volatile because the original reads two of them
+back). Improved and parked: func_001E13E0 99.10, func_0010D2C8 88.01 (its 64-bit
+`/` and `%` are written as explicit calls because the symbol map has no
+libgcc names for those helpers), func_00107648 93.66, func_00110508 93.88 (the
+old C returned 0 where the original returns func_00110368's result),
+func_001DAE10 85.68 (the remaining block is VU0 macro code; a 100% version with
+inline VU0 asm is kept outside src/ because inline asm is approved for
+func_001DB480 only). Rejected: a 100% func_001B11E0 spelling that needs a local
+assigned inside an expression and never read.

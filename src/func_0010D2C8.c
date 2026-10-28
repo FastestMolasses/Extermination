@@ -1,8 +1,15 @@
 // NEARMISS func_0010D2C8  (vram 0x0010D2C8, 0x5C8 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 81.71% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// NOT an mwcc unit — this is an ee-gcc (SDK/lowmem) function: sd/ld 64-bit callee saves at 16-byte stride, daddu register moves, movz/movn, dsrl/dsra32, 3-operand mult, unfilled jal;nop. Built with tools/eegcc/ee-compile.sh -O2 (mwcc cannot match it at all; -O1 gives 62.4%, -O3/-fno-strength-reduce...
+// objdiff 88.01% via ee-gcc 2.9-991111-01 (-O2) (was 81.71%). Wave 2026-10-27 fixes read from
+// the original instructions: the format pointer is ONE variable advanced by the loops'
+// increments (outer `p++`, inner `for (;;) { p++; switch (*p) ... }`), with a separate
+// buffer pointer `s`; one 64-bit value variable shared by every conversion; the second
+// width digit is read before the first digit is tested; func_00128350 returns a double
+// (__extendsfdf2) and func_0010D160 takes it; 64-bit div/mod are explicit helper calls.
+// Remaining differences: saved-register swap (the original keeps the buffer pointer in the
+// outer pointer's register and the value in the next one; declaration order does not move
+// it), a temporary copy in the 's' case, one temp-register choice in the width parse, and
+// the .text is 8 bytes short.
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -19,43 +26,46 @@
 //               "if (pad && pad < s) s = pad" step widens the printed field.
 //   'l' / 'h'   length modifiers (recorded in `lmod` as the literal chars 'l' / 'h').
 //   'o' 'x' 'u' unsigned radix 8 / 16 / 10, built backwards from &buf[31].
-//   'd'         signed radix 10 (emits '-' then negates; uses the 64-bit div/mod
-//               helpers func_001258E0 / func_00125068).
-//   'e' 'f'     float: prints '0' when exactly 0.0f, else func_0010D160(func_00128350(f)).
+//   'd'         signed radix 10 (emits '-' then negates; uses the libgcc 64-bit helpers
+//               func_001258E0 = __moddi3 / func_00125068 = __divdi3; 'u' uses the
+//               unsigned pair func_00126578 / func_00125FA8).
+//   'e' 'f'     float: prints '0' when exactly 0.0f, else widens it to double
+//               (func_00128350 = __extendsfdf2) and prints it with func_0010D160.
 //   's'         string, or the literal "(null)" when the first byte is 0.
 //   'c'         single character.
 // Any other character after '%' is skipped silently.
 
-extern void func_0010D160(char *s);
+extern void func_0010D160(double x);
 extern long long func_00125068(long long a, long long b);
 extern long long func_001258E0(long long a, long long b);
 extern unsigned long long func_00125FA8(unsigned long long a, unsigned long long b);
 extern unsigned long long func_00126578(unsigned long long a, unsigned long long b);
-extern char *func_00128350(float f);
+extern double func_00128350(float f);
 
 extern void (*D_00241C74)(int c);
 
 void func_0010D2C8(char *p, char *ap)
 {
     char buf[32];
-    char *q;
+    char *s;
     char *pad;
     int lmod;
+    unsigned long long uv;
 
-    while (*p) {
+    for (; *p; p++) {
         pad = 0;
         lmod = 0;
         if (*p == '%') {
-            q = p + 1;
             for (;;) {
-                p = q;
+                p++;
                 switch (*p) {
                 case '0': {
                     int n = p[1] - '0';
+                    int c2 = p[2];
 
                     if ((unsigned char)n < 10) {
-                        if ((unsigned int)(p[2] - '0') < 10) {
-                            n = n * 10 + (p[2] - '0');
+                        if ((unsigned int)(c2 - '0') < 10) {
+                            n = n * 10 + (c2 - '0');
                             if (n >= 32) {
                                 n = 31;
                             }
@@ -63,28 +73,21 @@ void func_0010D2C8(char *p, char *ap)
                         } else {
                             p += 1;
                         }
-                        pad = &buf[31] - n;
+                        pad = buf + (31 - n);
                         while (n > 0) {
                             buf[31 - n] = '0';
                             n--;
                         }
-                        q = p + 1;
-                    } else {
-                        q++;
                     }
                     continue;
                 }
                 case 'l':
                     lmod = 'l';
-                    q++;
                     continue;
                 case 'h':
                     lmod = 'h';
-                    q++;
                     continue;
                 case 'o': {
-                    unsigned long long uv;
-
                     if (lmod == 'l') {
                         ap += 8;
                         uv = *(unsigned long long *)(ap - 8);
@@ -95,33 +98,29 @@ void func_0010D2C8(char *p, char *ap)
                         ap += 8;
                         uv = *(unsigned int *)(ap - 8);
                     }
-                    p = &buf[31];
+                    s = &buf[31];
                     buf[31] = 0;
                     if (uv == 0) {
-                        p = &buf[30];
+                        s = &buf[30];
                         buf[30] = '0';
-                        q++;
                     } else {
-                        q++;
                         while (uv != 0) {
-                            *--p = (uv & 7) + '0';
+                            *--s = (uv & 7) + '0';
                             uv >>= 3;
                         }
                     }
                     if (pad != 0) {
-                        if (pad < p) {
-                            p = pad;
+                        if (pad < s) {
+                            s = pad;
                         }
                     }
-                    while (*p) {
-                        (*D_00241C74)(*p);
-                        p++;
+                    while (*s) {
+                        (*D_00241C74)(*s);
+                        s++;
                     }
                     break;
                 }
                 case 'x': {
-                    unsigned long long uv;
-
                     if (lmod == 'l') {
                         ap += 8;
                         uv = *(unsigned long long *)(ap - 8);
@@ -132,76 +131,68 @@ void func_0010D2C8(char *p, char *ap)
                         ap += 8;
                         uv = *(unsigned int *)(ap - 8);
                     }
-                    p = &buf[31];
+                    s = &buf[31];
                     buf[31] = 0;
                     if (uv == 0) {
-                        p = &buf[30];
+                        s = &buf[30];
                         buf[30] = '0';
-                        q++;
                     } else {
-                        q++;
                         while (uv != 0) {
-                            unsigned int d = uv & 0xF;
+                            unsigned long long d = uv & 0xF;
 
-                            *--p = (d < 10) ? (d + '0') : (d + 0x57);
+                            *--s = (d < 10) ? (d + '0') : (d + 0x57);
                             uv >>= 4;
                         }
                     }
                     if (pad != 0) {
-                        if (pad < p) {
-                            p = pad;
+                        if (pad < s) {
+                            s = pad;
                         }
                     }
-                    while (*p) {
-                        (*D_00241C74)(*p);
-                        p++;
+                    while (*s) {
+                        (*D_00241C74)(*s);
+                        s++;
                     }
                     break;
                 }
                 case 'd': {
-                    long long sv;
-
                     if (lmod == 'l') {
                         ap += 8;
-                        sv = *(long long *)(ap - 8);
+                        uv = *(long long *)(ap - 8);
                     } else if (lmod == 'h') {
                         ap += 8;
-                        sv = *(short *)(ap - 8);
+                        uv = *(short *)(ap - 8);
                     } else {
                         ap += 8;
-                        sv = *(int *)(ap - 8);
+                        uv = *(int *)(ap - 8);
                     }
-                    p = &buf[31];
+                    s = &buf[31];
                     buf[31] = 0;
-                    if (sv == 0) {
-                        p = &buf[30];
+                    if (uv == 0) {
+                        s = &buf[30];
                         buf[30] = '0';
-                        q++;
                     } else {
-                        if (sv < 0) {
-                            sv = -sv;
+                        if ((long long)uv < 0) {
+                            uv = -uv;
                             (*D_00241C74)('-');
                         }
-                        q++;
-                        while (sv != 0) {
-                            *--p = (sv % 10) + '0';
-                            sv = sv / 10;
+                        while (uv != 0) {
+                            *--s = func_001258E0(uv, 10) + '0';
+                            uv = func_00125068(uv, 10);
                         }
                     }
                     if (pad != 0) {
-                        if (pad < p) {
-                            p = pad;
+                        if (pad < s) {
+                            s = pad;
                         }
                     }
-                    while (*p) {
-                        (*D_00241C74)(*p);
-                        p++;
+                    while (*s) {
+                        (*D_00241C74)(*s);
+                        s++;
                     }
                     break;
                 }
                 case 'u': {
-                    unsigned long long uv;
-
                     if (lmod == 'l') {
                         ap += 8;
                         uv = *(long long *)(ap - 8);
@@ -212,27 +203,25 @@ void func_0010D2C8(char *p, char *ap)
                         ap += 8;
                         uv = *(unsigned int *)(ap - 8);
                     }
-                    p = &buf[31];
+                    s = &buf[31];
                     buf[31] = 0;
                     if (uv == 0) {
-                        p = &buf[30];
+                        s = &buf[30];
                         buf[30] = '0';
-                        q++;
                     } else {
-                        q++;
                         while (uv != 0) {
-                            *--p = (uv % 10) + '0';
-                            uv = uv / 10;
+                            *--s = func_00126578(uv, 10) + '0';
+                            uv = func_00125FA8(uv, 10);
                         }
                     }
                     if (pad != 0) {
-                        if (pad < p) {
-                            p = pad;
+                        if (pad < s) {
+                            s = pad;
                         }
                     }
-                    while (*p) {
-                        (*D_00241C74)(*p);
-                        p++;
+                    while (*s) {
+                        (*D_00241C74)(*s);
+                        s++;
                     }
                     break;
                 }
@@ -243,25 +232,21 @@ void func_0010D2C8(char *p, char *ap)
                     ap += 8;
                     f = *(float *)(ap - 8);
                     if (f != 0.0f) {
-                        q++;
                         func_0010D160(func_00128350(f));
                     } else {
-                        q++;
                         (*D_00241C74)('0');
                     }
                     break;
                 }
                 case 's': {
                     ap += 8;
-                    p = *(char **)(ap - 8);
-                    if (*p != 0) {
-                        q++;
+                    s = *(char **)(ap - 8);
+                    if (*s != 0) {
                         do {
-                            (*D_00241C74)(*p);
-                            p++;
-                        } while (*p);
+                            (*D_00241C74)(*s);
+                            s++;
+                        } while (*s);
                     } else {
-                        q++;
                         (*D_00241C74)('(');
                         (*D_00241C74)('n');
                         (*D_00241C74)('u');
@@ -272,25 +257,18 @@ void func_0010D2C8(char *p, char *ap)
                     break;
                 }
                 case 'c': {
-                    long long sv;
-
                     ap += 8;
-                    sv = *(char *)(ap - 8);
-                    q++;
-                    (*D_00241C74)((int)sv);
+                    uv = *(char *)(ap - 8);
+                    (*D_00241C74)((int)uv);
                     break;
                 }
                 default:
-                    q++;
                     break;
                 }
                 break;
             }
-            p = q;
         } else {
-            q = p + 1;
             (*D_00241C74)(*p);
-            p = q;
         }
     }
 }
