@@ -1,57 +1,38 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00153A10(int, int, int, int);
-extern void func_00153A90(int, int, int, int);
-extern void func_00153B50(int, int, int, int);
-extern void func_00153EA0(int, int, int, int);
-extern void func_001B5360(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00153950(void) {
-    addiu      $sp, $sp, -0x30
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90850004
-    .word 0x70808e28
-    addiu      $v1, $zero, 0x3
-    .word 0x10a3001a
-    addiu     $s0, $s1, 0x1F0
-    addiu      $v1, $zero, 0x2
-    .word 0x50a30013
-    .word 0x72002e28
-    addiu      $v1, $zero, 0x1
-    .word 0x50a3000b
-    .word 0x72002e28
-    .word 0x10a00004
-    .word 0x72002e28
-    .word 0x10000015
-    .word 0x82030010
-    .word 0x72002e28
-    jal        func_00153A10
-    nop
-    .word 0x1000000f
-    nop
-    .word 0x72002e28
-    jal        func_00153A90
-    nop
-    .word 0x1000000a
-    nop
-    .word 0x72002e28
-    jal        func_00153B50
-    nop
-    .word 0x10000005
-    nop
-    jal        func_00153EA0
-    .word 0x72002e28
-    .word 0x10000007
-    .word 0x7bbf0020
-    .word 0x82030010
-    .word 0x10600003
-    nop
-    jal        func_001B5360
-    .word 0x72202628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x30
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Per-tick driver: dispatches the state byte self+4 to its handler with
+// (self, self+0x1F0) -- 0 func_00153A10, 1 func_00153A90, 2 func_00153B50, 3
+// func_00153EA0 (state 3 returns at once). Otherwise, if the sub-block byte
+// +0x10 is set, calls func_001B5360(self). func_00153B50 and func_00153EA0 are
+// declared with the two arguments the original passes (their definitions
+// take three and one).
+extern void func_00153A10(char *self, char *st);
+extern void func_00153A90(char *arg0, int *arg1);
+extern void func_00153B50(char *self, char *st);
+extern void func_00153EA0(char *self, char *st);
+extern void func_001B5360(char *self);
+
+void func_00153950(char *self) {
+    char *st = self + 0x1F0;
+
+    switch (*(unsigned char *)(self + 4)) {
+    case 0:
+        func_00153A10(self, st);
+        break;
+    case 1:
+        func_00153A90(self, (int *)st);
+        break;
+    case 2:
+        func_00153B50(self, st);
+        break;
+    case 3:
+        func_00153EA0(self, st);
+        return;
+    }
+    if (*(signed char *)(st + 0x10) != 0) {
+        func_001B5360(self);
+    }
 }

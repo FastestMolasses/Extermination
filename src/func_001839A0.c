@@ -1,77 +1,49 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001839A0(void) {
-    .word 0x90830003
-    .word 0x24020028
-    .word 0x10620040
-    .word 0x24020100
-    .word 0x2402004f
-    .word 0x1062003c
-    .word 0x00000000
-    .word 0x24020034
-    .word 0x10620039
-    .word 0x00000000
-    .word 0x24020033
-    .word 0x10620036
-    .word 0x00000000
-    .word 0x24020051
-    .word 0x10620031
-    .word 0x24020300
-    .word 0x2402001b
-    .word 0x1062002b
-    .word 0x24020200
-    .word 0x2402002b
-    .word 0x10620027
-    .word 0x00000000
-    .word 0x2402002a
-    .word 0x10620022
-    .word 0x24020010
-    .word 0x24020018
-    .word 0x1062001e
-    .word 0x00000000
-    .word 0x2402000e
-    .word 0x1062001b
-    .word 0x00000000
-    .word 0x2402000c
-    .word 0x10620018
-    .word 0x00000000
-    .word 0x2402000a
-    .word 0x10620015
-    .word 0x00000000
-    .word 0x24020050
-    .word 0x10620010
-    .word 0x70001628
-    .word 0x2402001e
-    .word 0x1062000c
-    .word 0x00000000
-    .word 0x2402001f
-    .word 0x10620009
-    .word 0x00000000
-    .word 0x2402001c
-    .word 0x10620006
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x10620003
-    .word 0x00000000
-    .word 0x10000011
-    .word 0x24020101
-    .word 0x70001628
-    .word 0x1000000e
-    .word 0x00000000
-    .word 0x24020010
-    .word 0x1000000b
-    .word 0x00000000
-    .word 0x24020200
-    .word 0x10000008
-    .word 0x00000000
-    .word 0x24020300
-    .word 0x10000005
-    .word 0x00000000
-    .word 0x24020100
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x24020101
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Hit-reaction code for a struck actor, keyed on its type byte (+3). Used by
+// the weapon-fire hit dispatcher (func_001861C0) and func_00186A60:
+//   types 0x06, 0x1C, 0x1E, 0x1F, 0x50              -> 0x000 (no reaction)
+//   types 0x0A, 0x0C, 0x0E, 0x18, 0x2A              -> 0x010
+//   types 0x1B, 0x2B                                -> 0x200
+//   type  0x51                                      -> 0x300
+//   types 0x28, 0x33, 0x34, 0x4F                    -> 0x100
+//   anything else                                   -> 0x101
+// The case labels are in the original's source order (mwcc 2.3.3 emits the
+// compare chain in reverse).
+
+typedef struct Actor {
+    unsigned char pad0[3];
+    unsigned char type;             /* +0x03 */
+} Actor;
+
+short func_001839A0(Actor *other) {
+    switch (other->type) {
+    case 0x06:
+    case 0x1C:
+    case 0x1F:
+    case 0x1E:
+    case 0x50:
+        return 0;
+    case 0x0A:
+    case 0x0C:
+    case 0x0E:
+    case 0x18:
+    case 0x2A:
+        return 0x10;
+    case 0x2B:
+    case 0x1B:
+        return 0x200;
+    case 0x51:
+        return 0x300;
+    case 0x33:
+    case 0x34:
+    case 0x4F:
+    case 0x28:
+        return 0x100;
+    default:
+        return 0x101;
+    }
 }

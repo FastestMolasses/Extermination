@@ -1,55 +1,41 @@
-// All-word: everything as .word except jal/j-external
-extern void anim_clip_init(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Two-step intro state on self+6. State 0: advance the state, zero ctx+0x28,
+// ctx+0x20 = 1.0f, self+7 = 1, the short timer ctx+0x56 = 240, ctx+0x3C = 2.5f,
+// clear the tilt flags ctx+0x59/ctx+0x58, start clip 0x17 (anim_clip_init(self,
+// 0x17, 5.0f, 0.0f)) and play sound/effect 0x867 via func_001FBD50(self, 0x867,
+// 0, 300.0f). State 1: keep ctx+0x56 at 240; once bit 0x1000 of ctx+0 (ctx+0 holds the
+// last anim_advance_time result) is set, go to state self+4 = 1
+// with self+5 = self+6 = 0.
+extern void anim_clip_init(int self, int clip, float a, float b);
+extern void func_001FBD50(char *p, int a, int b, float f);
 
-asm void func_0014E420(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90830006
-    .word 0x24060001
-    .word 0x1066001e
-    .word 0x70808628
-    .word 0x50600004
-    .word 0x24620001
-    .word 0x10000024
-    .word 0x7bbf0010
-    .word 0x24620001
-    .word 0x44806800
-    .word 0xa2020006
-    .word 0xaca00028
-    .word 0x3c023f80
-    .word 0xaca20020
-    .word 0x240200f0
-    .word 0xa2060007
-    .word 0xa4a20056
-    .word 0x3c024020
-    .word 0xaca2003c
-    .word 0xa0a00059
-    .word 0xa0a00058
-    .word 0x3c0240a0
-    .word 0x44826000
-    jal       anim_clip_init
-    .word 0x24050017
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x24050867
-    .word 0x72002628
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x1000000a
-    .word 0x00000000
-    .word 0x240300f0
-    .word 0xa4a30056
-    .word 0x8ca30000
-    .word 0x30631000
-    .word 0x10600004
-    .word 0x00000000
-    .word 0xa2060004
-    .word 0xa2000005
-    .word 0xa2000006
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+void func_0014E420(char *arg0, char *arg1) {
+    unsigned char st;
+
+    st = *(unsigned char *)(arg0 + 6);
+    switch (st) {
+    case 0:
+        *(unsigned char *)(arg0 + 6) = st + 1;
+        *(int *)(arg1 + 0x28) = 0;
+        *(float *)(arg1 + 0x20) = 1.0f;
+        *(unsigned char *)(arg0 + 7) = 1;
+        *(short *)(arg1 + 0x56) = 0xF0;
+        *(float *)(arg1 + 0x3C) = 2.5f;
+        *(char *)(arg1 + 0x59) = 0;
+        *(char *)(arg1 + 0x58) = 0;
+        anim_clip_init((int)arg0, 0x17, 5.0f, 0.0f);
+        func_001FBD50(arg0, 0x867, 0, 300.0f);
+        break;
+    case 1:
+        *(short *)(arg1 + 0x56) = 0xF0;
+        if (*(int *)arg1 & 0x1000) {
+            *(char *)(arg0 + 4) = 1;
+            *(char *)(arg0 + 5) = 0;
+            *(char *)(arg0 + 6) = 0;
+        }
+        break;
+    }
 }

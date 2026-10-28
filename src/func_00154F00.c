@@ -1,189 +1,110 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
+// NEARMISS func_00154F00  (vram 0x00154F00, 0x2A4 bytes) — readable decompilation, NOT byte-identical.
 //
-// SEMANTICS (resolved s33 — docs/FINDINGS.md "KIND-0xE COMPANION
-// RESOLVED"): tendril-field renderer — 12 re-posed draws of the one
-// spike mesh. Per VALID record (+0x84): bob integrator on {phase
-// +0x7C, vel +0x7E} (parent pad open >0.5: gravity -8 + kicks
-// +28..41 below phase 128 = thrash; closed: gravity -1, kicks +3..7,
-// vel halved at >=8; floor clamp phase 100 with fresh vel 3..7);
-// scale X/Z +0x60/+0x68 = girth(+0x82)/256, scale Y +0x64 =
-// phase*ramp(+0x80)/65536, alpha +0x8C = scratch+0xC faded over ramp
-// 0..16; pos.xz = record X/Z; func_001C6380 TRS + the +0x4C draw
-// method (func_001CB1F0). Own pos/matrix saved+restored around the
-// loop (func_00102948 qword copy).
-extern void func_00102948(int, int, int, int);
-extern int func_00122BB8(void);
-extern void float_to_int(int, int, int, int);
-extern void func_001C6380(int, int, int, int);
+// objdiff 97.60% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) (was an asm-word
+// body, matching wave 2026-10-28). Keys found: the spark records are arrays inside the sub-block
+// indexed by i (the original walks two pointers based at the sub-block itself), the random
+// increments are spelled vy = vy + (...), and the "fast" flag is one ternary.
+// Remaining differences: the "fast" flag setup (the original zeroes it in both compare delay
+// slots and keeps two unreachable zeroing copies; ours fills one slot with a nop), the
+// temporary register of the first random-velocity sum (v1 vs v0) and of the 14x one, and two
+// float temporaries (f1/f0 for the 0.5 halving, f3/f1 for the height scale). Tried: if/else,
+// nested-if and ternary forms of the flag, local order, mwcc24 (same) and mwcc 991202 (90.0%),
+// operand order of the float products, a rand local, short casts.
+//
+// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
+// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
+// excluded from matched_code. Registry: docs/NEARMISS.md.
+//
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00154F00(void) {
-    .word 0x27bdff80
-    .word 0x7fbf0060
-    .word 0x7fb50050
-    .word 0x7fb40040
-    .word 0x7fb30030
-    .word 0x7fb20020
-    .word 0x7080ae28
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x27a40070
-    .word 0x26a500b0
-    jal       func_00102948
-    .word 0x26b001f0
-    .word 0x8ea20020
-    .word 0x1040000f
-    .word 0x70009628
-    .word 0xc4410080
-    .word 0x3c023f00
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46000836
-    .word 0x00000000
-    .word 0x45010004
-    .word 0x70009628
-    .word 0x10000005
-    .word 0x24120001
-    .word 0x70009628
-    .word 0x10000003
-    .word 0x70008e28
-    .word 0x70009628
-    .word 0x70008e28
-    .word 0x72009e28
-    .word 0x7200a628
-    .word 0x86620084
-    .word 0x50400074
-    .word 0x26310001
-    .word 0x8663007c
-    .word 0x8662007e
-    .word 0x00621021
-    .word 0x12400005
-    .word 0xa662007c
-    .word 0x8662007e
-    .word 0x2442fff8
-    .word 0x10000004
-    .word 0xa662007e
-    .word 0x8662007e
-    .word 0x2442ffff
-    .word 0xa662007e
-    .word 0x8662007c
-    .word 0x28410064
-    .word 0x1020000c
-    .word 0x28410080
-    .word 0x24020064
-    jal       func_00122BB8
-    .word 0xa662007c
-    .word 0x00021c03
-    .word 0x00031080
-    .word 0x00431821
-    .word 0x00031bc3
-    .word 0x24620003
-    .word 0x1000001d
-    .word 0xa662007e
-    .word 0x28410080
-    .word 0x1020001a
-    .word 0x00000000
-    .word 0x1240000d
-    .word 0x00000000
-    jal       func_00122BB8
-    .word 0x00000000
-    .word 0x00021c03
-    .word 0x000310c0
-    .word 0x00431023
-    .word 0x00021840
-    .word 0x8662007e
-    .word 0x00031bc3
-    .word 0x2463001c
-    .word 0x00431021
-    .word 0x1000000c
-    .word 0xa662007e
-    jal       func_00122BB8
-    .word 0x00000000
-    .word 0x00021c03
-    .word 0x00031080
-    .word 0x00431821
-    .word 0x8662007e
-    .word 0x00031bc3
-    .word 0x24630003
-    .word 0x00431021
-    .word 0xa662007e
-    .word 0x00000000
-    .word 0x1640000d
-    .word 0x00000000
-    .word 0x8663007e
-    .word 0x28620008
-    .word 0x14400009
-    .word 0x00000000
-    .word 0x44830000
-    .word 0x3c023f00
-    .word 0x46800060
-    .word 0x44820000
-    jal       float_to_int
-    .word 0x46000b02
-    .word 0xa662007e
-    .word 0x00000000
-    .word 0x86630080
-    .word 0x8664007c
-    .word 0x3c023780
-    .word 0x44820000
-    .word 0x28610010
-    .word 0x00831018
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x468008e0
-    .word 0x1020000b
-    .word 0x460018c2
-    .word 0x44830000
-    .word 0x3c024180
-    .word 0x468000a0
-    .word 0x44820800
-    .word 0xc600000c
-    .word 0x46011043
-    .word 0x00000000
-    .word 0x46000802
-    .word 0x10000004
-    .word 0xe6a0008c
-    .word 0xc600000c
-    .word 0xe6a0008c
-    .word 0x00000000
-    .word 0x86630082
-    .word 0x3c023b80
-    .word 0x26a400b0
-    .word 0x44820000
-    .word 0x70802e28
-    .word 0x44830800
-    .word 0x00000000
-    .word 0x46800860
-    .word 0x46010002
-    .word 0xe6a00068
-    .word 0xe6a00060
-    .word 0xe6a30064
-    .word 0xc680001c
-    .word 0xe6a000b0
-    .word 0xc6800020
-    jal       func_00102948
-    .word 0xe6a000b8
-    jal       func_001C6380
-    .word 0x72a02628
-    .word 0x8ea2004c
-    .word 0x0040f809
-    .word 0x72a02628
-    .word 0x26310001
-    .word 0x2a22000c
-    .word 0x2673000a
-    .word 0x1440ff87
-    .word 0x26940008
-    .word 0x26a400b0
-    jal       func_00102948
-    .word 0x27a50070
-    jal       func_001C6380
-    .word 0x72a02628
-    .word 0x7bbf0060
-    .word 0x7bb50050
-    .word 0x7bb40040
-    .word 0x7bb30030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0080
+// Spark-column effect draw: saves the actor position quad (self+0xB0), then for
+// each of 12 spark records in the sub-block self+0x1F0 that is active it moves
+// the height by its velocity, applies gravity (8 per tick when the linked object
+// self+0x20 has its +0x80 value above 0.5, else 1), bounces at height 100 with a
+// random upward speed (3..7) and below 128 adds a random kick (28..41 when fast,
+// 3..7 otherwise), halves velocities >= 8 in slow mode, then sets the fade
+// (self+0x8C = sub+0xC scaled by life/16 while life < 16), the scale
+// (self+0x60/+0x68 = scale/256, self+0x64 = height*life/65536) and the x/z
+// position from the record's pair, refreshes the transform (func_001C6380) and
+// draws through the hook at self+0x4C. Finally restores the saved position and
+// refreshes the transform again.
+extern int float_to_int(float arg);
+extern void func_00102948(void *dst, void *src);
+extern int func_00122BB8(void);
+extern void func_001C6380(unsigned char *self);
+
+typedef struct Spark {
+    short y;
+    short vy;
+    short life;
+    short scale;
+    short active;
+} Spark;
+
+typedef struct SparkXZ {
+    float x;
+    float z;
+} SparkXZ;
+
+typedef struct SparkState {
+    char pad00[0xC];
+    float fade;
+    char pad10[0xC];
+    SparkXZ xz[12];
+    Spark sp[12];
+} SparkState;
+
+void func_00154F00(char *self) {
+    SparkState *st = (SparkState *)(self + 0x1F0);
+    char *link;
+    int i;
+    int fast;
+    float h;
+    float s;
+    int saved[4];
+
+    func_00102948(saved, self + 0xB0);
+    link = *(char **)(self + 0x20);
+    fast = (link == 0 || *(float *)(link + 0x80) <= 0.5f) ? 0 : 1;
+    for (i = 0; i < 12; i++) {
+        if (st->sp[i].active != 0) {
+            st->sp[i].y += st->sp[i].vy;
+            if (fast) {
+                st->sp[i].vy -= 8;
+            } else {
+                st->sp[i].vy -= 1;
+            }
+            if (st->sp[i].y < 100) {
+                st->sp[i].y = 100;
+                st->sp[i].vy = (((func_00122BB8() >> 16) * 5) >> 15) + 3;
+            } else if (st->sp[i].y < 128) {
+                if (fast) {
+                    st->sp[i].vy = st->sp[i].vy + ((((func_00122BB8() >> 16) * 14) >> 15) + 28);
+                } else {
+                    st->sp[i].vy = st->sp[i].vy + ((((func_00122BB8() >> 16) * 5) >> 15) + 3);
+                }
+            }
+            if (!fast && st->sp[i].vy >= 8) {
+                st->sp[i].vy = float_to_int(0.5f * (float)st->sp[i].vy);
+            }
+            h = 1.5258789e-05f * (float)(st->sp[i].y * st->sp[i].life);
+            if (st->sp[i].life < 16) {
+                *(float *)(self + 0x8C) = ((float)st->sp[i].life / 16.0f) * st->fade;
+            } else {
+                *(float *)(self + 0x8C) = st->fade;
+            }
+            s = 0.00390625f * (float)st->sp[i].scale;
+            *(float *)(self + 0x68) = s;
+            *(float *)(self + 0x60) = s;
+            *(float *)(self + 0x64) = h;
+            *(float *)(self + 0xB0) = st->xz[i].x;
+            *(float *)(self + 0xB8) = st->xz[i].z;
+            func_00102948(self + 0xB0, self + 0xB0);
+            func_001C6380((unsigned char *)self);
+            (*(void (**)(char *))(self + 0x4C))(self);
+        }
+    }
+    func_00102948(self + 0xB0, saved);
+    func_001C6380((unsigned char *)self);
 }

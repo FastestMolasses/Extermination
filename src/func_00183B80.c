@@ -1,52 +1,42 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_00183B80(void) {
-    .word 0x90850002
-    .word 0x2403ff1f
-    .word 0x24020002
-    .word 0x00a31824
-    .word 0x14620028
-    .word 0x70001628
-    .word 0x90830003
-    .word 0x24020012
-    .word 0x10620019
-    .word 0x00000000
-    .word 0x24020013
-    .word 0x10620014
-    .word 0x70001628
-    .word 0x2402000e
-    .word 0x10620010
-    .word 0x00000000
-    .word 0x2402000d
-    .word 0x1062000d
-    .word 0x00000000
-    .word 0x2402000f
-    .word 0x1062000a
-    .word 0x00000000
-    .word 0x24020006
-    .word 0x10620003
-    .word 0x00000000
-    .word 0x10000010
-    .word 0x24020001
-    .word 0x9083009f
-    .word 0x24020001
-    .word 0x1000000f
-    .word 0x0003100b
-    .word 0x70001628
-    .word 0x1000000c
-    .word 0x00000000
-    .word 0x9083000d
-    .word 0x24020001
-    .word 0x10620002
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x10000005
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// "Is this record a targetable actor?" predicate (used by the targeting scans
+// func_00199220 / func_00199770). Only records whose kind byte (+2) is 2 once
+// the 0xE0 flag bits are masked off can qualify. Then by type byte (+3):
+//   type 6                  -> targetable unless the byte at +0x9F is set
+//   types 0x0D, 0x0E, 0x0F, 0x13 -> never
+//   type 0x12               -> only when the byte at +0xD is 1
+//   any other type          -> always
+// Returns 1 / 0.
+
+typedef struct Actor {
+    unsigned char pad0[2];
+    unsigned char kind;             /* +0x02 (top 3 bits are flags) */
+    unsigned char type;             /* +0x03 */
+    unsigned char pad4[0xD - 4];
+    unsigned char subtype;          /* +0x0D */
+    unsigned char padE[0x9F - 0xE];
+    unsigned char hidden;           /* +0x9F */
+} Actor;
+
+int func_00183B80(Actor *e) {
+    if ((e->kind & ~0xE0) == 2) {
+        switch (e->type) {
+        case 6:
+            return (e->hidden == 0) ? 1 : 0;
+        case 0xF:
+        case 0xD:
+        case 0xE:
+        case 0x13:
+            return 0;
+        case 0x12:
+            return (e->subtype != 1) ? 0 : 1;
+        default:
+            return 1;
+        }
+    }
+    return 0;
 }

@@ -1,82 +1,48 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Tilt toggle driven by self+7. Step 0 waits for the short timer ctx+0x56 to
+// reach 0; then it advances the step, latches ctx+0x58 = ctx+0x59, reloads the
+// timer with a random 0..127 ((rand >> 17) & 0x7F, func_00122BB8), and sets the
+// turn speed ctx+0x3C to 0.5 (tilted) or 2.5 (level) degrees per tick, falling
+// into step 1. Step 1 eases the angle at (self+0x174)+0x78 toward 35 degrees
+// (0.6108653 rad) when ctx+0x59 is set, else toward 0, by speed*PI/180 per call
+// via func_001B12B0(target, current, step); on arrival it returns to step 0 and
+// flips ctx+0x59.
 extern int func_00122BB8(void);
-extern void func_001B12B0(int, int, int, int);
+extern float func_001B12B0(float cur, float target, float step);
 
-asm void func_0014E670(void) {
-    addiu      $sp, $sp, -0x40
-    .word 0x7fbf0030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    .word 0x70808e28
-    .word 0x90840007
-    addiu      $v1, $zero, 0x1
-    .word 0x10830018
-    .word 0x70a08628
-    .word 0x10800003
-    nop
-    .word 0x1000003a
-    .word 0x7bbf0030
-    .word 0x86030056
-    .word 0x14600036
-    nop
-    addiu      $v0, $a0, 0x1
-    .word 0xa2220007
-    .word 0x82020059
-    jal        func_00122BB8
-    .word 0xa2020058
-    sra        $v0, $v0, 17
-    andi       $v0, $v0, 0x7F
-    .word 0xa6020056
-    .word 0x82020059
-    .word 0x10400005
-    .word 0x3c024020
-    .word 0x3c023f00
-    .word 0x10000003
-    .word 0xae02003c
-    .word 0x3c024020
-    .word 0xae02003c
-    .word 0x82020059
-    .word 0x10400006
-    nop
-    .word 0x3c023f1c
-    .word 0x344261ab
-    mtc1       $v0, $f20
-    .word 0x10000003
-    .word 0xc601003c
-    mtc1       $zero, $f20
-    .word 0xc601003c
-    .word 0x3c024049
-    .word 0x34420fdb
-    mtc1       $v0, $f2
-    .word 0x8e230174
-    .word 0x3c024334
-    mul.s      $f1, $f2, $f1
-    .word 0xc46d0078
-    mtc1       $v0, $f0
-    mov.s      $f12, $f20
-    div.s      $f14, $f1, $f0
-    nop
-    nop
-    jal        func_001B12B0
-    nop
-    .word 0x8e230174
-    .word 0xe4600078
-    .word 0x8e230174
-    .word 0xc4600078
-    c.eq.s     $f20, $f0
-    nop
-    .word 0x45000006
-    nop
-    .word 0xa2200007
-    .word 0x82040059
-    addiu      $v1, $zero, 0x1
-    subu       $v1, $v1, $a0
-    .word 0xa2030059
-    .word 0x7bbf0030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    jr         $ra
-    addiu     $sp, $sp, 0x40
+void func_0014E670(char *self, char *ctx) {
+    float target;
+
+    switch (*(unsigned char *)(self + 7)) {
+    case 0:
+        if (*(short *)(ctx + 0x56) != 0) {
+            break;
+        }
+        *(unsigned char *)(self + 7) = *(unsigned char *)(self + 7) + 1;
+        *(char *)(ctx + 0x58) = *(char *)(ctx + 0x59);
+        *(short *)(ctx + 0x56) = (func_00122BB8() >> 17) & 0x7F;
+        if (*(char *)(ctx + 0x59) != 0) {
+            *(float *)(ctx + 0x3C) = 0.5f;
+        } else {
+            *(float *)(ctx + 0x3C) = 2.5f;
+        }
+        /* fallthrough */
+    case 1:
+        if (*(char *)(ctx + 0x59) != 0) {
+            target = 0.6108653f;
+        } else {
+            target = 0.0f;
+        }
+        *(float *)(*(char **)(self + 0x174) + 0x78) =
+            func_001B12B0(target, *(float *)(*(char **)(self + 0x174) + 0x78),
+                          (3.1415927f * *(float *)(ctx + 0x3C)) / 180.0f);
+        if (target == *(float *)(*(char **)(self + 0x174) + 0x78)) {
+            *(unsigned char *)(self + 7) = 0;
+            *(char *)(ctx + 0x59) = 1 - *(char *)(ctx + 0x59);
+        }
+        break;
+    }
 }

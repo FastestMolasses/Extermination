@@ -1,55 +1,37 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001AA410(void) {
-    .word 0x90830003
-    .word 0x24020008
-    .word 0x10620029
-    .word 0x3c0241f0
-    .word 0x24020006
-    .word 0x10620022
-    .word 0x3c02420c
-    .word 0x24020002
-    .word 0x1062001b
-    .word 0x3c0241a0
-    .word 0x24020007
-    .word 0x10620014
-    .word 0x3c0241a0
-    .word 0x24020005
-    .word 0x1062000d
-    .word 0x3c0241a0
-    .word 0x24020004
-    .word 0x10620009
-    .word 0x00000000
-    .word 0x2402000c
-    .word 0x10620006
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x10620003
-    .word 0x00000000
-    .word 0x10000015
-    .word 0x00000000
-    .word 0x3c0241a0
-    .word 0x44820000
-    .word 0x10000012
-    .word 0x00000000
-    .word 0x3c0241a0
-    .word 0x44820000
-    .word 0x1000000e
-    .word 0x00000000
-    .word 0x3c0241a0
-    .word 0x44820000
-    .word 0x1000000a
-    .word 0x00000000
-    .word 0x3c02420c
-    .word 0x44820000
-    .word 0x10000006
-    .word 0x00000000
-    .word 0x3c0241f0
-    .word 0x44820000
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x44800000
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Horizontal reach range for an object, keyed on its type byte (+3); the
+// nearest-object scan func_001AA4E0 passes it to func_001AA2A0:
+//   types 1, 2, 4, 5, 7, 0xC -> 20.0
+//   type  6                  -> 35.0
+//   type  8                  -> 30.0
+//   anything else            -> 0.0
+// Types 7 and 2 are separate cases in the original (each its own 20.0 return).
+
+typedef struct Obj {
+    unsigned char pad0[3];
+    unsigned char type;             /* +0x03 */
+} Obj;
+
+float func_001AA410(Obj *p) {
+    switch (p->type) {
+    case 1:
+    case 12:
+    case 4:
+    case 5:
+        return 20.0f;
+    case 7:
+        return 20.0f;
+    case 2:
+        return 20.0f;
+    case 6:
+        return 35.0f;
+    case 8:
+        return 30.0f;
+    default:
+        return 0.0f;
+    }
 }

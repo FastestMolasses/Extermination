@@ -1,46 +1,28 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_00199FA0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00178390(void) {
-    addiu      $sp, $sp, -0x40
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x70808628
-    addiu      $a0, $sp, 0x20
-    jal        func_00199FA0
-    addiu     $a1, $sp, 0x30
-    .word 0x1040001d
-    .word 0x70001628
-    .word 0x3c017000
-    .word 0x8c2331d0
-    .word 0x3c023fc0
-    mtc1       $v0, $f3
-    .word 0x3c0241a4
-    mtc1       $v0, $f0
-    .word 0xc4620024
-    .word 0x3c017000
-    .word 0xc42131b0
-    addiu      $v0, $zero, 0x1
-    mul.s      $f2, $f3, $f2
-    .word 0x3c017000
-    add.s      $f1, $f1, $f2
-    .word 0xe60102e0
-    .word 0x8c2331d0
-    .word 0xc462002c
-    .word 0x3c017000
-    .word 0xc42131b8
-    mul.s      $f2, $f3, $f2
-    add.s      $f1, $f1, $f2
-    .word 0xe60102e8
-    .word 0xc7a10034
-    sub.s      $f0, $f1, $f0
-    .word 0xe60002e4
-    .word 0xc60000c4
-    .word 0x10000002
-    .word 0xe6000218
-    .word 0x70001628
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x40
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Queries func_00199FA0 into two local vectors; on success places the actor:
+// self+0x2E0 / +0x2E8 = the scratchpad point (0x700031B0 x / 0x700031B8 z)
+// pushed 1.5 units along the x / z of the record whose pointer is at
+// 0x700031D0 (+0x24 / +0x2C), self+0x2E4 = the second vector's y - 20.5,
+// self+0x218 = self+0xC4; returns 1. Returns 0 otherwise. The scratchpad
+// words are relocated externs (idiom-32).
+extern int func_00199FA0(char *arg0, char *arg1);
+extern float D_700031B0[4];
+extern char *D_700031D0;
+
+int func_00178390(char *self) {
+    float lo[4];
+    float hi[4];
+
+    if (func_00199FA0((char *)lo, (char *)hi)) {
+        *(float *)(self + 0x2E0) = D_700031B0[0] + 1.5f * *(float *)(D_700031D0 + 0x24);
+        *(float *)(self + 0x2E8) = D_700031B0[2] + 1.5f * *(float *)(D_700031D0 + 0x2C);
+        *(float *)(self + 0x2E4) = hi[1] - 20.5f;
+        *(float *)(self + 0x218) = *(float *)(self + 0xC4);
+        return 1;
+    }
+    return 0;
 }

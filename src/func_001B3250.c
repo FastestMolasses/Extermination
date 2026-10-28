@@ -1,44 +1,41 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001B2B80(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+// The ground height is read into the first float of a 4-float local (the
+// original's frame slot for it is at the bottom of a 16-byte local area).
+//
+// Ground probe below an actor (steering / movement fallback used by
+// func_0012F100, func_0012F6C0, func_001305B0, func_0013DD40, func_0013E6D0).
+// func_001B2B80(p, v, &ground) probes the collision at v and returns flag
+// bits: bit 0 = a ground height was found (written to ground), bit 2 = the
+// probe hit an object, published at scratchpad pointer 0x700031D0.
+//   no ground found                                   -> 2
+//   object hit whose short at +0x1A has bit 0x2000    -> 1
+//   p.y (+0xB4) - r is at or above the ground height  -> 2
+//   p.y - r below the ground height                   -> 0
 
-asm void func_001B3250(void) {
-    .word 0x27bdffc0
-    .word 0x7fbf0020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    .word 0x27a60030
-    .word 0x46006506
-    jal       func_001B2B80
-    .word 0x70808628
-    .word 0x30430001
-    .word 0x54600004
-    .word 0x30420004
-    .word 0x10000016
-    .word 0x24020002
-    .word 0x30420004
-    .word 0x10400009
-    .word 0x00000000
-    .word 0x3c017000
-    .word 0x8c2231d0
-    .word 0x8442001a
-    .word 0x30422000
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x1000000b
-    .word 0x24020001
-    .word 0xc60100b4
-    .word 0xc7a00030
-    .word 0x46140841
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45010004
-    .word 0x70001628
-    .word 0x10000002
-    .word 0x24020002
-    .word 0x70001628
-    .word 0x7bbf0020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0040
+typedef struct Obj {
+    unsigned char pad0[0xB4];
+    float y;                        /* +0xB4 */
+} Obj;
+
+extern int func_001B2B80(Obj *p, void *v, float *ground);
+
+int func_001B3250(Obj *p, void *v, float r) {
+    float ground[4];
+    int hit;
+
+    hit = func_001B2B80(p, v, ground);
+    if (!(hit & 1)) {
+        return 2;
+    }
+    if ((hit & 4) && (*(short *)(*(char **)0x700031D0 + 0x1A) & 0x2000)) {
+        return 1;
+    }
+    if (!(p->y - r < ground[0])) {
+        return 2;
+    } else {
+        return 0;
+    }
 }

@@ -1,80 +1,52 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_001516B0(int, int, int, int);
-extern void func_00151770(int, int, int, int);
-extern void func_00152CC0(int, int, int, int);
-extern void func_00152E80(int, int, int, int);
-extern void func_001F91C0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00151590(void) {
-    addiu      $sp, $sp, -0x30
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830004
-    .word 0x70808e28
-    addiu      $v0, $zero, 0x3
-    .word 0x1062001a
-    addiu     $s0, $s1, 0x1F0
-    addiu      $v0, $zero, 0x2
-    .word 0x10620013
-    .word 0x72002e28
-    addiu      $v0, $zero, 0x1
-    .word 0x1062000b
-    .word 0x72002e28
-    .word 0x10600004
-    .word 0x72002e28
-    .word 0x10000015
-    .word 0x82020051
-    .word 0x72002e28
-    jal        func_001516B0
-    nop
-    .word 0x1000000f
-    nop
-    .word 0x72002e28
-    jal        func_00151770
-    nop
-    .word 0x1000000a
-    nop
-    .word 0x72002e28
-    jal        func_00152CC0
-    nop
-    .word 0x10000005
-    nop
-    jal        func_00152E80
-    .word 0x72002e28
-    .word 0x1000001e
-    .word 0x7bbf0020
-    .word 0x82020051
-    .word 0x10400003
-    nop
-    addiu      $v0, $v0, -0x1
-    .word 0xa2020051
-    .word 0x82020052
-    .word 0x10400003
-    nop
-    addiu      $v0, $v0, -0x1
-    .word 0xa2020052
-    .word 0x86020042
-    .word 0x10400003
-    nop
-    addiu      $v0, $v0, -0x1
-    .word 0xa6020042
-    .word 0x82020050
-    .word 0x10400003
-    nop
-    addiu      $v0, $v0, -0x1
-    .word 0xa2020050
-    .word 0x86020044
-    .word 0x10400004
-    .word 0x72202628
-    addiu      $v0, $v0, -0x1
-    .word 0xa6020044
-    .word 0x72202628
-    jal        func_001F91C0
-    nop
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    jr         $ra
-    addiu     $sp, $sp, 0x30
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Per-tick driver: dispatches the state byte self+4 to its handler with
+// (self, self+0x1F0) -- 0 func_001516B0, 1 func_00151770, 2 func_00152CC0, 3
+// func_00152E80 (state 3 returns at once). Otherwise counts down the timers
+// in the sub-block (bytes +0x51, +0x52, +0x50 and shorts +0x42, +0x44, each
+// only while nonzero) and calls func_001F91C0(self). func_00152E80's own
+// definition takes one argument; the original passes the sub-block as a
+// second one, so it is declared here with two.
+extern void func_001516B0(char *arg0, char *arg1);
+extern void func_00151770(unsigned char *self, unsigned char *st);
+extern void func_00152CC0(int arg0, int arg1);
+extern void func_00152E80(char *obj, char *st);
+extern void func_001F91C0(char *p);
+
+void func_00151590(char *self) {
+    char *st = self + 0x1F0;
+
+    switch (*(unsigned char *)(self + 4)) {
+    case 0:
+        func_001516B0(self, st);
+        break;
+    case 1:
+        func_00151770((unsigned char *)self, (unsigned char *)st);
+        break;
+    case 2:
+        func_00152CC0((int)self, (int)st);
+        break;
+    case 3:
+        func_00152E80(self, st);
+        return;
+    }
+    if (*(signed char *)(st + 0x51) != 0) {
+        *(signed char *)(st + 0x51) -= 1;
+    }
+    if (*(signed char *)(st + 0x52) != 0) {
+        *(signed char *)(st + 0x52) -= 1;
+    }
+    if (*(short *)(st + 0x42) != 0) {
+        *(short *)(st + 0x42) -= 1;
+    }
+    if (*(signed char *)(st + 0x50) != 0) {
+        *(signed char *)(st + 0x50) -= 1;
+    }
+    if (*(short *)(st + 0x44) != 0) {
+        *(short *)(st + 0x44) -= 1;
+    }
+    func_001F91C0(self);
 }

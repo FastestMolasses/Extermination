@@ -1,3 +1,9 @@
+## 2026-10-28 — decompiling the asm-word bodies, queue batch 50: 51 byte-matched, 2 NEARMISS
+
+See MATCHING_GUIDE "Queue batch 50". Gate: fresh build + verify_all all six
+stages pass, boot ELF byte-identical, 19/19 overlays, 2767/2769 units (the two
+new NEARMISS are not units); provenance clean (2372 ordinary-C routes).
+
 ## 2026-10-28 — decompiling the asm-word bodies, queue batch 49: 12 byte-matched, 4 NEARMISS
 
 First batch of the 230 functions that linked from `asm void` bodies of raw

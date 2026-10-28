@@ -1,82 +1,55 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_00154040(int, int, int, int);
-extern void func_00154120(int, int, int, int);
-extern void func_001AFC10(int, int, int, int);
-extern void func_001EFE00(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00153F10(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90870004
-    .word 0x70808628
-    .word 0x24060003
-    .word 0x10e6003c
-    .word 0x260501f0
-    .word 0x24030002
-    .word 0x10e30019
-    .word 0x00000000
-    .word 0x24030001
-    .word 0x10e30009
-    .word 0x00000000
-    .word 0x10e00003
-    .word 0x00000000
-    .word 0x10000035
-    .word 0x7bbf0010
-    jal       func_00154040
-    .word 0x00000000
-    .word 0x10000030
-    .word 0x00000000
-    .word 0x3c017000
-    .word 0x90233b8d
-    .word 0x10600006
-    .word 0x72002628
-    .word 0x306400ff
-    .word 0x24030004
-    .word 0x14830028
-    .word 0x00000000
-    .word 0x72002628
-    jal       func_00154120
-    .word 0x00000000
-    .word 0x10000023
-    .word 0x00000000
-    .word 0x92050005
-    .word 0x10a3001b
-    .word 0x00000000
-    .word 0x24030001
-    .word 0x10a30016
-    .word 0x24a30001
-    .word 0x50a00004
-    .word 0x3c024396
-    .word 0x10000019
-    .word 0x00000000
-    .word 0x3c024396
-    .word 0x44826000
-    .word 0x24050434
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x3c028000
-    .word 0x34440052
-    jal       func_001EFE00
-    .word 0x72002e28
-    .word 0x8e02004c
-    .word 0x0040f809
-    .word 0x72002628
-    .word 0x92030005
-    .word 0x24630001
-    .word 0x10000009
-    .word 0xa2030005
-    .word 0x24a30001
-    .word 0x10000006
-    .word 0xa2030005
-    .word 0xa2060004
-    .word 0x10000003
-    .word 0xa2000005
-    jal       func_001AFC10
-    .word 0x00000000
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Per-tick driver on the state byte self+4. 0: func_00154040(self,
+// self+0x1F0). 1: when the scratchpad byte 0x70003B8D is 0 or 4,
+// func_00154120(self, self+0x1F0). 2: sub-step byte self+5 -- step 0 fires
+// func_001FBD50(self, 0x434, 0, 300.0f), func_001EFE00(0x80000052, self) and
+// the hook at self+0x4C, then advances; step 1 advances; step 2 sets the state
+// to 3 and clears the step. 3: func_001AFC10(self, self+0x1F0) (its
+// definition takes one argument; the original passes two).
+extern void func_00154040(char *arg0, short *arg1);
+extern void func_00154120(char *arg0, char *arg1);
+extern void func_001AFC10(unsigned char *handle, char *st);
+extern char *func_001EFE00(int kind, char *src);
+extern int func_001FBD50(void *a0, int a1, int a2, float f12);
+extern unsigned char D_70003B8D;
+
+void func_00153F10(char *self) {
+    char *st = self + 0x1F0;
+    unsigned char m;
+
+    switch (*(unsigned char *)(self + 4)) {
+    case 0:
+        func_00154040(self, (short *)st);
+        break;
+    case 1:
+        m = D_70003B8D;
+        if (m == 0 || m == 4) {
+            func_00154120(self, st);
+        }
+        break;
+    case 2:
+        switch (*(unsigned char *)(self + 5)) {
+        case 0:
+            func_001FBD50(self, 0x434, 0, 300.0f);
+            func_001EFE00(0x80000052, self);
+            (*(void (**)(char *))(self + 0x4C))(self);
+            *(unsigned char *)(self + 5) += 1;
+            break;
+        case 1:
+            *(unsigned char *)(self + 5) += 1;
+            break;
+        case 2:
+            *(unsigned char *)(self + 4) = 3;
+            *(unsigned char *)(self + 5) = 0;
+            break;
+        }
+        break;
+    case 3:
+        func_001AFC10((unsigned char *)self, st);
+        break;
+    }
 }

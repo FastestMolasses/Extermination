@@ -1,111 +1,48 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011E748(int, int, int, int);
-extern void float_to_int(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003A28
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Jump-trajectory setup (called from func_00162190 case 0, short drop).
+// Saves the current horizontal velocity e+0x2E0/0x2E8 into e+0x2F4/0x2F8, then
+// aims at a landing point ahead of the facing direction (e+0x290/0x298) by a
+// reach of 6.3 (e[0x25C] == 3) or 4.1, relative to the position e+0xB0/0xB8.
+// The scratchpad floats D_70003A20/24 hold the delta and D_70003A28 the
+// frame count = distance / speed (0.9 or 0.8), at least 8. Writes the frame
+// counter e+0x28 (frames - 1), the per-frame velocity e+0x2E0/0x2E4/0x2E8
+// (vertical from the height e+0x258), raises e+0x258 by e+0xB4, sets the
+// gravity accumulator e+0x26C to 0.6 and its step e+0x270 = 0.6 / (frames/2).
+// func_0011E748 = sqrtf. Callers declare it (void); it really takes e.
+extern float func_0011E748(float);
+extern int float_to_int(float);
+extern float D_70003A20;
+extern float D_70003A24;
+extern float D_70003A28;
 
-asm void func_0017D940(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    .word 0xc48002e0
-    .word 0x24020003
-    .word 0xe48002f4
-    .word 0xc48002e8
-    .word 0xe48002f8
-    .word 0x9083025c
-    .word 0x14620009
-    .word 0x70808628
-    .word 0x3c0240c9
-    .word 0x3442999a
-    .word 0x44821800
-    .word 0x3c023f66
-    .word 0x34426666
-    .word 0x4482a000
-    .word 0x10000008
-    .word 0xc6010290
-    .word 0x3c024083
-    .word 0x34423333
-    .word 0x44821800
-    .word 0x3c023f4c
-    .word 0x3442cccd
-    .word 0x4482a000
-    .word 0xc6010290
-    .word 0xc60202f4
-    .word 0xc60000b0
-    .word 0x3c017000
-    .word 0x46030842
-    .word 0x46011040
-    .word 0x46000801
-    .word 0xe4203a20
-    .word 0xc6010298
-    .word 0x3c017000
-    .word 0xc4243a20
-    .word 0xc60202f8
-    .word 0xc60000b8
-    .word 0x46030842
-    .word 0x3c017000
-    .word 0x46011040
-    .word 0x46000801
-    .word 0xe4203a24
-    .word 0x4604201a
-    .word 0x46000006
-    jal       func_0011E748
-    .word 0x4600031c
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x46140043
-    .word 0x3c024100
-    .word 0x3c017000
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45000003
-    .word 0xe4213a28
-    .word 0x3c017000
-    .word 0xac223a28
-    .word 0x3c017000
-    .word 0xc4213a28
-    .word 0x3c023f80
-    .word 0x44820000
-    jal       float_to_int
-    .word 0x46000b01
-    .word 0xa6020028
-    .word 0x3c017000
-    .word 0xc4213a20
-    .word 0x3c033f19
-    .word 0x3464999a
-    .word 0x3c034000
-    .word 0x44831000
-    .word 0x3c017000
-    .word 0xc4203a28
-    .word 0x46000803
-    .word 0x3c017000
-    .word 0xe60002e0
-    .word 0xc4213a24
-    .word 0x3c017000
-    .word 0xc4203a28
-    .word 0x46000803
-    .word 0x3c017000
-    .word 0xe60002e8
-    .word 0xc4203a28
-    .word 0xc6010258
-    .word 0x3c017000
-    .word 0x46000803
-    .word 0xe60002e4
-    .word 0xc60100b4
-    .word 0xc6000258
-    .word 0x46010000
-    .word 0xe6000258
-    .word 0xae04026c
-    .word 0xc4213a28
-    .word 0xc600026c
-    .word 0x46020843
-    .word 0x46010003
-    .word 0xe6000270
-    .word 0x7bbf0020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0017D940(unsigned char *e) {
+    float reach;
+    float speed;
+
+    *(float *)(e + 0x2F4) = *(float *)(e + 0x2E0);
+    *(float *)(e + 0x2F8) = *(float *)(e + 0x2E8);
+    if (e[0x25C] == 3) {
+        reach = 6.3f;
+        speed = 0.9f;
+    } else {
+        reach = 4.1f;
+        speed = 0.8f;
+    }
+    D_70003A20 = (*(float *)(e + 0x2F4) + *(float *)(e + 0x290) * reach) - *(float *)(e + 0xB0);
+    D_70003A24 = (*(float *)(e + 0x2F8) + *(float *)(e + 0x298) * reach) - *(float *)(e + 0xB8);
+    D_70003A28 = func_0011E748(D_70003A20 * D_70003A20 + D_70003A24 * D_70003A24) / speed;
+    if (D_70003A28 < 8.0f) {
+        D_70003A28 = 8.0f;
+    }
+    *(short *)(e + 0x28) = float_to_int(D_70003A28 - 1.0f);
+    *(float *)(e + 0x2E0) = D_70003A20 / D_70003A28;
+    *(float *)(e + 0x2E8) = D_70003A24 / D_70003A28;
+    *(float *)(e + 0x2E4) = *(float *)(e + 0x258) / D_70003A28;
+    *(float *)(e + 0x258) += *(float *)(e + 0xB4);
+    *(float *)(e + 0x26C) = 0.6f;
+    *(float *)(e + 0x270) = *(float *)(e + 0x26C) / (D_70003A28 / 2.0f);
 }

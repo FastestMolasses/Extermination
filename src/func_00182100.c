@@ -1,58 +1,27 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011E748(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Horizontal distance from the entity (e+0xB0/0xB8) to its linked target:
+// e[0x2F1] == 1 uses the object at e+0x160, 2 the object at e+0x15C (their
+// position at +0xC0/+0xC8); any other value gives 0. The deltas are left in
+// the scratchpad floats D_70003A20/24. func_0011E748 = sqrtf.
+extern float func_0011E748(float);
+extern float D_70003A20;
+extern float D_70003A24;
 
-asm void func_00182100(void) {
-    .word 0x27bdfff0
-    .word 0x7fbf0000
-    .word 0x908302f1
-    .word 0x24020001
-    .word 0x14620016
-    .word 0x24020002
-    .word 0x8c820160
-    .word 0xc48000b0
-    .word 0x3c017000
-    .word 0xc44100c0
-    .word 0x46000801
-    .word 0xe4203a20
-    .word 0x8c820160
-    .word 0x3c017000
-    .word 0xc4223a20
-    .word 0xc48000b8
-    .word 0xc44100c8
-    .word 0x3c017000
-    .word 0x4602101a
-    .word 0x46000801
-    .word 0xe4203a24
-    .word 0x46000006
-    jal       func_0011E748
-    .word 0x4600031c
-    .word 0x1000001a
-    .word 0x7bbf0000
-    .word 0x24020002
-    .word 0x14620015
-    .word 0x00000000
-    .word 0x8c82015c
-    .word 0xc48000b0
-    .word 0x3c017000
-    .word 0xc44100c0
-    .word 0x46000801
-    .word 0xe4203a20
-    .word 0x8c82015c
-    .word 0x3c017000
-    .word 0xc4223a20
-    .word 0xc48000b8
-    .word 0xc44100c8
-    .word 0x3c017000
-    .word 0x4602101a
-    .word 0x46000801
-    .word 0xe4203a24
-    .word 0x46000006
-    jal       func_0011E748
-    .word 0x4600031c
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x44800000
-    .word 0x7bbf0000
-    .word 0x03e00008
-    .word 0x27bd0010
+float func_00182100(unsigned char *e) {
+    float d;
+    if (e[0x2F1] == 1) {
+        D_70003A20 = *(float *)(*(unsigned char **)(e + 0x160) + 0xC0) - *(float *)(e + 0xB0);
+        D_70003A24 = *(float *)(*(unsigned char **)(e + 0x160) + 0xC8) - *(float *)(e + 0xB8);
+        d = func_0011E748(D_70003A20 * D_70003A20 + D_70003A24 * D_70003A24);
+    } else if (e[0x2F1] == 2) {
+        D_70003A20 = *(float *)(*(unsigned char **)(e + 0x15C) + 0xC0) - *(float *)(e + 0xB0);
+        D_70003A24 = *(float *)(*(unsigned char **)(e + 0x15C) + 0xC8) - *(float *)(e + 0xB8);
+        d = func_0011E748(D_70003A20 * D_70003A20 + D_70003A24 * D_70003A24);
+    } else {
+        d = 0.0f;
+    }
+    return d;
 }

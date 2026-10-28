@@ -1,42 +1,36 @@
-// All-word: everything as .word except jal/j-external
-extern void func_00228320(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00229960(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90830006
-    .word 0x24020001
-    .word 0x1062000f
-    .word 0x70808628
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x10000017
-    .word 0x7bbf0010
-    .word 0x8e020038
-    jal       func_00228320
-    .word 0xae02005c
-    .word 0x10400004
-    .word 0x24020001
-    .word 0x24020001
-    .word 0xa2020005
-    .word 0x24020001
-    .word 0x1000000c
-    .word 0xa2020006
-    .word 0x8e02003c
-    jal       func_00228320
-    .word 0xae02005c
-    .word 0x10400005
-    .word 0x24020002
-    .word 0x24020001
-    .word 0x10000003
-    .word 0xa2020005
-    .word 0x24020002
-    .word 0xa2020005
-    .word 0xa2000006
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x70001628
-    .word 0x03e00008
-    .word 0x27bd0020
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Two-step free-space query on the step byte self+6 (returns 0 always).
+// Step 0: self+0x5C = self+0x38, then func_00228320(self) (free-space check);
+// on success sets self+5 = 1; moves to step 1.
+// Step 1: self+0x5C = self+0x3C, func_00228320(self); self+5 = 1 on success,
+// 2 on failure; back to step 0.
+// (func_00229A00 calls it with a `(void)` declaration; self passes through in
+// the first argument register.)
+extern int func_00228320(char *arg0);
+
+int func_00229960(char *self) {
+    unsigned char st = *(unsigned char *)(self + 6);
+    switch (st) {
+    case 0:
+        *(int *)(self + 0x5C) = *(int *)(self + 0x38);
+        if (func_00228320(self) != 0) {
+            *(char *)(self + 5) = 1;
+        }
+        *(unsigned char *)(self + 6) = 1;
+        break;
+    case 1:
+        *(int *)(self + 0x5C) = *(int *)(self + 0x3C);
+        if (func_00228320(self) != 0) {
+            *(char *)(self + 5) = 1;
+        } else {
+            *(char *)(self + 5) = 2;
+        }
+        *(unsigned char *)(self + 6) = 0;
+        break;
+    }
+    return 0;
 }

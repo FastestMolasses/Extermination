@@ -1,163 +1,65 @@
-// All-word: everything as .word except jal/j-external
-extern void float_to_int(int, int, int, int);
-extern void func_001FCF60(int, int, int, int);
-extern void func_00207D00(int, int, int, int);
-extern void func_00207D90(int, int, int, int);
-extern void func_00207E40(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00213CC0(void) {
-    .word 0x27bdff90
-    .word 0x7fbf0060
-    .word 0x7fb50050
-    .word 0x7fb40040
-    .word 0x7fb30030
-    .word 0x7080ae28
-    .word 0x24050046
-    .word 0x7fb20020
-    .word 0x7fb10010
-    .word 0x24040001
-    .word 0x240701ea
-    .word 0x240800a5
-    .word 0x70a03628
-    .word 0x7fb00000
-    jal       func_00207D90
-    .word 0x70009e28
-    .word 0x92a3001a
-    .word 0x24020001
-    .word 0x54620006
-    .word 0x2402ffff
-    .word 0x0002843c
-    .word 0x2412fff4
-    .word 0x10000005
-    .word 0x0010843f
-    .word 0x2402ffff
-    .word 0x0002843c
-    .word 0x70009628
-    .word 0x0010843f
-    .word 0x24140047
-    .word 0x70008e28
-    .word 0x02b11021
-    .word 0x86a3001c
-    .word 0x90440090
-    .word 0x24050064
-    .word 0x02541021
-    jal       func_001FCF60
-    .word 0x00623021
-    .word 0x26310001
-    .word 0x2a220009
-    .word 0x1440fff6
-    .word 0x2694000c
-    .word 0x24040001
-    .word 0x24070200
-    .word 0x240800e0
-    .word 0x70002e28
-    jal       func_00207D90
-    .word 0x70003628
-    .word 0x86a3001c
-    .word 0x0010143c
-    .word 0x0002143f
-    .word 0x00701821
-    .word 0x04410011
-    .word 0xa6a3001c
-    .word 0x86a2001c
-    .word 0x2841fff5
-    .word 0x1020001c
-    .word 0x24040001
-    .word 0x92a20018
-    .word 0x92a30019
-    .word 0x2442ffff
-    .word 0x0062102a
-    .word 0x14400004
-    .word 0x24620001
-    .word 0x10000003
-    .word 0xa2a00019
-    .word 0x24620001
-    .word 0xa2a20019
-    .word 0x1000000f
-    .word 0x24130001
-    .word 0x86a2001c
-    .word 0x2842000c
-    .word 0x1440000b
-    .word 0x00000000
-    .word 0x92a20019
-    .word 0x54400006
-    .word 0x2442ffff
-    .word 0x92a20018
-    .word 0x2442ffff
-    .word 0x10000003
-    .word 0xa2a20019
-    .word 0x2442ffff
-    .word 0xa2a20019
-    .word 0x24130001
-    .word 0x24040001
-    jal       func_00207D00
-    .word 0x70002e28
-    .word 0x92a30017
-    .word 0x3c024180
-    .word 0x44820000
-    .word 0x00031040
-    .word 0x00431021
-    .word 0x000210c0
-    .word 0x24420088
-    .word 0x00021043
-    .word 0x24420790
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46800860
-    jal       float_to_int
-    .word 0x46010302
-    .word 0x70403628
-    .word 0x3c028080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424585
-    .word 0x0002183c
-    .word 0x3402a132
-    .word 0x00021438
-    .word 0x34422100
-    .word 0x24040001
-    .word 0x24057000
-    .word 0x24070100
-    .word 0x24080040
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x92a30017
-    .word 0x3c024180
-    .word 0x44820000
-    .word 0x00031040
-    .word 0x00431021
-    .word 0x000210c0
-    .word 0x24420088
-    .word 0x00021043
-    .word 0x24420790
-    .word 0x44820800
-    .word 0x00000000
-    .word 0x46800860
-    jal       float_to_int
-    .word 0x46010302
-    .word 0x70403628
-    .word 0x3c028080
-    .word 0x34498080
-    .word 0x3c022004
-    .word 0x34424705
-    .word 0x0002183c
-    .word 0x3402a132
-    .word 0x00021438
-    .word 0x34422140
-    .word 0x24040001
-    .word 0x24070100
-    .word 0x24080040
-    .word 0x34058000
-    jal       func_00207E40
-    .word 0x00435025
-    .word 0x72601628
-    .word 0x7bbf0060
-    .word 0x7bb50050
-    .word 0x7bb40040
-    .word 0x7bb30030
-    .word 0x7bb20020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0070
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Scrolling step of the 9-row text list p (called by func_00214020):
+// same scheme as func_0020BC50 with 12-unit rows. Clips to the list window,
+// draws rows p[0x90..0x98] through func_001FCF60(entry, 0x64, y) at
+// y = 0x47 + 12*i + scroll offset p+0x1C (-12 when scrolling down), moves
+// the offset by 1 or -1 and, past a full row, steps the ring head p[0x19]
+// with wrap-around over p[0x18] and returns 1 (else 0). Then draws the
+// two-half cursor highlight (x 0x7000 and 0x8000) at row p[0x17].
+
+extern int float_to_int(float);
+extern void func_001FCF60(int a0, int a1, int a2);
+extern void func_00207D00(int, int);
+extern void func_00207D90(int slot, int b0, int b2, int b1, int b3);
+extern void func_00207E40(int, int, int, int, int, unsigned int, long long);
+
+int func_00213CC0(unsigned char *p)
+{
+    short step;
+    int i;
+    int base;
+    int wrapped;
+    int y;
+
+    wrapped = 0;
+    func_00207D90(1, 0x46, 0x46, 0x1EA, 0xA5);
+    if (p[0x1A] == 1) {
+        base = -0xC;
+        step = 1;
+    } else {
+        base = 0;
+        step = -1;
+    }
+    for (i = 0, y = 0x47; i < 9; i++, y += 0xC) {
+        func_001FCF60(p[0x90 + i], 0x64, *(short *)(p + 0x1C) + (base + y));
+    }
+    func_00207D90(1, 0, 0, 0x200, 0xE0);
+    *(short *)(p + 0x1C) += step;
+    if (step < 0) {
+        if (*(short *)(p + 0x1C) < -0xB) {
+            if (p[0x19] >= p[0x18] - 1) {
+                p[0x19] = 0;
+            } else {
+                p[0x19] = p[0x19] + 1;
+            }
+            wrapped = 1;
+        }
+    } else if (*(short *)(p + 0x1C) >= 0xC) {
+        if (p[0x19] == 0) {
+            p[0x19] = p[0x18] - 1;
+        } else {
+            p[0x19] = p[0x19] - 1;
+        }
+        wrapped = 1;
+    }
+    func_00207D00(1, 0);
+    func_00207E40(1, 0x7000, float_to_int(16.0f * (float)(((p[0x17] * 0x18 + 0x88) >> 1) + 0x790)),
+                  0x100, 0x40, 0x80808080, 0x20044585A1322100LL);
+    func_00207E40(1, 0x8000, float_to_int(16.0f * (float)(((p[0x17] * 0x18 + 0x88) >> 1) + 0x790)),
+                  0x100, 0x40, 0x80808080, 0x20044705A1322140LL);
+    return wrapped;
 }

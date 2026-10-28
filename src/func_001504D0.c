@@ -1,80 +1,57 @@
-// All-word: everything as .word except jal/j-external
-extern void anim_clip_init(int, int, int, int);
-extern void func_001FBD50(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_001504D0(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90830006
-    .word 0x24060001
-    .word 0x1066002c
-    .word 0x70808628
-    .word 0x50600004
-    .word 0x24620001
-    .word 0x1000003d
-    .word 0x7bbf0010
-    .word 0x24620001
-    .word 0x44806000
-    .word 0xa2020006
-    .word 0x3c02c2b4
-    .word 0xae0200b4
-    .word 0x24020006
-    .word 0x46006346
-    .word 0xa0a20064
-    .word 0x3c024060
-    .word 0xaca20038
-    .word 0x3c02bd38
-    .word 0x344251ec
-    .word 0xaca2003c
-    .word 0x3c02bf80
-    .word 0xaca20040
-    .word 0xaca00048
-    .word 0xaca00034
-    .word 0xaca0002c
-    jal       anim_clip_init
-    .word 0x24050005
-    .word 0x8e030020
-    .word 0x10600004
-    .word 0x3c02447a
-    .word 0x24020003
-    .word 0xa0620005
-    .word 0x3c02447a
-    .word 0x44826000
-    .word 0x24050871
-    .word 0x72002628
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x3c02447a
-    .word 0x44826000
-    .word 0x2405087d
-    .word 0x72002628
-    jal       func_001FBD50
-    .word 0x70003628
-    .word 0x10000015
-    .word 0x00000000
-    .word 0x8ca30000
-    .word 0x30631000
-    .word 0x10600011
-    .word 0x00000000
-    .word 0xc60100b4
-    .word 0x3c03c302
-    .word 0x44830000
-    .word 0x00000000
-    .word 0x46000836
-    .word 0x00000000
-    .word 0x45000009
-    .word 0x00000000
-    .word 0xa2060004
-    .word 0xa2000005
-    .word 0xa2000006
-    .word 0xa6000036
-    .word 0xaca0003c
-    .word 0xaca00038
-    .word 0xaca00048
-    .word 0xaca00040
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// State-1 handler (sibling of func_00150260 / func_00150600), stepped by the
+// byte self+6. Step 0: advances the step, sets self+0xB4 = -90.0f, seeds the
+// ctl physics block (byte +0x64 = 6, +0x38 = 3.5f, +0x3C = -0.045f as the
+// bit pattern 0xBD3851EC, +0x40 = -1.0f, clears +0x48/+0x34/+0x2C), starts
+// clip 5 via anim_clip_init(self, 5, 0, 0), marks the linked object at
+// self+0x20 (+5 = 3) if present, and fires func_001FBD50 events 0x871 and
+// 0x87D (1000.0f). Step 1: once flag 0x1000 of ctl+0 is set and self+0xB4 has
+// fallen to <= -130.0f, sets self+4 = 1, clears the state/step bytes +5/+6
+// and the short +0x36, and zeroes ctl+0x3C/+0x38/+0x48/+0x40.
+extern void anim_clip_init(int self, int clip, float a, float b);
+extern void func_001FBD50(char *p, int a, int b, float f);
+
+void func_001504D0(char *arg0, char *arg1) {
+    unsigned char st;
+    char *p;
+
+    st = *(unsigned char *)(arg0 + 6);
+    switch (st) {
+    case 0:
+        *(unsigned char *)(arg0 + 6) = st + 1;
+        *(float *)(arg0 + 0xB4) = -90.0f;
+        *(unsigned char *)(arg1 + 0x64) = 6;
+        *(float *)(arg1 + 0x38) = 3.5f;
+        *(int *)(arg1 + 0x3C) = 0xBD3851EC;
+        *(float *)(arg1 + 0x40) = -1.0f;
+        *(int *)(arg1 + 0x48) = 0;
+        *(int *)(arg1 + 0x34) = 0;
+        *(int *)(arg1 + 0x2C) = 0;
+        anim_clip_init((int)arg0, 5, 0.0f, 0.0f);
+        p = *(char **)(arg0 + 0x20);
+        if (p != 0) {
+            *(char *)(p + 5) = 3;
+        }
+        func_001FBD50(arg0, 0x871, 0, 1000.0f);
+        func_001FBD50(arg0, 0x87D, 0, 1000.0f);
+        break;
+    case 1:
+        if (*(int *)(arg1 + 0) & 0x1000) {
+            if (*(float *)(arg0 + 0xB4) <= -130.0f) {
+                *(char *)(arg0 + 4) = 1;
+                *(char *)(arg0 + 5) = 0;
+                *(unsigned char *)(arg0 + 6) = 0;
+                *(short *)(arg0 + 0x36) = 0;
+                *(int *)(arg1 + 0x3C) = 0;
+                *(int *)(arg1 + 0x38) = 0;
+                *(int *)(arg1 + 0x48) = 0;
+                *(int *)(arg1 + 0x40) = 0;
+            }
+        }
+        break;
+    }
 }

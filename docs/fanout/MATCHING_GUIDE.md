@@ -1045,3 +1045,20 @@ func_0012F980, func_00131510, func_00131650, func_00136140, func_00137830,
 func_0013B350, func_0013DC60, func_00140690, func_0014C220, func_0014C3A0,
 func_001450B0. NEARMISS (body-correct): func_00134300 98.97 (mwcc24),
 func_0013BBB0 99.77, func_0013BE60 94.58, func_0014C0B0 91.45.
+
+
+### Queue batch 50 (2026-10-28): asm-word bodies, game code
+
+51 game functions decompiled from asm-word bodies and byte-matched (actor
+state machines and per-tick drivers, jump-path setups, hit reactions,
+targeting predicates, collision overlap / column / reach tests, a ground
+probe, menu scroll steps, damage reactions, status helpers); NEARMISS
+func_00154F00 97.60 (spark column) and func_00211310 99.75 (minimap marker).
+Extra levers: ternaries in exactly `(x == 0) ? 1 : 0` form; arrays
+(`float ground[4]`) when the original takes a stack slot's address;
+pointer arguments as struct-field addresses rather than `(int *)` casts
+(argument-setup order); a case that needs its own `return 0`.
+Found while decompiling: func_0025F0D4..func_0025F144 (8 entries) and
+func_00243BA8 are data mis-split as functions; func_00180000 + func_00180004 are
+one function split mid-body (merged C at build/agentkit/split/, needs the
+symbol split recipe).

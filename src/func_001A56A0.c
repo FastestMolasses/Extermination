@@ -1,50 +1,50 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_001A56A0(void) {
-    .word 0x84c20000
-    .word 0x30428000
-    .word 0x10400003
-    .word 0x24c80004
-    .word 0x10000003
-    .word 0xc504000c
-    .word 0xc5040010
-    .word 0x00000000
-    .word 0xc4810004
-    .word 0xc5000008
-    .word 0xc4830000
-    .word 0xc5020000
-    .word 0xc505000c
-    .word 0x46000801
-    .word 0x46021881
-    .word 0x4602101a
-    .word 0x46052842
-    .word 0x4600001c
-    .word 0x46000834
-    .word 0x00000000
-    .word 0x45000003
-    .word 0x00000000
-    .word 0x10000014
-    .word 0x70001628
-    .word 0xc5000004
-    .word 0x3c02322b
-    .word 0x3444cc77
-    .word 0x3c02b22b
-    .word 0x3443cc77
-    .word 0x3c073f80
-    .word 0x46040000
-    .word 0x3c06bf80
-    .word 0x3c017000
-    .word 0x24020001
-    .word 0xe4a00000
-    .word 0xc5000004
-    .word 0x46040001
-    .word 0xe4a00004
-    .word 0xaca70008
-    .word 0xaca6000c
-    .word 0xac24319c
-    .word 0x3c017000
-    .word 0xac2331ac
-    .word 0x03e00008
-    .word 0x00000000
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x7000319C 0x700031AC
+extern float D_7000319C;
+extern float D_700031AC;
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Column query against one round collision record (record kind 0x4000 in the
+// func_0019BC40 dispatch; sibling of the axis-face query func_001A5760). The
+// record (after its 4-byte header) holds a centre (x, y, z), a radius and a
+// half-height; when header bit 0x8000 is set the shape is a sphere and the
+// radius is also used as the vertical half-extent. If the query point p
+// (x at +0, z at +4) lies within the radius horizontally (squared-distance test,
+// boundary inclusive), the vertical span is written to out as
+// (y + h, y - h, 1.0, -1.0), the scratchpad epsilons 0x7000319C / 0x700031AC
+// get +1e-8 / -1e-8, and 1 is returned; otherwise 0.
+
+typedef struct RoundShape {
+    float x;            /* rec + 0x04 */
+    float y;            /* rec + 0x08 */
+    float z;            /* rec + 0x0C */
+    float radius;       /* rec + 0x10 */
+    float halfHeight;   /* rec + 0x14 */
+} RoundShape;
+
+int func_001A56A0(float *p, float *out, unsigned char *rec) {
+    RoundShape *c = (RoundShape *)(rec + 4);
+    float h;
+    float dx;
+    float dz;
+
+    if (*(short *)rec & 0x8000) {
+        h = c->radius;
+    } else {
+        h = c->halfHeight;
+    }
+    dx = p[0] - c->x;
+    dz = p[1] - c->z;
+    if (c->radius * c->radius < dx * dx + dz * dz) {
+        return 0;
+    }
+    out[0] = c->y + h;
+    out[1] = c->y - h;
+    out[2] = 1.0f;
+    out[3] = -1.0f;
+    D_7000319C = 1e-8f;
+    D_700031AC = -1e-8f;
+    return 1;
 }

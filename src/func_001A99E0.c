@@ -1,84 +1,51 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_0011DE90(int, int, int, int);
-extern void func_0011DF78(int, int, int, int);
-extern void func_0011E2A8(int, int, int, int);
-extern void func_0011E748(int, int, int, int);
-extern void func_001B1470(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Carry an actor on a spinning object (called from func_001A9B10 for an outer
+// entry e and an inner type-7 entry f whose float at +0x38 is nonzero; the
+// original passes f in the second argument register). When e is within
+// 67 + its own radius (first float of e's record at +0x30) of f horizontally
+// (sqrtf of dx^2 + dz^2) and within 8 vertically (fabsf), e's x/z position is
+// rotated about f's position by f's per-frame spin angle (+0x38):
+//   x' = f.x + dx*cos(a) + dz*sin(a),  z' = f.z - dx*sin(a) + dz*cos(a)
+// (cosf/sinf re-evaluated for each term, as in the original), e's heading at
+// +0xC4 is advanced by the same angle and wrapped by func_001B1470, and the
+// inner-loop countdown at scratchpad 0x70003B88 is zeroed.
 
-asm void func_001A99E0(void) {
-    addiu $sp, $sp, -0x40
-    sq $ra, 0x30($sp)
-    sq $s1, 0x20($sp)
-    sq $s0, 0x10($sp)
-    swc1 $f22, 0x8($sp)
-    swc1 $f21, 0x4($sp)
-    swc1 $f20, 0x0($sp)
-    lwc1 $f3, 0xB0($a0)
-    lwc1 $f2, 0xB0($a1)
-    lwc1 $f1, 0xB8($a0)
-    lwc1 $f0, 0xB8($a1)
-    paddub $s1, $a0, $zero
-    paddub $s0, $a1, $zero
-    sub.s $f20, $f3, $f2
-    sub.s $f21, $f1, $f0
-    mula.s $f20, $f20
-    jal func_0011E748
-    madd.s $f12, $f21, $f21
-    lw $a0, 0x30($s1)
-    lui $v1, (0x42860000 >> 16)
-    mtc1 $v1, $f1
-    lwc1 $f2, 0x0($a0)
-    add.s $f1, $f1, $f2
-    c.le.s $f0, $f1
-    nop
-    .word 0x45000028
-    nop
-    lwc1 $f1, 0xB4($s1)
-    lwc1 $f0, 0xB4($s0)
-    jal func_0011DF78
-    sub.s $f12, $f1, $f0
-    lui $v1, (0x41000000 >> 16)
-    mtc1 $v1, $f1
-    nop
-    c.le.s $f0, $f1
-    nop
-    .word 0x4500001d
-    nop
-    jal func_0011DE90
-    lwc1 $f12, 0x38($s0)
-    lwc1 $f12, 0x38($s0)
-    jal func_0011E2A8
-    mul.s $f22, $f20, $f0
-    mul.s $f1, $f21, $f0
-    lwc1 $f0, 0xB0($s0)
-    add.s $f1, $f22, $f1
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB0($s1)
-    jal func_0011E2A8
-    lwc1 $f12, 0x38($s0)
-    neg.s $f0, $f0
-    lwc1 $f12, 0x38($s0)
-    jal func_0011DE90
-    mul.s $f20, $f20, $f0
-    mul.s $f1, $f21, $f0
-    lwc1 $f0, 0xB8($s0)
-    add.s $f1, $f20, $f1
-    add.s $f0, $f0, $f1
-    swc1 $f0, 0xB8($s1)
-    lwc1 $f0, 0x38($s0)
-    lwc1 $f1, 0xC4($s1)
-    jal func_001B1470
-    add.s $f12, $f1, $f0
-    swc1 $f0, 0xC4($s1)
-    lui $at, (0x70003B88 >> 16)
-    sh $zero, (0x70003B88 & 0xFFFF)($at)
-    lq $ra, 0x30($sp)
-    lq $s1, 0x20($sp)
-    lq $s0, 0x10($sp)
-    lwc1 $f22, 0x8($sp)
-    lwc1 $f21, 0x4($sp)
-    lwc1 $f20, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x40
+typedef struct Range {
+    float radius;                   /* +0x0 */
+} Range;
+
+typedef struct Obj {
+    unsigned char pad0[0x30];
+    Range *range;                   /* +0x30 */
+    unsigned char pad34[0x38 - 0x34];
+    float spin;                     /* +0x38 */
+    unsigned char pad3C[0xB0 - 0x3C];
+    float x;                        /* +0xB0 */
+    float y;                        /* +0xB4 */
+    float z;                        /* +0xB8 */
+    unsigned char padBC[0xC4 - 0xBC];
+    float heading;                  /* +0xC4 */
+} Obj;
+
+extern float func_0011E748(float x);    /* sqrtf */
+extern float func_0011DF78(float x);    /* fabsf */
+extern float func_0011DE90(float x);    /* cosf */
+extern float func_0011E2A8(float x);    /* sinf */
+extern float func_001B1470(float angle);
+
+void func_001A99E0(Obj *e, Obj *f) {
+    float dx = e->x - f->x;
+    float dz = e->z - f->z;
+
+    if (func_0011E748(dx * dx + dz * dz) <= 67.0f + e->range->radius &&
+        func_0011DF78(e->y - f->y) <= 8.0f) {
+        e->x = f->x + (dx * func_0011DE90(f->spin) + dz * func_0011E2A8(f->spin));
+        e->z = f->z + (dx * -func_0011E2A8(f->spin) + dz * func_0011DE90(f->spin));
+        e->heading = func_001B1470(e->heading + f->spin);
+        *(short *)0x70003B88 = 0;
+    }
 }

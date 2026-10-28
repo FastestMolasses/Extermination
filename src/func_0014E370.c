@@ -1,55 +1,34 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_0014E420(int, int, int, int);
-extern void func_0014E4F0(int, int, int, int);
-extern void func_0014E670(int, int, int, int);
-extern void func_0014E890(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void func_001C68C0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Per-tick update for a scripted variant of the func_0014D470 actor: dispatches
+// sub-state self+5 (0 -> func_0014E420, 1 -> func_0014E4F0), then the same tail
+// as func_0014D470 without the func_0014E9C0 step: func_0014E670, func_0014E890,
+// copy ctx+0x28 into (self+0x138)+0x70, anim_advance_time(self, ctx+0x20) into
+// ctx+0, func_001C68C0, func_001B17A0, and the self+0x4C hook.
+extern void func_0014E420(char *arg0, char *arg1);
+extern void func_0014E4F0(char *arg0, char *arg1);
+extern void func_0014E670(char *arg0, char *arg1);
+extern void func_0014E890(char *arg0, char *arg1);
+extern int anim_advance_time(char *self, float dt);
+extern void func_001C68C0(char *o);
+extern unsigned char func_001B17A0(char *self);
 
-asm void func_0014E370(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830005
-    .word 0x24020001
-    .word 0x70808e28
-    .word 0x10620009
-    .word 0x70a08628
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x10000008
-    .word 0x72202628
-    jal       func_0014E420
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_0014E4F0
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_0014E670
-    .word 0x72002e28
-    .word 0x72202628
-    jal       func_0014E890
-    .word 0x72002e28
-    .word 0xc6000028
-    .word 0x8e220138
-    .word 0xe4400070
-    .word 0xc60c0020
-    jal       anim_advance_time
-    .word 0x72202628
-    .word 0xae020000
-    jal       func_001C68C0
-    .word 0x72202628
-    jal       func_001B17A0
-    .word 0x72202628
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0014E370(char *self, char *ctx) {
+    switch (*(unsigned char *)(self + 5)) {
+    case 0:
+        func_0014E420(self, ctx);
+        break;
+    case 1:
+        func_0014E4F0(self, ctx);
+        break;
+    }
+    func_0014E670(self, ctx);
+    func_0014E890(self, ctx);
+    *(float *)(*(char **)(self + 0x138) + 0x70) = *(float *)(ctx + 0x28);
+    *(int *)ctx = anim_advance_time(self, *(float *)(ctx + 0x20));
+    func_001C68C0(self);
+    func_001B17A0(self);
+    (*(void (**)(char *))(self + 0x4C))(self);
 }

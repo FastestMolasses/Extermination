@@ -1,63 +1,41 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_00150260(int, int, int, int);
-extern void func_001504D0(int, int, int, int);
-extern void func_00150600(int, int, int, int);
-extern void func_00150850(int, int, int, int);
-extern void func_00150900(int, int, int, int);
-extern void func_001513B0(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void func_001C68C0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00150190(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830005
-    .word 0x24020002
-    .word 0x70808e28
-    .word 0x10620013
-    .word 0x70a08628
-    .word 0x24020001
-    .word 0x1062000c
-    .word 0x00000000
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x1000000f
-    .word 0x72202628
-    jal       func_00150260
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_001513B0
-    .word 0x72002e28
-    .word 0x10000007
-    .word 0x00000000
-    jal       func_001504D0
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_00150600
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_00150900
-    .word 0x72002e28
-    .word 0xc60c0020
-    jal       anim_advance_time
-    .word 0x72202628
-    .word 0xae020000
-    jal       func_00150850
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x72202628
-    jal       func_001B17A0
-    .word 0x72202628
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Per-tick driver for this actor: dispatches the state byte self+5 to its
+// handler (0: func_00150260 then func_001513B0, 1: func_001504D0, 2:
+// func_00150600; each takes (self, ctl)), then runs func_00150900(self, ctl),
+// stores anim_advance_time(self, ctl+0x20 speed) into the word ctl+0, and
+// calls func_00150850, func_001C68C0 and func_001B17A0 on self before the
+// per-actor hook at self+0x4C.
+extern void func_00150260(char *arg0, char *arg1);
+extern void func_001504D0(char *arg0, char *arg1);
+extern void func_00150600(char *arg0, char *arg1);
+extern void func_00150850(unsigned char *a0);
+extern void func_00150900(unsigned char *a0, unsigned char *a1);
+extern int func_001513B0(char *arg0, char *arg1);
+extern unsigned char func_001B17A0(char *self);
+extern int anim_advance_time(char *arg0, float dt);
+extern void func_001C68C0(char *o);
+
+void func_00150190(char *self, char *ctl) {
+    switch (((unsigned char *)self)[5]) {
+    case 0:
+        func_00150260(self, ctl);
+        func_001513B0(self, ctl);
+        break;
+    case 1:
+        func_001504D0(self, ctl);
+        break;
+    case 2:
+        func_00150600(self, ctl);
+        break;
+    }
+    func_00150900((unsigned char *)self, (unsigned char *)ctl);
+    *(int *)(ctl + 0) = anim_advance_time(self, *(float *)(ctl + 0x20));
+    func_00150850((unsigned char *)self);
+    func_001C68C0(self);
+    func_001B17A0(self);
+    (*(void (**)(char *))(self + 0x4C))(self);
 }

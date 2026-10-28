@@ -1,104 +1,63 @@
-// All-word: everything as .word except jal/j-external
-extern void func_001FCBD0(int, int, int, int);
-extern void func_00225CF0(int, int, int, int);
-extern void func_00227270(int, int, int, int);
-extern void func_00227DE0(int, int, int, int);
-extern void func_00228070(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00227C60(void) {
-    .word 0x27bdffe0
-    .word 0x7fbf0010
-    .word 0x7fb00000
-    .word 0x90830003
-    .word 0x24020004
-    .word 0x10620050
-    .word 0x70808628
-    .word 0x24020003
-    .word 0x1062004b
-    .word 0x70001628
-    .word 0x24020002
-    .word 0x10620028
-    .word 0x3c027080
-    .word 0x24020001
-    .word 0x10620008
-    .word 0x00000000
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x10000048
-    .word 0x24020001
-    .word 0xa2020003
-    .word 0x10000045
-    .word 0x70001628
-    jal       func_00227DE0
-    .word 0x00000000
-    .word 0x24030003
-    .word 0x50430015
-    .word 0x24020002
-    .word 0x24030002
-    .word 0x5043000f
-    .word 0x70601628
-    .word 0x24030001
-    .word 0x50430009
-    .word 0x70601628
-    .word 0x10400004
-    .word 0x70001628
-    .word 0x10000035
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x10000034
-    .word 0x7bbf0010
-    .word 0x70601628
-    .word 0x10000030
-    .word 0x00000000
-    .word 0x70601628
-    .word 0x1000002d
-    .word 0x00000000
-    .word 0x24020002
-    .word 0xa2020003
-    .word 0x10000029
-    .word 0x70001628
-    .word 0x3c027080
-    .word 0x2404003c
-    .word 0x2405009b
-    .word 0x24060007
-    .word 0x2407001b
-    jal       func_001FCBD0
-    .word 0x34488080
-    jal       func_00228070
-    .word 0x72002628
-    .word 0x24030001
-    .word 0x50430006
-    .word 0x24020003
-    .word 0x10400011
-    .word 0x70001628
-    .word 0x1000000a
-    .word 0x24050004
-    .word 0x24020003
-    .word 0x24050004
-    .word 0x24060007
-    .word 0xa2020003
-    jal       func_00225CF0
-    .word 0x72002628
-    .word 0x10000011
-    .word 0x24020003
-    .word 0x24050004
-    .word 0x24060007
-    .word 0xa2050003
-    jal       func_00225CF0
-    .word 0x72002628
-    .word 0x70001628
-    .word 0x10000009
-    .word 0x00000000
-    .word 0x70001628
-    .word 0x10000006
-    .word 0x00000000
-    jal       func_00227270
-    .word 0x00000000
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x24020001
-    .word 0x7bbf0010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0020
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Sub-state machine on self+3 (returns a status to func_00226E90):
+//   0 -> step 1, return 0
+//   1 -> func_00227DE0(self): 0/1/2 are returned as-is, 3 moves to step 2 and
+//        returns 0, any other result returns 1
+//   2 -> draws via func_001FCBD0(0x3C, 0x9B, 7, 0x1B, 0x70808080), then
+//        func_00228070(self): 0 returns 0; 1 -> step 3, func_00225CF0(self, 4, 7),
+//        return 3; anything else -> step 4, func_00225CF0(self, 4, 7), return 0
+//   3 -> return 0
+//   4 -> return func_00227270()
+//   other -> return 1
+// Switch cases are listed in ascending order (2.3.3 emits the compares in
+// reverse source order); the inner result-0 case is an empty `break`.
+extern void func_001FCBD0(int arg0, int arg1, int arg2, int arg3, unsigned int flags);
+extern void func_00225CF0(unsigned char *a0, unsigned int a1, unsigned int a2);
+extern int func_00227270(void);
+extern int func_00227DE0(char *arg0);
+extern int func_00228070(char *arg0);
+
+int func_00227C60(char *self) {
+    switch (*(unsigned char *)(self + 3)) {
+    case 0:
+        *(unsigned char *)(self + 3) = 1;
+        return 0;
+    case 1:
+        switch (func_00227DE0(self)) {
+        case 0:
+            return 0;
+        case 1:
+            return 1;
+        case 2:
+            return 2;
+        case 3:
+            *(unsigned char *)(self + 3) = 2;
+            return 0;
+        }
+        break;
+    case 2:
+        func_001FCBD0(0x3C, 0x9B, 7, 0x1B, 0x70808080);
+        switch (func_00228070(self)) {
+        case 0:
+            break;
+        case 1:
+            *(unsigned char *)(self + 3) = 3;
+            func_00225CF0((unsigned char *)self, 4, 7);
+            return 3;
+        default:
+            *(unsigned char *)(self + 3) = 4;
+            func_00225CF0((unsigned char *)self, 4, 7);
+            break;
+        }
+        return 0;
+    case 3:
+        return 0;
+    case 4:
+        return func_00227270();
+    }
+    return 1;
 }

@@ -1,49 +1,28 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011E620(int, int, int, int);
-extern void func_0011E748(int, int, int, int);
-extern void func_001B1510(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_0017A800(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0xc4a10000
-    .word 0xc4800000
-    .word 0x3c017000
-    .word 0x70808e28
-    .word 0x70a08628
-    .word 0x46000801
-    .word 0xe4203a20
-    .word 0xc4a10008
-    .word 0xc4800008
-    .word 0x3c017000
-    .word 0xc4223a20
-    .word 0x46000801
-    .word 0x3c017000
-    .word 0xe4203a28
-    .word 0x4602101a
-    .word 0x46000006
-    jal       func_0011E748
-    .word 0x4600031c
-    .word 0x3c017000
-    .word 0xe4203a2c
-    .word 0xc6010004
-    .word 0xc6200004
-    .word 0x3c017000
-    .word 0xc42c3a2c
-    .word 0x46000801
-    .word 0x3c017000
-    .word 0xe4203a24
-    jal       func_0011E620
-    .word 0x46000346
-    .word 0x3c017000
-    .word 0xe4203a20
-    jal       func_001B1510
-    .word 0x46000306
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Direction from point `from` to point `to` (x, y, z floats): stores the
+// delta into the scratchpad vector 0x70003A20 (dx at +0, dy at +4, dz at +8),
+// the horizontal length sqrt(dx*dx + dz*dz) (func_0011E748) at +0xC, then the
+// angle func_0011E620(horizontal length, dy) back into +0, and passes it to
+// func_001B1510. Scratchpad words are per-address relocated externs
+// (idiom-32).
+extern float func_0011E620(float y, float x);
+extern float func_0011E748(float x);
+extern float func_001B1510(float x);
+extern float D_70003A20;
+extern float D_70003A24;
+extern float D_70003A28;
+extern float D_70003A2C;
+
+void func_0017A800(float *from, float *to) {
+    D_70003A20 = to[0] - from[0];
+    D_70003A28 = to[2] - from[2];
+    D_70003A2C = func_0011E748(D_70003A20 * D_70003A20 +
+                                         D_70003A28 * D_70003A28);
+    D_70003A24 = to[1] - from[1];
+    D_70003A20 = func_0011E620(D_70003A2C, D_70003A24);
+    func_001B1510(D_70003A20);
 }

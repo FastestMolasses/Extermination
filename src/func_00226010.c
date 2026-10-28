@@ -1,29 +1,20 @@
-// Hybrid asm void: real mnemonics where mwcc accepts them,
-// .word for branch instructions (mwcc rejects PC-relative labels).
-extern void func_001FE920(int, int, int, int);
-extern void func_001FE9A0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_00226010(void) {
-    addiu $sp, $sp, -0x20
-    sq $ra, 0x10($sp)
-    sq $s0, 0x0($sp)
-    paddub $s0, $a0, $zero
-    addiu $a0, $zero, 0x1
-    addiu $a1, $s0, 0x50
-    jal func_001FE9A0
-    addiu $a2, $s0, 0x54
-    .word 0x14400003
-    nop
-    .word 0x10000007
-    paddub $v0, $zero, $zero
-    lw $a1, 0x4C($s0)
-    jal func_001FE920
-    lw $a0, 0x48($s0)
-    addiu $v1, $zero, 0x1
-    movn $v1, $zero, $v0
-    paddub $v0, $v1, $zero
-    lq $ra, 0x10($sp)
-    lq $s0, 0x0($sp)
-    jr $ra
-    addiu $sp, $sp, 0x20
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Two-stage gate on an object (self). Polls func_001FE9A0(1, &self->c (+0x50),
+// &self->d (+0x54)); a 0 status returns 0. Otherwise returns 1 when
+// func_001FE920(self->a (+0x48), self->b (+0x4C)) returns 0, else 0. Same
+// shape as the first half of func_00228070. (Callers func_00226070 and
+// func_002267A0 declare it void and ignore the result.)
+extern int func_001FE920(int a0, int a1);
+extern int func_001FE9A0(int a0, int *a1, int *a2);
+
+struct Rec { char pad[0x48]; int a; int b; int c; int d; };
+int func_00226010(struct Rec *self) {
+    if (func_001FE9A0(1, &self->c, &self->d) == 0) {
+        return 0;
+    }
+    return (func_001FE920(self->a, self->b) == 0) ? 1 : 0;
 }

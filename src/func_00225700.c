@@ -1,14 +1,15 @@
-// Tail-call wrapper (uses $t0/$t1 in original; rewritten with
-// numeric register names because mwcc inline asm rejects $tN).
-extern void func_00207F80(void);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 4
 
-asm void func_00225700(void) {
-    lui $v0, (0x80CE6000 >> 16)
-    addiu $a0, $zero, 0x1
-    addiu $a1, $zero, 0x7CD0
-    addiu $a3, $zero, 0x7D90
-    ori $a2, $zero, 0x8550
-    ori $8, $zero, 0x85B0
-    j func_00207F80
-    ori $9, $v0, (0x80CE6000 & 0xFFFF)
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Tail-call wrapper: one fixed GIF/AD packet through func_00207F80 on DMA
+// index 1 with the packed corner pairs (0x7CD0, 0x8550) and (0x7D90, 0x85B0) and the
+// colour word 0x80CE6000 (the 6th argument, in the second extra argument
+// register). The same two calls appear inline in func_0022A020's per-mode
+// branch (with 0x83C0/0x8420 there instead of 0x8550/0x85B0).
+extern void func_00207F80(int, int, int, int, int, int);
+
+void func_00225700(void) {
+    func_00207F80(1, 0x7CD0, 0x8550, 0x7D90, 0x85B0, 0x80CE6000);
 }

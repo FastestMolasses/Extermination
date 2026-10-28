@@ -1,84 +1,49 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_0014EEF0(int, int, int, int);
-extern void func_0014F390(int, int, int, int);
-extern void func_0014FBC0(int, int, int, int);
-extern void func_00150850(int, int, int, int);
-extern void func_00150900(int, int, int, int);
-extern void func_001509A0(int, int, int, int);
-extern void func_001513B0(int, int, int, int);
-extern void func_001B17A0(int, int, int, int);
-extern void func_001B4810(int, int, int, int);
-extern void anim_advance_time(int, int, int, int);
-extern void func_001C68C0(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an asm-word body).
+//
+// Active update (state 1 of func_0014EC00). Dispatches sub-state self+5:
+// 0 -> func_0014EEF0, 1 -> func_0014F390, 2 -> func_0014FBC0. Then
+// func_001B4810(self), func_00150900, func_001509A0 and func_001513B0 (each
+// (self, ctx)); sets self+0 = 2 when the height self+0xB4 is at or below -100,
+// else 1; then anim_advance_time(self, ctx+0x20) into ctx+0, func_00150850,
+// func_001C68C0, func_001B17A0 and the self+0x4C hook.
+extern void func_0014EEF0(char *self, char *ctx);
+extern void func_0014F390(unsigned char *p, unsigned char *e);
+extern void func_0014FBC0(unsigned char *p, unsigned char *e);
+extern void func_001B4810(unsigned char *self);
+extern void func_00150900(unsigned char *a0, unsigned char *a1);
+extern void func_001509A0(char *arg0, char *arg1);
+extern int func_001513B0(char *arg0, char *arg1);
+extern int anim_advance_time(char *self, float dt);
+extern void func_00150850(unsigned char *a0);
+extern void func_001C68C0(char *o);
+extern unsigned char func_001B17A0(char *self);
 
-asm void func_0014EDD0(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb10010
-    .word 0x7fb00000
-    .word 0x90830005
-    .word 0x24020002
-    .word 0x70808e28
-    .word 0x10620010
-    .word 0x70a08628
-    .word 0x24020001
-    .word 0x10620009
-    .word 0x00000000
-    .word 0x10600003
-    .word 0x00000000
-    .word 0x1000000c
-    .word 0x72202628
-    jal       func_0014EEF0
-    .word 0x00000000
-    .word 0x10000007
-    .word 0x00000000
-    jal       func_0014F390
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00000000
-    jal       func_0014FBC0
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_001B4810
-    .word 0x00000000
-    .word 0x72202628
-    jal       func_00150900
-    .word 0x72002e28
-    .word 0x72202628
-    jal       func_001509A0
-    .word 0x72002e28
-    .word 0x72202628
-    jal       func_001513B0
-    .word 0x72002e28
-    .word 0xc62100b4
-    .word 0x3c02c2c8
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x46000836
-    .word 0x00000000
-    .word 0x45000005
-    .word 0x24020001
-    .word 0x24020002
-    .word 0x10000003
-    .word 0xa2220000
-    .word 0x24020001
-    .word 0xa2220000
-    .word 0xc60c0020
-    jal       anim_advance_time
-    .word 0x72202628
-    .word 0xae020000
-    jal       func_00150850
-    .word 0x72202628
-    jal       func_001C68C0
-    .word 0x72202628
-    jal       func_001B17A0
-    .word 0x72202628
-    .word 0x8e22004c
-    .word 0x0040f809
-    .word 0x72202628
-    .word 0x7bbf0020
-    .word 0x7bb10010
-    .word 0x7bb00000
-    .word 0x03e00008
-    .word 0x27bd0030
+void func_0014EDD0(char *self, char *ctx) {
+    switch (*(unsigned char *)(self + 5)) {
+    case 0:
+        func_0014EEF0(self, ctx);
+        break;
+    case 1:
+        func_0014F390((unsigned char *)self, (unsigned char *)ctx);
+        break;
+    case 2:
+        func_0014FBC0((unsigned char *)self, (unsigned char *)ctx);
+        break;
+    }
+    func_001B4810((unsigned char *)self);
+    func_00150900((unsigned char *)self, (unsigned char *)ctx);
+    func_001509A0(self, ctx);
+    func_001513B0(self, ctx);
+    if (*(float *)(self + 0xB4) <= -100.0f) {
+        *(char *)(self + 0) = 2;
+    } else {
+        *(char *)(self + 0) = 1;
+    }
+    *(int *)ctx = anim_advance_time(self, *(float *)(ctx + 0x20));
+    func_00150850((unsigned char *)self);
+    func_001C68C0(self);
+    func_001B17A0(self);
+    (*(void (**)(char *))(self + 0x4C))(self);
 }
