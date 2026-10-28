@@ -195,3 +195,15 @@ index; for-loop shapes), func_00162A40, func_00108DB0 (ee-gcc: the loop
 counter set only by its `for`; 16-byte struct table), func_00119AA0 (ee-gcc:
 struct-array table and a cursor struct). Improved and parked: func_001A7BA0
 98.69, func_0010DEB8 97.92.
+
+### Queue batch 6 (2026-10-27)
+
+8 byte-matched: func_0018CBD0 (the falloff local is never initialised in the
+original; see CURIOSITIES 21), func_00218D90 (a colour clamp that is an
+ascending `switch`; twin func_00218640), func_0018F870 (twin func_0018DD20's
+SPAD set and shared-tail `goto`), func_0013C8C0 (a coin flip as `switch`; each
+turn result stored in its branch), func_001D91A0 (the real twin is
+func_001F6210; a three-argument func_001028B8), func_001E3630 (one scratchpad
+store through the extern, the other three literal), func_0013F770 (the
+compound `D_700038A0[1] += 10.0f` of twin func_0013EDB0), func_0017E250
+(callee pointer parameters, as their definitions declare).

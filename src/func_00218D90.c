@@ -1,16 +1,21 @@
-// NEARMISS func_00218D90  (vram 0x00218D90, 0x7B8 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.05% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// residual: (a) fixed D_002821B0/B4/00282240 store-reorder mwcc always emits regardless of source order (tried all permutations); (b) branch-target-merge quirk on the cclr==3 clamp arm (target keeps it a distinct un-merged branch even though body==cclr==2's; tried switch and nested-if, neither repr...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.05% NEARMISS).
+// Fixes read from the original instructions:
+//  - The shared game-state words at 0x002821B0/B4/B8 and 0x00282240 are written
+//    through their literal addresses, and the mode-tracker bytes
+//    D_00810CA4..CA7 are one array (as in the twin func_00218640), which keeps
+//    the original load/store order.
+//  - The colour clamp is a switch with ascending cases (1, 2, 3, 4, default),
+//    not a nested if chain; mwcc 2.3.3 emits its compares in reverse source
+//    order and keeps the cclr==3 arm a separate branch, as the original does.
+//    This also removed the stray delay-slot-fill leftovers elsewhere.
+//  - Case 1's colour compare reads the slot index into a local and indexes
+//    the list as (k + arg0)[0x50] with an unsigned char cast, the tracker
+//    byte on the left of the compare.
+//  - Case 4's new colour is the list byte (index + arg0)[0x50] plus the signed
+//    short at +0x1E, added in an int and stored into the tracker byte.
 // Weapon reload/animation FSM dispatched on arg0+5 (the state byte), sibling
 // of func_00217090/func_00217FA0 (same field offsets: +5 state, +6 countdown,
 // +7 busy-counter, +0x12 mode index, +0x17..0x1E slot-search/heading fields,
@@ -25,7 +30,7 @@
 // 0x20 is held, jumps straight to a quick-cancel path (func_0020CD60,
 // state->2); else it starts the reload animation (func_0020AE40/
 // func_0020BF20 with a color-clamp derived from the active slot's color
-// byte/func_0020BC50-9F20B210), and on success advances state / defers to
+// byte/func_0020B210), and on success advances state / defers to
 // func_0020BBE0, or (once slots exist and input bit 0x40 is held) may replay
 // a different animation depending on the active slot's color vs D_00810CA6.
 // Case 2 runs the mid-reload animation and backs the state up on completion.
@@ -57,17 +62,10 @@ extern void func_0020CDA0(void);
 extern char D_002664F0[];
 extern char D_00266560[];
 extern char D_002665A0[];
-extern int D_002821B0;
-extern int D_00282240;
-extern int D_002821B4;
-extern int D_002821B8;
 extern unsigned char D_008106B0;
 extern unsigned char D_008106B1;
 extern unsigned char D_00810700[];
-extern unsigned char D_00810CA4;
-extern signed char D_00810CA5;
-extern unsigned char D_00810CA6;
-extern signed char D_00810CA7;
+extern unsigned char D_00810CA4[4];
 extern unsigned short D_00810E74;
 
 void func_00218D90(char *arg0) {
@@ -84,14 +82,14 @@ void func_00218D90(char *arg0) {
         *(unsigned char *)(arg0 + 0x19) = 0;
         *(unsigned char *)(arg0 + 0x18) = 0;
         *(unsigned char *)(arg0 + 0x1A) = 0;
-        D_002821B0 = 4;
-        D_002821B4 = 0;
-        D_00282240 = 3;
+        *(int *)0x002821B0 = 4;
+        *(int *)0x002821B4 = 0;
+        *(int *)0x00282240 = 3;
         *(unsigned char *)(arg0 + 7) = 0;
         *(short *)(arg0 + 0x1E) = 0;
 
-        if (D_00810CA6 != 0xFF) {
-            *(unsigned char *)(arg0 + 0x12) = D_00810CA6;
+        if (D_00810CA4[2] != 0xFF) {
+            *(unsigned char *)(arg0 + 0x12) = D_00810CA4[2];
         } else {
             *(unsigned char *)(arg0 + 0x12) = 0xFF;
         }
@@ -109,10 +107,10 @@ void func_00218D90(char *arg0) {
         if (D_008106B0 != 0) {
             *(unsigned char *)(arg0 + 0x1B) = D_008106B1;
             for (i = 0; i < (int) *(unsigned char *)(arg0 + 0x18); i++) {
-                if (*(unsigned char *)(arg0 + i + 0x50) == *(unsigned char *)(arg0 + 0x1B)) {
+                if (*(unsigned char *)(arg0 + 0x50 + i) == *(unsigned char *)(arg0 + 0x1B)) {
                     *(char *)(arg0 + 0x19) = (char) ((i >> 2) * 4);
                     *(char *)(arg0 + 0x17) = (char) (i % 4);
-                    D_00282240 = 4;
+                    *(int *)0x00282240 = 4;
                     break;
                 }
             }
@@ -127,7 +125,7 @@ void func_00218D90(char *arg0) {
     case 1:
         if (D_00810E74 & 0x20) {
             func_0020CD60();
-            D_002821B4 = 2;
+            *(int *)0x002821B4 = 2;
             *(char *)(arg0 + 1) = 3;
             *(char *)(arg0 + 2) = 0;
             *(char *)(arg0 + 3) = 0;
@@ -139,28 +137,21 @@ void func_00218D90(char *arg0) {
             func_0020A7A0(0x20043885LL << 32 | 0x9D422130u);
             func_0020AE40(arg0, D_002664F0, 0x100);
             cclr = (unsigned char) arg0[func_0020BEF0((unsigned char *) arg0) + 0x50];
-            clamp = 3;
-            if (cclr != 4) {
-                clamp = 2;
-                if (cclr != 3) {
-                    clamp = 2;
-                    if (cclr != 2) {
-                        clamp = 1;
-                        if (cclr != 1) {
-                            clamp = 0;
-                        }
-                    }
-                }
-            }
+            switch (cclr) {
+        case 1: clamp = 1; break;
+        case 2: clamp = 2; break;
+        case 3: clamp = 2; break;
+        case 4: clamp = 3; break;
+        default: clamp = 0; break;
+        }
             func_0020BF20(D_00266560, 1, clamp);
             if (func_0020B210(arg0, D_002665A0, 0x20042C05LL << 32 | 0xA1321F80u, 0x100) != 0) {
                 *(short *)(arg0 + 0x1C) = 0;
                 *(unsigned char *)(arg0 + 5) = *(unsigned char *)(arg0 + 5) + 1;
                 func_0020BBE0(arg0, *(unsigned char *)(arg0 + 0x1A));
             } else if (*(unsigned char *)(arg0 + 0x18) != 0 && (D_00810E74 & 0x40)) {
-                unsigned char cur;
-                cur = (unsigned char) arg0[func_0020BEF0((unsigned char *) arg0) + 0x50];
-                if (D_00810CA6 != cur) {
+                int k = func_0020BEF0((unsigned char *) arg0);
+                if (D_00810CA4[2] != (unsigned char) (k + arg0)[0x50]) {
                     func_0020CD40();
                     *(unsigned char *)(arg0 + 5) = 4;
                     *(unsigned char *)(arg0 + 6) = 1;
@@ -189,18 +180,12 @@ void func_00218D90(char *arg0) {
         func_0020A7A0(0x20043885LL << 32 | 0x9D422130u);
         func_0020AE40(arg0, D_002664F0, 0x100);
         cclr = (unsigned char) arg0[func_0020BEF0((unsigned char *) arg0) + 0x50];
-        clamp = 3;
-        if (cclr != 4) {
-            clamp = 2;
-            if (cclr != 3) {
-                clamp = 2;
-                if (cclr != 2) {
-                    clamp = 1;
-                    if (cclr != 1) {
-                        clamp = 0;
-                    }
-                }
-            }
+        switch (cclr) {
+        case 1: clamp = 1; break;
+        case 2: clamp = 2; break;
+        case 3: clamp = 2; break;
+        case 4: clamp = 3; break;
+        default: clamp = 0; break;
         }
         func_0020BF20(D_00266560, 1, clamp);
         func_0020B210(arg0, D_002665A0, 0x20042C05LL << 32 | 0xA1321F80u, 0x500);
@@ -213,7 +198,7 @@ void func_00218D90(char *arg0) {
             }
             D_008106B0 = 0;
             *(unsigned char *)(arg0 + 5) = 1;
-            D_00282240 = 3;
+            *(int *)0x00282240 = 3;
         }
         break;
     }
@@ -224,25 +209,19 @@ void func_00218D90(char *arg0) {
         func_0020A7A0(0x20043885LL << 32 | 0x9D422130u);
         func_0020AE40(arg0, D_002664F0, 0x100);
         cclr = (unsigned char) arg0[func_0020BEF0((unsigned char *) arg0) + 0x50];
-        clamp = 3;
-        if (cclr != 4) {
-            clamp = 2;
-            if (cclr != 3) {
-                clamp = 2;
-                if (cclr != 2) {
-                    clamp = 1;
-                    if (cclr != 1) {
-                        clamp = 0;
-                    }
-                }
-            }
+        switch (cclr) {
+        case 1: clamp = 1; break;
+        case 2: clamp = 2; break;
+        case 3: clamp = 2; break;
+        case 4: clamp = 3; break;
+        default: clamp = 0; break;
         }
         func_0020BF20(D_00266560, 1, clamp);
         func_0020B210(arg0, D_002665A0, 0x20042C05LL << 32 | 0xA1321F80u, 0x500);
         func_0020B0D0((int) arg0, D_002664F0);
-        D_002821B4 = 1;
-        D_00282240 = 5;
-        D_002821B8 = 4;
+        *(int *)0x002821B4 = 1;
+        *(int *)0x00282240 = 5;
+        *(int *)0x002821B8 = 4;
         func_001FCF10();
         func_00207D00(1, 3);
 
@@ -263,27 +242,26 @@ void func_00218D90(char *arg0) {
 
         if (D_00810E74 & 0x40) {
             if (*(unsigned char *)(arg0 + 6) != 0) {
-                D_002821B4 = 0;
-                D_00282240 = 3;
+                *(int *)0x002821B4 = 0;
+                *(int *)0x00282240 = 3;
                 *(unsigned char *)(arg0 + 5) = 1;
                 func_0020CD60();
             } else {
-                unsigned char sel;
-                short base;
                 func_001FB9F0(0x17B, 0x1000, 0x1000, 0x1000);
-                sel = *(unsigned char *)(func_0020BEF0((unsigned char *) arg0) + arg0 + 0x50);
-                base = *(short *)(arg0 + 0x1E);
-                sel = (unsigned char) (sel + base);
-                D_00810CA6 = sel;
-                *(unsigned char *)(arg0 + 0x12) = D_00810CA6;
-                if (D_00810CA4 != 0xFF) {
-                    if (D_00810CA4 == 2) {
-                        D_00810CA7 = 7;
-                        D_00810CA5 = 5;
-                        D_00810CA4 = 0xFF;
+                {
+                    unsigned char e = (func_0020BEF0((unsigned char *) arg0) + arg0)[0x50];
+                    int c = e + *(short *)(arg0 + 0x1E);
+                    D_00810CA4[2] = c;
+                }
+                *(unsigned char *)(arg0 + 0x12) = D_00810CA4[2];
+                if (D_00810CA4[0] != 0xFF) {
+                    if (D_00810CA4[0] == 2) {
+                        D_00810CA4[3] = 7;
+                        D_00810CA4[1] = 5;
+                        D_00810CA4[0] = 0xFF;
                     }
                 }
-                D_002821B4 = 2;
+                *(int *)0x002821B4 = 2;
                 *(char *)(arg0 + 1) = 3;
                 *(char *)(arg0 + 2) = 0;
                 *(char *)(arg0 + 3) = 0;
@@ -292,8 +270,8 @@ void func_00218D90(char *arg0) {
             }
         } else if (D_00810E74 & 0x20) {
             func_0020CD60();
-            D_002821B4 = 0;
-            D_00282240 = 3;
+            *(int *)0x002821B4 = 0;
+            *(int *)0x00282240 = 3;
             *(unsigned char *)(arg0 + 5) = 1;
         }
         break;

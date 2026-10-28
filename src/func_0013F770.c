@@ -1,16 +1,14 @@
-// NEARMISS func_0013F770  (vram 0x0013F770, 0xCCC bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.49% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body, control flow, all constants and both epilogue shapes are byte-identical; a single 7-instruction window remains in case 2 around `*(volatile float*)0x700038A4 += 10.0f`. CodeWarrior materialises the two following scratchpad constants (9.0f then 1.0f) one at a time into $v0, each immediately ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.49% NEARMISS).
+// Fixes read from the original instructions:
+//  - State 2's pitch step is the compound `D_700038A0[1] += 10.0f` on the
+//    relocated scratch vector (as in the twin func_0013EDB0), not a literal
+//    load/add/store through a temp; and the target's Z/W words are written as
+//    D_700038B0[2] / [3] after it. mwcc then materialises 9.0f and 1.0f one at
+//    a time and keeps the add's operand order, as the original does.
+//
 // SEMANTICS: 9-state grapple/throw AI driver for actor `self`, dispatched on the
 // state byte at self+6 (jtbl_0026D240) and driving the owner context `ctx`.
 //   0  entry: reset the ctx timers/flags, kick clip 0x14 and cue 0x808.
@@ -41,15 +39,6 @@
 //   7  on the input bit, hand the actor back to behaviour 4 and reset to state 0.
 //   8  bail-out mirror of state 6 that returns to state 7 with clip 8 and cue 0x7F9.
 //
-// NEARMISS 99.486% (mwcc 2.3.3; 86.90% on the pinned 2.3.1.01 build).  Body,
-// control flow and every constant are byte-identical except for one 7-instruction
-// window in state 2 around `*(0x700038A4) += 10.0f`: CodeWarrior materialises the
-// two following scratchpad constants (9.0f, 1.0f) one at a time into $v0 and sinks
-// `paddub a0,s1,zero` ahead of them, where mwcc co-hoists both `lui`s into $v1/$v0
-// and sinks the paddub to the jal.  Also mwcc canonicalises the float literal to
-// the `add.s` fs slot.  Fourteen source spellings of the add/reload were measured
-// (see the run log); `t = load; t = t + 10.0f;` between the 38B4 and 38B8 stores is
-// the best, and the two remaining shapes trade one residual for the other.
 extern void anim_clip_init(char *self, int clip, float a, float b);
 extern void copy_qw4(void *dst, void *src);
 extern void func_001026A0(void *a, void *b, void *c);
@@ -147,11 +136,9 @@ void func_0013F770(char *self, char *ctx) {
             func_00102948(D_700038A0, self + 0xB0);
             *(volatile float *)0x700038B0 = 0.0f;
             *(volatile float *)0x700038B4 = 0.0f;
-            t = *(volatile float *)0x700038A4;
-            t = t + 10.0f;
-            *(volatile float *)0x700038B8 = 9.0f;
-            *(volatile float *)0x700038BC = 1.0f;
-            *(volatile float *)0x700038A4 = t;
+            D_700038A0[1] += 10.0f;
+            D_700038B0[2] = 9.0f;
+            D_700038B0[3] = 1.0f;
             func_001B2B10(self, D_700038B0, D_700038B0);
             func_001028B8(D_700038B0, D_700038B0, D_700038A0);
             if (func_001B3390(self, D_700038A0, D_700038B0, 0.7853982f)) {

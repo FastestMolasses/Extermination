@@ -1,22 +1,20 @@
-// NEARMISS func_0013C8C0  (vram 0x0013C8C0, 0x488 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.02% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Fully recovered logic/structure using sibling func_0013C4C0 (98.98% NEARMISS) as the steering-family template. Residual at 93.3% (233) is a branch-likely-sense wall on the coin-flip dispatch: target emits chained beql/beqzl testing coin==1 then coin==0 (delay slots filled with the +/-pi/8 constan...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
-// Corrected 2026-10-02 (lane DFIX2) against the original instructions (port
-// docs/LEVEL12_PORT.md section 0; docs/FINDINGS.md "NEARMISS body corrections from the
-// level side-track lanes, second round"): the first func_001B2B10 call receives the actor
-// (arg0, still in its register) as its first argument, so the 25-unit probe is rotated by
-// the actor's heading +0xC4; the old C passed the scratch vector three times.
-// objdiff 93.30 -> 94.02.
-
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.02% NEARMISS).
+// Fixes read from the original instructions:
+// - The coin-flip dispatch is `switch (coin)` with cases 0 and 1 ending in
+//   `break` and no default (2.3.3 compares case 1 first, branch-likely).
+// - The "cornered" test re-reads arg1[0x80] (`arg1[0x80] == 3`), not the
+//   classifier's saved byte.
+// - Each turn result is stored to arg1[0x80] inside its own branch, not
+//   through a shared temp.
+// - The live target pointer at scratchpad 0x700031D0 is read once into a local.
+// - The far-target branch clears the probe vector through the D_700038A0
+//   aggregate (float elements), so the first store's upper half is not
+//   speculated into the compare's branch slot.
+// Earlier correction (lane DFIX2, 2026-10-02): the first func_001B2B10 call
+// receives the actor (arg0) as its first argument, so the 25-unit probe is
+// rotated by the actor's heading +0xC4.
 //
 // AI steering/obstacle decision step for actor arg0, writing packed decision
 // flags into its control block arg1+0x80/0x81 (same family as sibling
@@ -72,7 +70,7 @@ extern short D_70003B8A;
 void func_0013C8C0(char *arg0, signed char *arg1) {
     signed char result;
     int coin;
-    signed char turn;
+    char *tgt;
 
     if (!(arg1[0x80] & 0xF)) {
         *(int *)0x700038A0 = 0;
@@ -90,7 +88,8 @@ void func_0013C8C0(char *arg0, signed char *arg1) {
             *(float *)0x700038A8 = 20.0f;
             *(int *)0x700038AC = 0x3F800000;
             coin = (D_70003B68 + D_70003B8A) & 1;
-            if (coin == 0) {
+            switch (coin) {
+            case 0:
                 func_00102B08(D_700036A0, D_700036A0, 0.39269909f);
                 func_00102BB0(D_700036A0, D_700036A0, *(float *)(arg0 + 0xC4));
                 func_001026A0(D_700038A0, D_700036A0, D_700038A0);
@@ -98,7 +97,8 @@ void func_0013C8C0(char *arg0, signed char *arg1) {
                 if (func_0019AFE0(arg0, arg0 + 0xB0, D_700038A0, 6) != 0 || func_0013D220(arg0) != 0) {
                     arg1[0x80] = arg1[0x80] | 1;
                 }
-            } else {
+                break;
+            case 1:
                 func_00102B08(D_700036A0, D_700036A0, -0.39269909f);
                 func_00102BB0(D_700036A0, D_700036A0, *(float *)(arg0 + 0xC4));
                 func_001026A0(D_700038A0, D_700036A0, D_700038A0);
@@ -106,8 +106,9 @@ void func_0013C8C0(char *arg0, signed char *arg1) {
                 if (func_0019AFE0(arg0, arg0 + 0xB0, D_700038A0, 6) != 0) {
                     arg1[0x80] = arg1[0x80] | 2;
                 }
+                break;
             }
-        } else if (result == 3) {
+        } else if (arg1[0x80] == 3) {
             *(short *)(arg1 + 0x28) = func_00128250(66.666664f * ((float)((func_00122BB8() >> 7) & 0xFF) / 255.0f));
             *(short *)(arg1 + 0x2A) = 0;
             *(int *)0x700038A0 = 0;
@@ -115,25 +116,25 @@ void func_0013C8C0(char *arg0, signed char *arg1) {
             *(float *)0x700038A8 = 1.0f;
             *(int *)0x700038AC = 0x3F800000;
             func_001B2B10(arg0, D_700038A0, D_700038A0);
-            *(float *)0x700038B0 = *(float *)(*(int *)0x700031D0 + 0x24);
+            tgt = *(char **)0x700031D0;
+            *(float *)0x700038B0 = *(float *)(tgt + 0x24);
             *(int *)0x700038B4 = 0;
-            *(float *)0x700038B8 = *(float *)(*(int *)0x700031D0 + 0x2C);
+            *(float *)0x700038B8 = *(float *)(tgt + 0x2C);
             *(int *)0x700038BC = 0x3F800000;
             func_00102760(D_700038B0, D_700038B0);
             if (func_0011E420(func_00102738(D_700038A0, D_700038B0)) <= 2.3561945f) {
                 func_001028B8(D_700038B0, D_700038B0, arg0 + 0xB0);
-                turn = (signed char)((func_001B1380(D_700038B0, arg0 + 0xB0, *(float *)(arg0 + 0xC4)) + 1) * 4);
+                arg1[0x80] = (signed char)((func_001B1380(D_700038B0, arg0 + 0xB0, *(float *)(arg0 + 0xC4)) + 1) * 4);
             } else {
-                *(int *)0x700038A8 = 0;
-                *(int *)0x700038A4 = 0;
-                *(int *)0x700038A0 = 0;
-                *(int *)0x700038AC = 0x3F800000;
-                *(float *)0x700038A8 = func_001B15D0(arg0 + 0xB0, &D_700031B0) / 2.0f;
+                D_700038A0[2] = 0.0f;
+                D_700038A0[1] = 0.0f;
+                D_700038A0[0] = 0.0f;
+                D_700038A0[3] = 1.0f;
+                D_700038A0[2] = func_001B15D0(arg0 + 0xB0, &D_700031B0) / 2.0f;
                 func_001B2B10(arg0, D_700038A0, D_700038A0);
                 func_001028B8(D_700038A0, D_700038A0, arg0 + 0xB0);
-                turn = (signed char)((func_001B39F0(arg0, D_700038A0, D_700038D0) + 1) * 4);
+                arg1[0x80] = (signed char)((func_001B39F0(arg0, D_700038A0, D_700038D0) + 1) * 4);
             }
-            arg1[0x80] = turn;
         }
     }
     if (arg1[0x80] & 3) {

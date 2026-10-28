@@ -420,6 +420,12 @@ refuse them.
   other path the function reads whatever its caller left there. The matched
   C reproduces this as a local that is uninitialised on that path. Whether
   the game reaches the path with a live lock record is not established.
+- **0018CBD0** (byte-matched 2026-10-27): the falloff local is never
+  initialised. When the angle is not compressed (ang >= the limit), the
+  0.3 * falloff term stored to +0x24 uses whatever the caller left in that
+  saved float register, not zero (the old comment's "zero" was wrong). The
+  matched C keeps the local uninitialised. Port code that assumes zero there
+  is unverified until checked against a capture.
 - Port `AREA01_SYS.md` lists more reads of this kind in stubbed callees
   (0015A750, 0017B490, 0018CBD0, 0019C830, 0019CB60, 0019D330, 0019E280,
   001CFBE0), each on a path the port must keep unreachable.

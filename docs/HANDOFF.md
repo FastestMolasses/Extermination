@@ -54,9 +54,9 @@ that is a different, stale tree.
 - Decomp gate: run `tools/decomp/build.py build` fresh, then `tools/verify_all.py`.
   Latest (2026-10-27, fresh build after the matching wave's tooling batch:
   relocation-spelling normaliser, `// EEGCC_AS: 2.96`, the func_001AB140 split;
-  220 NEARMISS byte-matched in the wave): 2479/2481 units, matched_code
+  228 NEARMISS byte-matched in the wave): 2487/2489 units, matched_code
   99.97%; boot ELF byte-identical; 19/19 overlays. MATCHING_GUIDE "Tooling
-  batch: open decisions 1-5" and "Queue batch after the tooling batch" / "Queue batch 2" / "Queue batch 3" / "Queue batch 4" / "Queue batch 5". A second queue (every untried non-VU0 NEARMISS, by %) holds about 340 NEARMISS functions not yet
+  batch: open decisions 1-5" and "Queue batch after the tooling batch" / "Queue batch 2" / "Queue batch 3" / "Queue batch 4" / "Queue batch 5" / "Queue batch 6". A second queue (every untried non-VU0 NEARMISS, by %) holds about 340 NEARMISS functions not yet
   attempted (ordered by the prototype scan, then by percentage). Open lever:
   five parked functions need 2.3.3 scheduling plus 991202 delay-slot moves
   (MATCHING_GUIDE "Matching wave 2026-10-27", sixth batch); mwcc 3.0 / 3.0.1 /

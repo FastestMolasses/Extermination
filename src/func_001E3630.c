@@ -1,27 +1,20 @@
-// NEARMISS func_001E3630  (vram 0x001E3630, 0x6E4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 99.85% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0).
-// NEARMISS 99.85% mwcc233 (matching wave 2026-10-27, was 93.92%). Fixes read from the
-// original instructions: the self+0x14 handle is pre-added (+0x1F0) at entry and stored
-// to self+0x30 (not dst+0x30), the callback goes to self+0x34; func_001AFC10 takes one
-// argument (its definition); the stack buffer is 0x60 bytes; every switch case ends in
-// `break` (with `return` mwcc drops the dead branch-target copies the original keeps);
-// the grabbed-actor test is a one-case switch on the type byte; the retry pair is a
-// switch on the side index, breaking out when func_0019A570 returns 0; dst+0xA8 is
-// incremented; the wobble store goes through dst; D_00253BC8/BCC are volatile (keeps
-// their store order).
-// Remaining differences: one delay slot — the original leaves the abort branch
-// (hit1|hit2 == 0) slot empty, mwcc 2.3.3 here copies the following scratchpad
-// store's upper half into it (tried: goto/else forms, volatile stores, inline helpers).
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 // SPAD: 0x700031D0
 
+
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 99.85% NEARMISS).
+// Fixes read from the original instructions:
+// - the first scratchpad store after the abort test (the X component of the
+//   probe vector) goes through the relocated extern D_700038A0, not a literal
+//   address; with the literal, mwcc 2.3.3 copies its upper half into the abort
+//   branch's delay slot, which the original leaves empty.
+// - earlier fixes: the self+0x14 handle is pre-added (+0x1F0) at entry and stored
+//   to self+0x30, the callback goes to self+0x34; func_001AFC10 takes one
+//   argument; the stack buffer is 0x60 bytes; every switch case ends in `break`;
+//   the grabbed-actor test is a one-case switch on the type byte; the retry pair
+//   is a switch on the side index; D_00253BC8/BCC are volatile.
+//
 // Projectile/grenade-throw launch state machine (self+4 state byte),
 // dst = self+0x1F0 is the projectile's own per-instance scratch block.
 // state 0: copies self+0x100 into self+0xB0, snapshots self+0xD0 into
@@ -115,7 +108,7 @@ void func_001E3630(unsigned char *arg0)
         break;
       }
     }
-    *(float *)0x700038A0 = 0.0f;
+    D_700038A0 = 0.0f;
     *(float *)0x700038A4 = 0.0f;
     *(float *)0x700038A8 = 50.0f;
     *(int *)0x700038AC = 0x3F800000;

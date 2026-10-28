@@ -1,3 +1,11 @@
+## 2026-10-27 — matching wave, queue batch 6: 8 more byte-matched
+
+See MATCHING_GUIDE "Queue batch 6"; CURIOSITIES 21 gains 0018CBD0 (an
+uninitialised float the original reads). Gate: fresh build + verify_all all
+six stages pass, boot ELF byte-identical, 19/19 overlays, matched_code
+99.97%, 2487/2489 units; audit_link_provenance clean (1988 ordinary-C
+routes). FUNCTIONS.csv 2154 readable, 454 nearmiss.
+
 ## 2026-10-27 — matching wave, queue batch 5: 13 more byte-matched
 
 See MATCHING_GUIDE "Queue batch 5". Gate: fresh build + verify_all all six
