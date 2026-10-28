@@ -464,3 +464,20 @@ The strongest lever of batches 21-22: scratchpad vectors written through
 literal 0x7000xxxx addresses. As relocated extern arrays indexed by element,
 mwcc may move loads past the stores as the original does; literal addresses
 pin them. Several "scheduling" and "FP-colouring" walls were this.
+
+### Queue batch 23 (2026-10-27)
+
+11 byte-matched: func_001BBBF0, func_0022E630 and func_00210F30 (scratchpad
+vectors as relocated extern arrays; 00210F30 also passes a sign-extended
+constant where the old C had an unsigned long long), func_00117D70 (ee-gcc:
+typed voice/song records as in the matched sibling func_00117EE8; store order),
+func_0019A570, func_0019A440 (callee arity: `(void)` callees were passed
+pointers; indexed copy loops as in func_0019B7D0), func_00194D10 (a `ret`
+local returned at the end, as in func_0012E2C0), func_0018B9C0 (callee arity;
+case order; separate ifs; one float array for four adjacent globals),
+func_00199DB0 (nested tests as in func_00199FA0), func_00169250 (the old C
+passed the state byte where the original passes arg0), func_00219550 (one
+switch for the states; the first callee takes self+0x1F0; argument order of
+func_001C5570; the second height bound is floor+12; the rig state becomes 3).
+Improved and parked: func_0011A070 92.90 (old C ran the scan for an
+out-of-range index; register copy in the first block).

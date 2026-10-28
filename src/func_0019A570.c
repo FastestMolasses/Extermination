@@ -1,88 +1,78 @@
-// NEARMISS func_0019A570  (vram 0x0019A570, 0x178 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 84.72% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Register-allocation COLORING permuter near-miss (84.72% mwcc 2.3.3). Structure+frame size (0x50, s0/s1/s2 saved) match the target; residual is which callee-saved/temp regs hold the local-array pointer ($s2 vs $s0) and the loop counters, plus prologue materialization order of &D_70003190. No sourc...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
+// SPAD: 0x700031D0 0x700031D8
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
-extern int func_0019D330(void);
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 84.72% NEARMISS).
+// Fixes read from the original instructions (spelled like the byte-matched twin
+// func_0019A6F0):
+//  - func_001A6440 takes ONE int argument (its definition in src/); the old
+//    two-argument extern passed the advanced vector pointer.
+//  - The stack scratch is a 4-word vector whose fourth word is set to 1.0f (bit
+//    pattern 0x3F800000).
+//  - The three 3-element copy loops are indexed for-loops over D_70003190 as a
+//    float array (+4 = the second vector, +8 = the third), not pointer walkers.
+//  - 0x700031D4 is the named extern D_700031D4 (an object pointer); 0x700031D0 and
+//    0x700031D8 are relocated externs (opted in with the SPAD line above).
+//
+// Copies a 3-vector pair (arg0 -> D_70003190[0..2], arg1 -> D_70003190[4..6] and
+// the stack scratch), primes the w words at 0x700031AC/319C to 1.0f and clears
+// 0x700031D4, then, gated on the low bits of arg2 (flags), runs up to three
+// sub-tests and records the winning mode (1/2/4) at 0x700031D8.
+// flags&1: func_001A6440(arg3&0xFFFF); on success copy D_70003190[8..10] to
+// [4..6] -> mode 1. 0x7000324E is set to -1. flags&2: clear 0x70003254,
+// func_001A0B10 -> mode 2. flags&4: func_0019D330 -> mode 4. On any success, copy
+// the stack scratch back into D_70003190[4..6]; else clear 0x700031D0.
+
+extern int func_001A6440(int);
 extern int func_001A0B10(void);
-extern int func_001A6440(int, float *);
-extern char D_70003190[];
+extern int func_0019D330(void);
+extern float D_70003190[];
+extern char *D_700031D4;
+extern int D_700031D0;
+extern int D_700031D8;
 
 int func_0019A570(float *arg0, float *arg1, int arg2, int arg3) {
-    float local[4];
-    char *t0;
-    float *a0;
-    float *a1;
-    float *s2;
-    float *t1;
-    int i;
+    struct { float v[3]; int w; } sp40;
+    int mode;
     int flags;
-    int ret;
+    int i;
 
-    a0 = arg0;
-    a1 = arg1;
-    s2 = local;
-    t0 = D_70003190;
-    ret = 0;
-    i = 0;
-    t1 = s2;
-    do {
-        i += 1;
-        *(float *)(t0 + 0) = *a0;
-        *t1 = *a1;
-        *(float *)(t0 + 0x10) = *a1;
-        a0 += 1;
-        t0 += 4;
-        a1 += 1;
-        t1 += 1;
-    } while (i < 3);
+    mode = 0;
+    for (i = 0; i < 3; i++) {
+        float f;
+        D_70003190[i] = arg0[i];
+        f = arg1[i];
+        sp40.v[i] = f;
+        D_70003190[i + 4] = f;
+    }
     *(int *)0x700031AC = 0x3F800000;
     *(int *)0x7000319C = 0x3F800000;
     flags = arg2 & 0xFF;
-    *(float *)&local[3] = 1.0f;
-    *(int *)0x700031D4 = 0;
-    if (flags & 1) {
-        if (func_001A6440(arg3 & 0xFFFF, a1) != 0) {
-            char *q = D_70003190;
-            int j = 0;
-            do {
-                j += 1;
-                *(float *)(q + 0x10) = *(float *)(q + 0x20);
-                q += 4;
-            } while (j < 3);
-            ret = 1;
+    sp40.w = 0x3F800000;
+    D_700031D4 = 0;
+    if ((flags & 1) && func_001A6440(arg3 & 0xFFFF) != 0) {
+        for (i = 0; i < 3; i++) {
+            D_70003190[i + 4] = D_70003190[i + 8];
         }
+        mode = 1;
     }
     *(short *)0x7000324E = -1;
     if (flags & 2) {
         *(int *)0x70003254 = 0;
         if (func_001A0B10() != 0) {
-            ret = 2;
+            mode = 2;
         }
     }
     if ((flags & 4) && func_0019D330() != 0) {
-        ret = 4;
+        mode = 4;
     }
-    if (ret != 0) {
-        char *q = D_70003190;
-        int j = 0;
-        do {
-            j += 1;
-            *(float *)(q + 0x10) = *s2;
-            s2 += 1;
-            q += 4;
-        } while (j < 3);
+    if (mode != 0) {
+        for (i = 0; i < 3; i++) {
+            D_70003190[i + 4] = sp40.v[i];
+        }
     } else {
-        *(int *)0x700031D0 = 0;
+        D_700031D0 = 0;
     }
-    *(int *)0x700031D8 = ret;
-    return ret;
+    D_700031D8 = mode;
+    return mode;
 }
