@@ -68,6 +68,7 @@ REPORT = ROOT / "scratch" / "verify_report.json"
 # (config/symbol_addrs.txt "merged TAIL"; PROGRESS.md, commits ec5ff20 + 4478ae5).
 MERGED_TAILS = {
     "func_00140004": "func_0013F770",
+    "func_00180004": "func_00180000",
     "func_001C0004": "func_001BFFD0",
     "func_001C2FF0": "func_001C2770",
     "func_00200004": "func_001FFCD0",
