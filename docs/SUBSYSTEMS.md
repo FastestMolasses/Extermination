@@ -86,7 +86,7 @@ undecompiled count (the decomp frontier inside that cluster).
 | audio | 0x1FB–0x1FD | 38 | 25 | play_sound + sound-descriptor lookup + voice management | high |
 | stream_cd | 0x1FE | 24 | 14 | CD block-read service used by music/save/archive | med-high |
 | movie | 0x1FF, 0x206 | 37 | 12 | sceMpeg movie playback glue (decode-error/IOP-memory strings, `sub_sceMpegGetPicture_decode_error`) | high |
-| save_memcard | 0x200, 0x228–0x22A | 31 | 19 | memcard service (libmc callers) + savegame build/format (BASCUS-97112 / EX_DATA strings, location names) | high |
+| save_memcard | 0x200, 0x228–0x22A | 31 | 19 | memcard service (libmc callers) + savegame construction/format (BASCUS-97112 / EX_DATA strings, location names) | high |
 | unknown_04 | 0x201–0x202 | 7 | 7 | calls ui_menu_lib sound thunks; sequencer-ish | — |
 | iop_services | 0x203 | 21 | 7 | sif/IOP service management (libmc + kernel-heavy; ticked from main) | med |
 | crt_heap | 0x204 | 18 | 1 | runtime services; `func_002041D0` creates a semaphore (`CreateSema`), the old heap/sbrk reading rested on the mislabelled `EndOfHeap` stub | low |

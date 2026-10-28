@@ -1,0 +1,135 @@
+# Build audit
+
+`tools/build_audit.py` runs headlessly on native arm64 macOS with Python 3.9+
+and Git (standard library only). It reads build metadata; `--duplicates` also
+streams file bytes into SHA-256. It never prints file contents, follows symlinks,
+or deletes anything.
+
+```sh
+python3 -B tools/build_audit.py
+python3 -B tools/build_audit.py --dangling --json /absolute/new-report.json
+python3 -B tools/build_audit.py --duplicates --min-mb 50 --dangling \
+  --json build/build-audit/duplicates-dangling.json
+python3 -B tools/build_audit.py --root /absolute/repo/build --split-gb 0.5 \
+  --recent-hours 48 --protect 'build/my-receipts' 'build/keep-*'
+python3 -B tools/build_audit.py --include-defaults --root /absolute/other-repo/build
+python3 -B tools/build_audit.py --checkpoint --json build/build-audit/checkpoint.json \
+  --checkpoint-paths build/build-audit/safe-paths.json
+python3 -B tools/test_build_audit.py
+```
+
+The default roots are
+`/Users/abe/Documents/Extermination.nosync/Extermination/build` and
+`/Users/abe/Documents/Extermination.nosync/extermination-port/build`.
+Repeating `--root` replaces those defaults; `--include-defaults` adds to them.
+Each root's parent must be its Git checkout. Roots and report parents with
+symlink components are refused (use `/private/tmp`, rather than macOS's `/tmp`).
+
+Every top-level entry appears, largest first; directories above `--split-gb`
+(default 1 GiB) expose children recursively. `D` is the detail depth, starting
+at 0. Totals count **only top-level rows**, without overlapping detail.
+Sizes sum regular-file `st_size`, counting hard links separately: logical
+bytes, not reclaimable APFS disk space. Newest timestamps include directories,
+files, and symlinks themselves. Symlinks contribute zero bytes and zero files.
+
+Classes, in priority order:
+
+- **PROTECTED:** startup-reference, fork_refs, s87, .pcsx2.lock, and paths matched
+  by `--protect`. Patterns may include or omit the `build/` prefix, are
+  case-sensitive shell patterns, and `*` can span `/`. Protection covers
+  descendants and any parent that contains a protected child. Incomplete
+  metadata or unavailable citation history also makes entries PROTECTED.
+- **IN-USE:** any contained entry was modified within `--recent-hours` (default
+  24), including future timestamps.
+- **CITED:** a committed citation names this entry, a descendant, or a parent.
+- **CANDIDATE:** none of those conditions applies. This is a review list for the
+  lead; the tool never deletes anything.
+
+`--duplicates` groups regular files across all audited roots at or above
+`--min-mb` (default 50 MiB = 52,428,800 bytes). Only colliding sizes are hashed,
+in chunks of at most 1 MiB. Changed/replaced files are excluded with an
+INCOMPLETE notice. Groups show each path, class and citing files, sorted by
+`bytes wasted = size × (copies − 1)`, plus a total. This is logical duplication;
+hard links and APFS clones may share physical space. When a protected or cited
+copy exists, other uncited copies are labeled **redundant**, including IN-USE
+copies; this describes identical bytes, not permission to delete. Protected
+copies and any copy with citations are never labeled redundant.
+
+`--checkpoint` prints a cleanup plan of CANDIDATE entries and redundant duplicate
+copies whose newest modification is **strictly older than seven days**. It implies
+`--duplicates` and honors `--min-mb`, `--split-gb`, protection and citation rules.
+Parent paths cover their children once; covered redundant copies remain visible
+as detail, without double-counting bytes. Every row has a size and review label:
+**safe** means uncited, complete, not IN-USE, containing only regular files and
+directories, and known generated scratch declared with repeatable
+`--scratch 'build/known-scratch'` patterns. The declaration covers matched paths
+and descendants; it cannot override protection, citations, age, or symlink checks.
+Without that provenance, or with any ambiguity, the label is **needs a look**.
+An incomplete audit produces no safe paths. `--checkpoint-paths FILE` creates a
+plain JSON array of absolute **safe** paths for the lead's checked remover; the
+same array appears in stdout and in the full report's `checkpoint.safe_paths`.
+The default array can be empty: names, age and duplicate bytes alone do not prove
+scratch provenance. The full report keeps all review rows and totals per root.
+This is a review snapshot; the lead must recheck current state before removal.
+Nothing is deleted.
+
+`git ls-files` selects `CLAUDE.md`, immediate `docs/*.md`, and immediate
+`tools/*.py`. Text comes from pinned `HEAD` blobs in one Git batch; working
+edits, staged additions, untracked/nested files, binary files, and symlinks are
+excluded. Bare `build/` references belong to the citing repo; absolute and
+repo-relative paths such as `../Extermination/build/…` target the corresponding
+audited root. Cross-repo citing filenames are absolute. Only filenames appear,
+never source text. Extraction recognizes literal path tokens, not constructed
+paths or names containing whitespace. Globs/templates cite their literal parent.
+
+`--dangling` classifies each committed citation of a missing literal path, in
+this priority order:
+
+- **removed and recorded:** an affirmative removed/deleted/purged note appears
+  in the same paragraph or nearest Markdown heading section (up to the next
+  heading). Negated and conditional removal statements do not count. This is
+  a text heuristic; no document prose is printed.
+- **moved:** an existing file/directory in an audited root has the same final
+  component. The longest matching tail wins; all tied paths are listed.
+  These are possible relocations, not a content-identity claim.
+- **another checkout:** the exact path exists in another registered worktree
+  of the same repo (`git worktree list`). Only exact-path metadata is checked;
+  no worktree directories are listed and no file contents are opened.
+- **missing:** none of those conditions applies.
+
+Output groups by citing file and class, with line numbers and matching paths.
+Counts are unique `(path, citing file, line)` occurrences, so the same path can
+have different classes in different sections/docs. Templates, globs and
+ellipses are excluded; references below symlinks or incomplete scans remain
+UNRESOLVED. A final-component symlink itself exists, including a broken one;
+symlink ancestors are refused. Failed worktree checks mark the audit incomplete,
+so unmatched citations are provisional. Other processes can change files during
+the scan. Read failures exit 1; complete audits exit 0.
+
+`--json FILE` and `--checkpoint-paths FILE` are the only writes: each creates a
+new metadata report outside all
+audited roots, refuses to overwrite any existing path, and does not create
+parent directories. `--json -` emits JSON alone. Reports include exact bytes,
+counts, nanosecond mtimes, classes, citations, totals, and requested dangling
+paths. There is one `os.scandir` visit per directory and no per-file subprocesses.
+Reads may update filesystem access times; inputs are never edited.
+
+Example excerpt (invented paths, timestamps, and numbers):
+
+```text
+CLASS              BYTES      FILES  NEWEST (UTC)               LINK  D  PATH
+PROTECTED      2000000000        120  2026-01-01T00:00:00+00:00  no    0  "build/reference-example"
+CANDIDATE       700000000         40  2026-01-01T00:00:00+00:00  no    0  "build/old-example"
+CITED           100000000          5  2026-01-01T00:00:00+00:00  no    0  "build/receipt-example"
+  cited: "docs/EXAMPLE.md"
+TOTALS (top-level entries only; D > 0 rows are overlapping detail)
+PROTECTED      2000000000 bytes        120 files      1 entries
+IN-USE                 0 bytes          0 files      0 entries
+CITED          100000000 bytes          5 files      1 entries
+CANDIDATE       700000000 bytes         40 files      1 entries
+REPO TOTAL 2800000000 bytes; 165 files
+```
+
+Tests cover metadata, classes, citations, dangling paths, one-pass traversal,
+unchanged inputs, and symlink/report safety. The deliberate-mistake control
+substitutes a scanner that follows symlinks and requires the size test to fail.

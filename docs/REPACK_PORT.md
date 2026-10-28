@@ -76,14 +76,15 @@ to derive changes; a claimed receipt is not proof on its own. Hashes identify
 inputs but do not prove ownership or authorship. No baseline bytes or generated
 assets are included with the tools or a redistributable receipt.
 
-Future input contracts, native Python on arm64 macOS or Linux:
+Future input contracts, native Python on arm64 macOS or Linux. RUN below is an
+output placeholder, not a retained receipt:
 
 ```text
 port-export --original-iso ORIGINAL --modified-iso MODIFIED
-            --out build/repack/port-export/RUN --profile first-level
+            --out build/repack/port-export/<RUN> --profile first-level
 
 port-export --original-iso ORIGINAL --modpack PACK [--modpack PACK ...]
-            --out build/repack/port-export/RUN --profile first-level
+            --out build/repack/port-export/<RUN> --profile first-level
 ```
 
 The two effective-input modes are mutually exclusive. `--original-iso`, one

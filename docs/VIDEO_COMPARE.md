@@ -22,7 +22,7 @@ tool and this document.
 | Piece | Where it runs |
 |---|---|
 | Native port (records and replays) | native arm64 macOS, `../extermination-port` |
-| PCSX2 playback | default since 2026-10-09 (the user's decision to retire v2.6.3): the agent-debug fork (`../pcsx2-fork`, x86_64, Rosetta), hidden, through the fork's own `pcsx2dbg` launcher (`--emulator fork`); until the app is retired, `--emulator legacy`: the MCP-enabled PCSX2 v2.6.3 in `build/startup-reference/PCSX2.app` (x86_64, Rosetta), hidden, through `tools/pcsx2_session.py` |
+| PCSX2 playback | the agent-debug fork (`../pcsx2-fork`, x86_64, Rosetta), hidden, through its `pcsx2dbg` launcher (`--emulator fork`), default since 2026-10-09. The former v2.6.3 app at `build/startup-reference/PCSX2.app` was removed 2026-10-10; the legacy emulator option is retired (see `PCSX2_FORK.md`). |
 | `tools/video_compare/*.py` | native arm64 Python 3; the PCSX2 stage uses the decomp `.venv` (it needs `zstandard`), the compose stage a `python3` with Pillow and numpy. `video_compare.py` picks the interpreter for each stage itself |
 | ffmpeg / ffprobe | Homebrew arm64 (`/opt/homebrew/bin`) |
 
@@ -40,6 +40,11 @@ Nothing else needs Rosetta, and nothing needs the Linux container.
 3. ffmpeg with libx264 and aac (`brew install ffmpeg`).
 
 ## 1. Record a session (you play the native port)
+
+`my_run` and `demo.rec` in the examples are output names to generate locally,
+not retained receipts. The recording block runs in the port checkout, so its
+binary path is relative to the port. Other runs with matching leaf names are
+not replacements for a missing recording.
 
 ```sh
 cd ../extermination-port
@@ -307,7 +312,7 @@ python3 tools/video_compare/video_compare.py compose --native build/video_compar
   9 min, and about 10 s into the level-exit movie E001). Fork 0.2.2
   (`5a3048e8e`) fixed it: the footprint stays flat over 36,000 vsyncs, so
   the switch is safe from 0.2.2 on (`hello.server_version`).
-- **Lock and safety.** pcsx2dbg's `Session` takes `build/.pcsx2.lock` (polled
+- **Lock and safety.** pcsx2dbg's `Session` takes `build/.pcsx2.lock` (transient runtime path, not a retained receipt; polled
   every 3 s: other lanes run short sessions back to back). It launches
   hidden on scratch under `$TMPDIR/pcsx2-fork-vc` (BIOS and ini copies),
   shuts the instance down and deletes the scratch. It never touches
@@ -802,7 +807,7 @@ recorded, 111.5 s), and both videos recomposed from it and the same
   2.70 -> 2.70, others as at f1e589c (4 5.68, 5 3.89, 6 8.59, 8 3.75, 9
   2.96, 11 2.23, 16 2.72, loads 0.00). Segments 10, 12 and 15 are back at
   (or just under) their 0fba64a values.
-- Port captures of the fix (ignored, port `build/overlay_line/`): a
+- Port captures of the fix (ignored, `../extermination-port/build/overlay_line/`): a
   letterbox frame and a subtitle frame of the opening on each field line
   (level smoke ticks 406 / 429, 544 / 567); `check_present_capture.py
   --overlay-ok --bands=32` passes on all four (overlay viewport with the

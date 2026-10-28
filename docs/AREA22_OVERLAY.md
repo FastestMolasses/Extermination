@@ -13,7 +13,7 @@ AREA22 is one of the two stub overlays (with AREA18; docs/OVERLAYS.md
 section 2). Its text holds only the 0x40-byte entry pad and one 0x20-byte
 function followed by zero padding to the end of text. Everything else in
 the file is data. The area overview of the AREA22 arrival capture
-(build/s88_a22, output of the area_overview tool over
+(build/s88_a22, receipt not retained; output of the area_overview tool over
 route_a04/a04_05_progression_exit) finds the sub-0 nest group (0x823600),
 deferred groups (0x8236B0) and placement records (0x823A20) in that data,
 and every behaviour of the 54 live pool nodes there is a boot address, so
@@ -46,7 +46,7 @@ and outside this lane:
   with a KeyError (the stem is not one of `list`'s names). The per-function
   check below uses a scratch copy of the AREA04 lane's section checker with
   the address-symbol pattern widened to the `overlay_AREA22_func_` form.
-- The area overview (build/s88_a22, decomp b95f409) classifies the grouped
+- The area overview (build/s88_a22, receipt not retained; decomp b95f409) classifies the grouped
   function as AI ("nop sled, no code") and lists the init's C file as a
   stray source. The init is C and linked; only the pad is asm.
 
