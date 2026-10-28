@@ -250,17 +250,17 @@ SIZE_DRIFT_FORCE_ASM = {
     "func_0010C2F8",
     "func_0010C360",
     "func_0010C3C8",
-    "func_0011DE90",
-    "func_0011E2A8",
-    "func_00177460",
+    # func_0011DE90 removed (matching wave 2026-10-28): byte-matched from C.
+    # func_0011E2A8 removed (matching wave 2026-10-28): byte-matched from C.
+    # func_00177460 removed (matching wave 2026-10-28): byte-matched from C.
     # func_001796C0 removed 2026-10-20 (decomp lane round 7): byte-matched from
     # C with its same-TU callee func_00179680 as a `// TU_STATIC:` (objdiff
     # 100%, .text 0x1B8 inside the 0x1C0 slot); the compiled object is linked.
-    "func_0019A310",
+    # func_0019A310 removed (matching wave 2026-10-28): byte-matched from C.
     # func_0019ED80 removed (matching wave 2026-10-28): byte-matched from C.
     # func_0019F330 removed (matching wave 2026-10-28): byte-matched from C.
     "func_001A4D10",
-    "func_001B1EA0",
+    # func_001B1EA0 removed (matching wave 2026-10-28): byte-matched from C.
     # anim_clip_init removed: readable C now supplies both float arguments
     # and matches the original212-byte slot; verify actual compiled-C linkage.
     "func_001CF470",

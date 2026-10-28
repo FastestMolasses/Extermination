@@ -1,69 +1,68 @@
-// Hybrid-strict: MMI+lui-literal as .word, jal with extern decls
-extern void func_0011C7B0(int, int, int, int);
-extern void func_0011CCC8(int, int, int, int);
-extern void func_0011D770(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 92.58% NEARMISS
+// companion in src/readable/). Fixes read from the original instructions:
+//  - the routine is newlib's single-precision sinf (sf_sin.c); written in newlib's
+//    own shape: the float word is read with the GET_FLOAT_WORD do { } while (0)
+//    union block, then masked in place (ix &= 0x7fffffff) as its own statement;
+//    the zero tail is a local (float y[2], z = 0.0) passed to the kernel; the
+//    tests are newlib's if / else if / else chain (the finite test spelled
+//    !FLT_UWORD_IS_FINITE), and the quadrant switch keeps newlib's case order
+//    with the last case as default. The old flat early-return form with the
+//    mask folded into the read gave a different register allocation and
+//    branch layout.
+//  - callees match their src definitions: __ieee754_rem_pio2f = func_0011C7B0
+//    (float, float *), __kernel_cosf = func_0011CCC8 (float, float),
+//    __kernel_sinf = func_0011D770 (float, float, int). Plain 2.9 gas; the
+//    2.96 assembler is not needed (both also match).
+//
+// newlib sinf(x): |x| <= pi/4 goes straight to the sine kernel with a zero tail
+// (iy = 0); Inf / NaN give x - x; otherwise __ieee754_rem_pio2f reduces x by
+// pi/2 into y[0] + y[1] and the quadrant n & 3 picks sin, cos, -sin or -cos of
+// the remainder.
+typedef union {
+    float value;
+    int word;
+} ieee_float_shape_type;
 
-asm void func_0011E2A8(void) {
-    mfc1       $v0, $f12
-    addiu      $sp, $sp, -0x20
-    daddu      $a0, $v0, $zero
-    .word 0x3c037fff
-    .word 0x3463ffff
-    .word 0x3c023f49
-    and        $a0, $a0, $v1
-    .word 0x34420fd8
-    slt        $v0, $v0, $a0
-    .word 0x14400006
-    .word 0xffbf0010
-    mtc1       $zero, $f13
-    jal        func_0011D770
-    daddu     $a0, $zero, $zero
-    .word 0x1000002b
-    .word 0xdfbf0010
-    .word 0x3c027f7f
-    .word 0x3442ffff
-    slt        $v0, $v0, $a0
-    .word 0x10400003
-    nop
-    .word 0x10000023
-    sub.s     $f0, $f12, $f12
-    jal        func_0011C7B0
-    daddu     $a0, $sp, $zero
-    andi       $v1, $v0, 0x3
-    addiu      $v0, $zero, 0x1
-    .word 0x10620010
-    slti      $v0, $v1, 0x2
-    .word 0x10400005
-    addiu     $v0, $zero, 0x2
-    .word 0x10600007
-    .word 0xc7ac0000
-    .word 0x10000014
-    nop
-    .word 0x1062000d
-    .word 0xc7ac0000
-    .word 0x10000010
-    nop
-    addiu      $a0, $zero, 0x1
-    jal        func_0011D770
-    .word 0xc7ad0004
-    .word 0x1000000f
-    .word 0xdfbf0010
-    .word 0xc7ac0000
-    jal        func_0011CCC8
-    .word 0xc7ad0004
-    .word 0x1000000a
-    .word 0xdfbf0010
-    addiu      $a0, $zero, 0x1
-    jal        func_0011D770
-    .word 0xc7ad0004
-    .word 0x10000004
-    neg.s     $f0, $f0
-    jal        func_0011CCC8
-    .word 0xc7ad0004
-    neg.s      $f0, $f0
-    .word 0xdfbf0010
-    jr         $ra
-    addiu     $sp, $sp, 0x20
+#define GET_FLOAT_WORD(i, d)            \
+    do {                                \
+        ieee_float_shape_type gf_u;     \
+        gf_u.value = (d);               \
+        (i) = gf_u.word;                \
+    } while (0)
+
+#define FLT_UWORD_IS_FINITE(x) ((x) < 0x7f800000)
+
+#define __ieee754_rem_pio2f func_0011C7B0
+#define __kernel_cosf func_0011CCC8
+#define __kernel_sinf func_0011D770
+
+extern int __ieee754_rem_pio2f(float x, float *y);
+extern float __kernel_cosf(float x, float y);
+extern float __kernel_sinf(float x, float y, int iy);
+
+float func_0011E2A8(float x)
+{
+    float y[2], z = 0.0;
+    int n, ix;
+
+    GET_FLOAT_WORD(ix, x);
+
+    ix &= 0x7fffffff;
+    if (ix <= 0x3f490fd8) return __kernel_sinf(x, z, 0);
+
+    else if (!FLT_UWORD_IS_FINITE(ix)) return x - x;
+
+    else {
+        n = __ieee754_rem_pio2f(x, y);
+        switch (n & 3) {
+        case 0: return  __kernel_sinf(y[0], y[1], 1);
+        case 1: return  __kernel_cosf(y[0], y[1]);
+        case 2: return -__kernel_sinf(y[0], y[1], 1);
+        default:
+                return -__kernel_cosf(y[0], y[1]);
+        }
+    }
 }
-
-// Readable C (NEARMISS companion, objdiff 92.58%): src/readable/func_0011E2A8.c

@@ -1,15 +1,15 @@
-// Writes 1 to the hardware register at 0x10003C10, then 6 to 0x10003C20
-// (the second store sits in the return delay slot).
-asm void func_0011B910(void) {
-    lui $2, 0x1000
-    addiu $4, $zero, 0x1
-    ori $2, $2, 0x3C10
-    lui $3, 0x1000
-    sw $4, 0x0($2)
-    ori $3, $3, 0x3C20
-    addiu $2, $zero, 0x6
-    jr $ra
-    sw $2, 0x0($3)
+// COMPILER: eegcc
+// CFLAGS: -O2
+// EEGCC_AS: 2.96
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an 82.22% NEARMISS
+// companion in src/readable/). Fix read from the original instructions:
+//  - the C was already right; the original was assembled by the 2.96 gas, which
+//    fills the return's delay slot with the last store (// EEGCC_AS: 2.96).
+//
+// SDK: resets VIF1 (VIF1_FBRST, 0x10003C10, = 1) and sets VIF1_ERR
+// (0x10003C20) = 6 (mask the DMAtag-mismatch and VIFcode errors).
+void func_0011B910(void) {
+    *(volatile int *)0x10003C10 = 1;
+    *(volatile int *)0x10003C20 = 6;
 }
-
-// Readable C (NEARMISS companion, objdiff 82.22%): src/readable/func_0011B910.c

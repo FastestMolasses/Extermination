@@ -786,3 +786,27 @@ the index scaled in place; func_001CC1E0 also a `// TU_STATIC:` of its leaf
 callee func_001CBE10); func_001CA3B0 (x and y half angles in fresh locals, z
 halved in place as `z = z / 2.0f`); func_0011D770 (newlib __kernel_sinf in
 newlib's source shape, constants as `#define` literals so no unused .rodata).
+
+
+### Queue batch 39 (2026-10-28)
+
+18 byte-matched; 16 readable companions replaced their asm bodies.
+- newlib / libgcc in their own source shapes (GET_FLOAT_WORD / SET_FLOAT_WORD
+  do/while(0) union blocks, `ix &= 0x7fffffff;` as its own statement, newlib's
+  if / else-if chains and switch order, constants as `#define` float literals so
+  no unused .rodata is left): func_0011DE90 cosf, func_0011E2A8 sinf,
+  func_0011E398 tanf, func_0011CCC8 __kernel_cosf, func_0011C128
+  __ieee754_asinf (newlib's misleading-indent polynomial kept), func_0011DF78
+  fabsf, func_0011CB90 __ieee754_sqrtf, func_001278C0 fp-bit unpack_f
+  (FLO_union_type bit-fields plus the NO_DENORMALS dead branch),
+  func_001205D8 __sfvwrite (no initialisers at declaration; `len` read first).
+- SDK: func_0011B910 / func_0011B5E0 (VIF resets) only needed
+  `// EEGCC_AS: 2.96`; func_00109B20 (callback table typed as a struct, the entry
+  indexed per use); func_00108790 (bit reader: clears and the position store
+  before the byte cursor).
+- Game code: func_00177460 and func_0019A310 by idiom-32 (one relocated extern
+  per scratchpad word via `// SPAD:`; mwcc then reloads x and keeps z as the
+  original does); func_001B1EA0 (indexed vertex reads, if/else next index, far
+  vertex first); func_001EC270 / func_001ECE70 (constant order: scale/unit/eps
+  int locals; 0.1 as `1.0f / (float)tenth_i`).
+Improved companions: func_0021B1B0 99.47, func_001A4830 99.87.

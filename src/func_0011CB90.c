@@ -1,85 +1,103 @@
-// Asm-void leaf, encoded entirely as .word directives — used when
-// expressing the function in source-level C or even labeled asm would
-// be impractical or would force mwcc into non-matching codegen.
-asm void func_0011CB90(void) {
-    .word 0x44026000
-    .word 0x0040282d
-    .word 0x3c037f80
-    .word 0x00a31024
-    .word 0x14430005
-    .word 0x00000000
-    .word 0x460c6002
-    .word 0x03e00008
-    .word 0x460c0000
-    .word 0x00000000
-    .word 0x1ca0000e
-    .word 0x000535c3
-    .word 0x3c027fff
-    .word 0x3442ffff
-    .word 0x00a21024
-    .word 0x10400007
-    .word 0x46006006
-    .word 0x04a10007
-    .word 0x00000000
-    .word 0x460c6001
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x46000003
-    .word 0x03e00008
-    .word 0x00000000
-    .word 0x14c00012
-    .word 0x3c02007f
-    .word 0x3c020080
-    .word 0x00a21024
-    .word 0x1440000b
-    .word 0x0000202d
-    .word 0x24030001
-    .word 0x00052840
-    .word 0x3c020080
-    .word 0x00a21024
-    .word 0x24840001
-    .word 0x00000000
-    .word 0x1040fffa
-    .word 0x00000000
-    .word 0x10000003
-    .word 0x00643023
-    .word 0x24030001
-    .word 0x00643023
-    .word 0x3c02007f
-    .word 0x24c6ff81
-    .word 0x3442ffff
-    .word 0x30c40001
-    .word 0x3c030080
-    .word 0x00a21024
-    .word 0x00063043
-    .word 0x00432825
-    .word 0x00852804
-    .word 0x000645c0
-    .word 0x00052840
-    .word 0x0000382d
-    .word 0x0000202d
-    .word 0x3c060100
-    .word 0x00000000
-    .word 0x00e61821
-    .word 0x00a3102a
-    .word 0x54400005
-    .word 0x00063042
-    .word 0x00a32823
-    .word 0x00663821
-    .word 0x00862021
-    .word 0x00063042
-    .word 0x14c0fff7
-    .word 0x00052840
-    .word 0x10a00002
-    .word 0x30820001
-    .word 0x00822021
-    .word 0x00042043
-    .word 0x3c033f00
-    .word 0x00832821
-    .word 0x00a81021
-    .word 0x44820000
-    .word 0x03e00008
-    .word 0x00000000
-}
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was an 84.29% NEARMISS
+// companion in src/readable/). Fixes read from the original instructions:
+//  - the routine is newlib's __ieee754_sqrtf (ef_sqrtf.c, the fdlibm-derived
+//    version that tests (ix & 0x7f800000) == 0x7f800000 and ix <= 0); written in
+//    newlib's own shape, including the floating rounding-direction probe
+//    (z = one - tiny; if (z >= one) ...), which gcc folds to q += q & 1 at
+//    compile time, and SET_FLOAT_WORD for the result. one, tiny and the sign mask
+//    are #defines: newlib's static consts would leave unused .rodata in the
+//    object (they match the text too, but the original has no table here).
+//
+// sqrtf(x), bit-by-bit restoring method: Inf / NaN give x*x + x; +-0 gives x;
+// negatives give NaN. Denormals are normalised first; the 24-bit root is generated
+// one bit at a time from the mantissa (doubled for an odd exponent), rounded to
+// nearest on the remainder, and the halved exponent put back.
+typedef union {
+    float value;
+    int word;
+} ieee_float_shape_type;
 
-// Readable C (NEARMISS companion, objdiff 84.29%): src/readable/func_0011CB90.c
+#define GET_FLOAT_WORD(i, d)            \
+    do {                                \
+        ieee_float_shape_type gf_u;     \
+        gf_u.value = (d);               \
+        (i) = gf_u.word;                \
+    } while (0)
+
+#define SET_FLOAT_WORD(d, i)            \
+    do {                                \
+        ieee_float_shape_type sf_u;     \
+        sf_u.word = (i);                \
+        (d) = sf_u.value;               \
+    } while (0)
+
+#define one 1.0f
+#define tiny 1.0e-30f
+#define sign ((int)0x80000000)
+
+float func_0011CB90(float x)
+{
+	float z;
+	unsigned int r;
+	int ix,s,q,m,t,i;
+
+	GET_FLOAT_WORD(ix,x);
+
+    /* take care of Inf and NaN */
+	if((ix&0x7f800000)==0x7f800000) {
+	    return x*x+x;		/* sqrt(NaN)=NaN, sqrt(+inf)=+inf
+					   sqrt(-inf)=sNaN */
+	}
+    /* take care of zero */
+	if(ix<=0) {
+	    if((ix&(~sign))==0) return x;/* sqrt(+-0) = +-0 */
+	    else if(ix<0)
+		return (x-x)/(x-x);		/* sqrt(-ve) = sNaN */
+	}
+    /* normalize x */
+	m = (ix>>23);
+	if(m==0) {				/* subnormal x */
+	    for(i=0;(ix&0x00800000)==0;i++) ix<<=1;
+	    m -= i-1;
+	}
+	m -= 127;	/* unbias exponent */
+	ix = (ix&0x007fffff)|0x00800000;
+	if(m&1)	/* odd m, double x to make it even */
+	    ix += ix;
+	m >>= 1;	/* m = [m/2] */
+
+    /* generate sqrt(x) bit by bit */
+	ix += ix;
+	q = s = 0;		/* q = sqrt(x) */
+	r = 0x01000000;		/* r = moving bit from right to left */
+
+	while(r!=0) {
+	    t = s+r;
+	    if(t<=ix) {
+		s    = t+r;
+		ix  -= t;
+		q   += r;
+	    }
+	    ix += ix;
+	    r>>=1;
+	}
+
+    /* use floating add to find out rounding direction */
+	if(ix!=0) {
+	    z = one-tiny; /* trigger inexact flag */
+	    if (z>=one) {
+	        z = one+tiny;
+		if (z>one)
+		    q += 2;
+		else
+		    q += (q&1);
+	    }
+	}
+	ix = (q>>1)+0x3f000000;
+	ix += (m <<23);
+	SET_FLOAT_WORD(z,ix);
+	return z;
+}

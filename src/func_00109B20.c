@@ -1,26 +1,50 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 92.00% NEARMISS).
+// Fixes read from the original instructions:
+//  - the callback table is a struct: a 0xC-byte header followed by an array of
+//    8-byte { handler, data } entries indexed by the event type, and the context
+//    and event are struct pointers. Writing the dispatch as array indexing
+//    (t->ent[cb->type].func / .data, the entry address computed per use) gives
+//    the original's recomputation of the entry address in the call's delay slot
+//    and its register choice (table in a2, result in a3); the old byte-offset
+//    form with one cached entry pointer did not.
+//
+// Movie library (SDK libmpeg): dispatches a callback event. With a context
+// and its callback table (+0x40), the handler for the event's type (cb[0])
+// is called as handler(m, cb, data) with the entry's stored data; returns its
+// result, or 0 when there is no handler.
 
-asm void func_00109B20(void) {
-    .word 0x27bdfff0
-    .word 0x0000382d
-    .word 0x1080000d
-    .word 0xffbf0000
-    .word 0x8c860040
-    .word 0x10c0000b
-    .word 0xdfbf0000
-    .word 0x8ca20000
-    .word 0x000210c0
-    .word 0x00c21821
-    .word 0x8c63000c
-    .word 0x10600005
-    .word 0x00c21021
-    .word 0x0060f809
-    .word 0x8c460010
-    .word 0x0040382d
-    .word 0xdfbf0000
-    .word 0x00e0102d
-    .word 0x03e00008
-    .word 0x27bd0010
+typedef struct {
+    int (*func)();
+    void *data;
+} CbEnt;
+
+typedef struct {
+    int pad[3];
+    CbEnt ent[1];
+} CbTab;
+
+typedef struct {
+    int pad[16];
+    CbTab *cbtab;
+} Ctx;
+
+typedef struct {
+    int type;
+} CbData;
+
+int func_00109B20(Ctx *m, CbData *cb) {
+    int r = 0;
+    CbTab *t;
+    if (m != 0) {
+        t = m->cbtab;
+        if (t != 0) {
+            if (t->ent[cb->type].func != 0) {
+                r = t->ent[cb->type].func(m, cb, t->ent[cb->type].data);
+            }
+        }
+    }
+    return r;
 }
-
-// Readable C (NEARMISS companion, objdiff 72.00%): src/readable/func_00109B20.c

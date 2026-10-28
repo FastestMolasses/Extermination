@@ -1,49 +1,41 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011E748(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
+// SPAD: 0x70003680 0x70003684 0x70003688
 
-asm void func_00177460(void) {
-    .word 0x27bdffd0
-    .word 0x7fbf0020
-    .word 0x7fb00010
-    .word 0xe7b40000
-    .word 0x14a00005
-    .word 0x70808628
-    .word 0x3c0240a0
-    .word 0x4482a000
-    .word 0x10000004
-    .word 0xc60102e0
-    .word 0x3c024100
-    .word 0x4482a000
-    .word 0xc60102e0
-    .word 0xc60000b0
-    .word 0x3c017000
-    .word 0x46000801
-    .word 0xe4203680
-    .word 0xc60102e8
-    .word 0xc60000b8
-    .word 0x3c017000
-    .word 0xc4223680
-    .word 0x46000801
-    .word 0x3c017000
-    .word 0xe4203684
-    .word 0x4602101a
-    .word 0x46000006
-    jal       func_0011E748
-    .word 0x4600031c
-    .word 0x46140036
-    .word 0x3c017000
-    .word 0x45010004
-    .word 0xe4203688
-    .word 0x24020001
-    .word 0x10000002
-    .word 0xa20202f2
-    .word 0xa20002f2
-    .word 0x920202f2
-    .word 0x7bbf0020
-    .word 0xc7b40000
-    .word 0x7bb00010
-    .word 0x03e00008
-    .word 0x27bd0030
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 96.19% NEARMISS).
+// Fixes read from the original instructions:
+//  - The three scratchpad words are relocated externs (idiom-32, opted in with
+//    // SPAD:), one extern per address. Both offsets are stored first and the
+//    squared distance is formed from the scratchpad words themselves; with the
+//    named externs mwcc reloads x, keeps z from its register (the no-op float
+//    move) and places the z store ahead of the multiply-add exactly like the
+//    original. The leash test reads the stored distance back from 0x70003688.
+
+// Is the actor farther than its leash from its anchor? The x / z offsets of
+// the anchor (+0x2E0 / +0x2E8) from the actor position (+0xB0 / +0xB8) go to
+// the scratchpad (0x70003680 / 0x70003684) and the planar distance (sqrtf,
+// func_0011E748) to 0x70003688. The leash is 5.0, or 8.0 when wide is set.
+// The result (1 beyond the leash, else 0) is stored in +0x2F2 and returned.
+extern float D_70003680;
+extern float D_70003684;
+extern float D_70003688;
+extern float func_0011E748(float x);
+
+unsigned char func_00177460(unsigned char *actor, int wide) {
+    float leash;
+
+    if (wide == 0) {
+        leash = 5.0f;
+    } else {
+        leash = 8.0f;
+    }
+    D_70003680 = *(float *)(actor + 0x2E0) - *(float *)(actor + 0xB0);
+    D_70003684 = *(float *)(actor + 0x2E8) - *(float *)(actor + 0xB8);
+    D_70003688 = func_0011E748(D_70003680 * D_70003680 + D_70003684 * D_70003684);
+    if (D_70003688 > leash) {
+        actor[0x2F2] = 1;
+    } else {
+        actor[0x2F2] = 0;
+    }
+    return actor[0x2F2];
 }
-
-// Readable C (NEARMISS companion, objdiff 86.67%): src/readable/func_00177460.c

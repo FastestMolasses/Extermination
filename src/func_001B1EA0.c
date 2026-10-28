@@ -1,172 +1,91 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011E620(int, int, int, int);
+// COMPILER: mwcc233
+// CFLAGS: -O4,p -sdatathreshold 0
 
-asm void func_001B1EA0(void) {
-    .word 0x27bdff90
-    .word 0x7fbf0060
-    .word 0x7fb40050
-    .word 0x7fb30040
-    .word 0x7fb20030
-    .word 0x7fb10020
-    .word 0x7fb00010
-    .word 0x70e09628
-    .word 0xe7b40000
-    .word 0x2a410003
-    .word 0x4480a000
-    .word 0x70a0a628
-    .word 0x10200003
-    .word 0x70c09e28
-    .word 0x1000008d
-    .word 0x70001628
-    .word 0x24020002
-    .word 0x1082004d
-    .word 0x0012082a
-    .word 0x24020001
-    .word 0x10820028
-    .word 0x0012082a
-    .word 0x10800004
-    .word 0x0012082a
-    .word 0x10000065
-    .word 0x00000000
-    .word 0x0012082a
-    .word 0x10200062
-    .word 0x70008628
-    .word 0x72608e28
-    .word 0x2642ffff
-    .word 0x16020004
-    .word 0x26020001
-    .word 0x10000002
-    .word 0x70001628
-    .word 0x26020001
-    .word 0x00021100
-    .word 0x02621021
-    .word 0xc6840000
-    .word 0xc4430000
-    .word 0xc6210000
-    .word 0xc4420008
-    .word 0xc6850008
-    .word 0xc6200008
-    .word 0x460418c1
-    .word 0x46040901
-    .word 0x46051041
-    .word 0x46050001
-    .word 0x4604081a
-    .word 0x46001b1d
-    .word 0x4604181a
-    jal       func_0011E620
-    .word 0x46000b5c
-    .word 0x26100001
-    .word 0x4600a500
-    .word 0x0212102a
-    .word 0x1440ffe5
-    .word 0x26310010
-    .word 0x10000043
-    .word 0x00000000
-    .word 0x0012082a
-    .word 0x10200040
-    .word 0x70008628
-    .word 0x72608e28
-    .word 0x2642ffff
-    .word 0x16020004
-    .word 0x26020001
-    .word 0x10000002
-    .word 0x70001628
-    .word 0x26020001
-    .word 0x00021100
-    .word 0x02621021
-    .word 0xc6840000
-    .word 0xc4430000
-    .word 0xc6210000
-    .word 0xc4420004
-    .word 0xc6850004
-    .word 0xc6200004
-    .word 0x460418c1
-    .word 0x46040901
-    .word 0x46051041
-    .word 0x46050001
-    .word 0x4604081a
-    .word 0x46001b1d
-    .word 0x4604181a
-    jal       func_0011E620
-    .word 0x46000b5c
-    .word 0x26100001
-    .word 0x4600a500
-    .word 0x0212102a
-    .word 0x1440ffe5
-    .word 0x26310010
-    .word 0x10000021
-    .word 0x00000000
-    .word 0x0012082a
-    .word 0x1020001e
-    .word 0x70008628
-    .word 0x72608e28
-    .word 0x2642ffff
-    .word 0x16020004
-    .word 0x26020001
-    .word 0x10000002
-    .word 0x70001628
-    .word 0x26020001
-    .word 0x00021100
-    .word 0x02621021
-    .word 0xc6840004
-    .word 0xc4430004
-    .word 0xc6210004
-    .word 0xc6850008
-    .word 0xc6200008
-    .word 0xc4420008
-    .word 0x460418c1
-    .word 0x46040901
-    .word 0x46050001
-    .word 0x46051041
-    .word 0x4600181a
-    .word 0x46040b1d
-    .word 0x4604181a
-    jal       func_0011E620
-    .word 0x46000b5c
-    .word 0x26100001
-    .word 0x4600a500
-    .word 0x0212102a
-    .word 0x1440ffe5
-    .word 0x26310010
-    .word 0x44800000
-    .word 0x00000000
-    .word 0x4600a034
-    .word 0x00000000
-    .word 0x4500000f
-    .word 0x3c024049
-    .word 0x3c02c049
-    .word 0x34420fdb
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x4600a034
-    .word 0x00000000
-    .word 0x45000004
-    .word 0x70001628
-    .word 0x10000002
-    .word 0x24020001
-    .word 0x70001628
-    .word 0x1000000d
-    .word 0x7bbf0060
-    .word 0x3c024049
-    .word 0x34420fdb
-    .word 0x44820000
-    .word 0x00000000
-    .word 0x4600a036
-    .word 0x00000000
-    .word 0x45010004
-    .word 0x70001628
-    .word 0x10000002
-    .word 0x24020001
-    .word 0x70001628
-    .word 0x7bbf0060
-    .word 0x7bb40050
-    .word 0x7bb30040
-    .word 0x7bb20030
-    .word 0x7bb10020
-    .word 0x7bb00010
-    .word 0xc7b40000
-    .word 0x03e00008
-    .word 0x27bd0070
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 92.91% NEARMISS).
+// Fixes read from the original instructions:
+//  - Vertices are indexed (v[i * 4 + c], v[j * 4 + c]), not walked with a
+//    separate pointer; the compiler's own strength-reduced pointer then lands
+//    in the saved register right after the counter, below the parameters.
+//  - The next-vertex index is an if/else, not a ternary.
+//  - Each edge computes the far vertex's two components first, then the near
+//    vertex's (bx, bz, ax, az), with the temporaries declared in that order;
+//    that fixed the FPU colouring of all three loops.
+
+// Point-in-polygon test by winding angle. v is an array of n vec4 vertices
+// (16 bytes each) and p the query point; the polygon is projected on a
+// coordinate plane chosen by plane: 0 = (x, z), 1 = (x, y), 2 = (y, z).
+// For every edge (v[i], v[i + 1], wrapping to v[0]) the signed angle
+// between the two vertices as seen from p, atan2f(cross, dot)
+// (func_0011E620), is summed. Plane 2 measures the angle the other way round.
+// Returns 1 when |sum| exceeds pi (p inside), 0 otherwise or for fewer than
+// three vertices.
+extern float func_0011E620(float y, float x);
+
+int func_001B1EA0(int plane, float *p, float *v, int n) {
+    float sum = 0.0f;
+    float bx;
+    float bz;
+    float ax;
+    float az;
+    int i;
+    int j;
+
+    if (n < 3) {
+        return 0;
+    }
+    switch (plane) {
+    case 0:
+        for (i = 0; i < n; i++) {
+            if (i == n - 1) {
+                j = 0;
+            } else {
+                j = i + 1;
+            }
+            bx = v[j * 4 + 0] - p[0];
+            bz = v[j * 4 + 2] - p[2];
+            ax = v[i * 4 + 0] - p[0];
+            az = v[i * 4 + 2] - p[2];
+            sum += func_0011E620(bz * ax - bx * az, bx * ax + bz * az);
+        }
+        break;
+    case 1:
+        for (i = 0; i < n; i++) {
+            if (i == n - 1) {
+                j = 0;
+            } else {
+                j = i + 1;
+            }
+            bx = v[j * 4 + 0] - p[0];
+            bz = v[j * 4 + 1] - p[1];
+            ax = v[i * 4 + 0] - p[0];
+            az = v[i * 4 + 1] - p[1];
+            sum += func_0011E620(bz * ax - bx * az, bx * ax + bz * az);
+        }
+        break;
+    case 2:
+        for (i = 0; i < n; i++) {
+            if (i == n - 1) {
+                j = 0;
+            } else {
+                j = i + 1;
+            }
+            bx = v[j * 4 + 1] - p[1];
+            bz = v[j * 4 + 2] - p[2];
+            ax = v[i * 4 + 1] - p[1];
+            az = v[i * 4 + 2] - p[2];
+            sum += func_0011E620(bx * az - bz * ax, bx * ax + bz * az);
+        }
+        break;
+    }
+    if (sum < 0.0f) {
+        if (sum < -3.1415927f) {
+            return 1;
+        } else {
+            return 0;
+        }
+    } else if (sum > 3.1415927f) {
+        return 1;
+    } else {
+        return 0;
+    }
 }
-
-// Readable C (NEARMISS companion, objdiff 92.91%): src/readable/func_001B1EA0.c

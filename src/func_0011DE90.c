@@ -1,67 +1,68 @@
-// All-word: everything as .word except jal/j-external
-extern void func_0011C7B0(int, int, int, int);
-extern void func_0011CCC8(int, int, int, int);
-extern void func_0011D770(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
+//
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 92.33% NEARMISS
+// companion in src/readable/). Fixes read from the original instructions:
+//  - the routine is newlib's single-precision cosf (sf_cos.c); written in newlib's
+//    own shape: the float word is read with the GET_FLOAT_WORD do { } while (0)
+//    union block, then masked in place (ix &= 0x7fffffff) as its own statement;
+//    the zero tail is a local (float y[2], z = 0.0) passed to the kernel; the
+//    tests are newlib's if / else if / else chain (the finite test spelled
+//    !FLT_UWORD_IS_FINITE), and the quadrant switch keeps newlib's case order
+//    with the last case as default. The old flat early-return form with the
+//    mask folded into the read gave a different register allocation and
+//    branch layout.
+//  - callees match their src definitions: __ieee754_rem_pio2f = func_0011C7B0
+//    (float, float *), __kernel_cosf = func_0011CCC8 (float, float),
+//    __kernel_sinf = func_0011D770 (float, float, int). Plain 2.9 gas; the
+//    2.96 assembler is not needed (both also match).
+//
+// newlib cosf(x): |x| <= pi/4 goes straight to the cosine kernel with a zero tail;
+// Inf / NaN give x - x; otherwise __ieee754_rem_pio2f reduces x by pi/2 into
+// y[0] + y[1] and the quadrant n & 3 picks cos, -sin, -cos or sin of the
+// remainder.
+typedef union {
+    float value;
+    int word;
+} ieee_float_shape_type;
 
-asm void func_0011DE90(void) {
-    .word 0x44026000
-    .word 0x27bdffe0
-    .word 0x0040202d
-    .word 0x3c037fff
-    .word 0x3463ffff
-    .word 0x3c023f49
-    .word 0x00832024
-    .word 0x34420fd8
-    .word 0x0044102a
-    .word 0x14400006
-    .word 0xffbf0010
-    .word 0x44806800
-    jal       func_0011CCC8
-    .word 0x00000000
-    .word 0x10000029
-    .word 0xdfbf0010
-    .word 0x3c027f7f
-    .word 0x3442ffff
-    .word 0x0044102a
-    .word 0x10400003
-    .word 0x00000000
-    .word 0x10000021
-    .word 0x460c6001
-    jal       func_0011C7B0
-    .word 0x03a0202d
-    .word 0x30430003
-    .word 0x24020001
-    .word 0x1062000f
-    .word 0x28620002
-    .word 0x10400005
-    .word 0x24020002
-    .word 0x10600007
-    .word 0xc7ac0000
-    .word 0x10000013
-    .word 0x24040001
-    .word 0x1062000d
-    .word 0xc7ac0000
-    .word 0x1000000f
-    .word 0x24040001
-    jal       func_0011CCC8
-    .word 0xc7ad0004
-    .word 0x1000000e
-    .word 0xdfbf0010
-    .word 0xc7ac0000
-    .word 0x24040001
-    jal       func_0011D770
-    .word 0xc7ad0004
-    .word 0x10000007
-    .word 0x46000007
-    jal       func_0011CCC8
-    .word 0xc7ad0004
-    .word 0x10000003
-    .word 0x46000007
-    jal       func_0011D770
-    .word 0xc7ad0004
-    .word 0xdfbf0010
-    .word 0x03e00008
-    .word 0x27bd0020
+#define GET_FLOAT_WORD(i, d)            \
+    do {                                \
+        ieee_float_shape_type gf_u;     \
+        gf_u.value = (d);               \
+        (i) = gf_u.word;                \
+    } while (0)
+
+#define FLT_UWORD_IS_FINITE(x) ((x) < 0x7f800000)
+
+#define __ieee754_rem_pio2f func_0011C7B0
+#define __kernel_cosf func_0011CCC8
+#define __kernel_sinf func_0011D770
+
+extern int __ieee754_rem_pio2f(float x, float *y);
+extern float __kernel_cosf(float x, float y);
+extern float __kernel_sinf(float x, float y, int iy);
+
+float func_0011DE90(float x)
+{
+    float y[2], z = 0.0;
+    int n, ix;
+
+    GET_FLOAT_WORD(ix, x);
+
+    ix &= 0x7fffffff;
+    if (ix <= 0x3f490fd8) return __kernel_cosf(x, z);
+
+    else if (!FLT_UWORD_IS_FINITE(ix)) return x - x;
+
+    else {
+        n = __ieee754_rem_pio2f(x, y);
+        switch (n & 3) {
+        case 0: return  __kernel_cosf(y[0], y[1]);
+        case 1: return -__kernel_sinf(y[0], y[1], 1);
+        case 2: return -__kernel_cosf(y[0], y[1]);
+        default:
+                return  __kernel_sinf(y[0], y[1], 1);
+        }
+    }
 }
-
-// Readable C (NEARMISS companion, objdiff 92.33%): src/readable/func_0011DE90.c

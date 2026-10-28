@@ -1,256 +1,178 @@
-// All-word: everything as .word except jal/j-external (for R_MIPS_26 relocs)
-extern void func_0011FD88(int, int, int, int);
-extern void func_001216F8(int, int, int, int);
-extern void func_00121920(int, int, int, int);
-extern void func_00124F58(int, int, int, int);
+// COMPILER: eegcc
+// CFLAGS: -O2
 
-asm void func_001205D8(void) {
-    .word 0x27bdff70
-    .word 0xffb60060
-    .word 0xffb10010
-    .word 0x00a0b02d
-    .word 0xffbf0080
-    .word 0xffb70070
-    .word 0xffb50050
-    .word 0xffb40040
-    .word 0xffb30030
-    .word 0xffb00000
-    .word 0xffb20020
-    .word 0x8ed20008
-    .word 0x124000d8
-    .word 0x0080882d
-    .word 0x9623000c
-    .word 0x30620008
-    .word 0x10400004
-    .word 0x00000000
-    .word 0x8e220010
-    .word 0x54400007
-    .word 0x8ed40000
-    jal       func_00124F58
-    .word 0x0220202d
-    .word 0x144000d3
-    .word 0x2402ffff
-    .word 0x9623000c
-    .word 0x8ed40000
-    .word 0x30620002
-    .word 0x1040001e
-    .word 0x0000902d
-    .word 0x24150400
-    .word 0x00000000
-    .word 0x1640000a
-    .word 0x8e230024
-    .word 0x8e930000
-    .word 0x8e920004
-    .word 0x26940008
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x1240fffa
-    .word 0x00000000
-    .word 0x10000002
-    .word 0x2e420401
-    .word 0x2e420401
-    .word 0x8e24001c
-    .word 0x02a0302d
-    .word 0x0260282d
-    .word 0x0060f809
-    .word 0x0242300b
-    .word 0x0040802d
-    .word 0x1a0000b4
-    .word 0x02709821
-    .word 0x8ec20008
-    .word 0x02509023
-    .word 0x00501023
-    .word 0x1440ffe8
-    .word 0xaec20008
-    .word 0x100000b1
-    .word 0x0000102d
-    .word 0x30620001
-    .word 0x14400053
-    .word 0x0000b82d
-    .word 0x10000002
-    .word 0x00000000
-    .word 0x9623000c
-    .word 0x1640000b
-    .word 0x8e220008
-    .word 0x00000000
-    .word 0x8e930000
-    .word 0x8e920004
-    .word 0x26940008
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x1240fffa
-    .word 0x00000000
-    .word 0x10000002
-    .word 0x0040802d
-    .word 0x0040802d
-    .word 0x30620200
-    .word 0x1040000e
-    .word 0x0250102b
-    .word 0x8e240000
-    .word 0x0242800b
-    .word 0x0260282d
-    jal       func_00121920
-    .word 0x0200302d
-    .word 0x8e230008
-    .word 0x8e220000
-    .word 0x00701823
-    .word 0x00501021
-    .word 0xae230008
-    .word 0xae220000
-    .word 0x1000002b
-    .word 0x0240802d
-    .word 0x8e240000
-    .word 0x8e220010
-    .word 0x0044102b
-    .word 0x1040000e
-    .word 0x0212102b
-    .word 0x1040000c
-    .word 0x0260282d
-    jal       func_00121920
-    .word 0x0200302d
-    .word 0x8e230000
-    .word 0x0220202d
-    .word 0x00701821
-    jal       func_0011FD88
-    .word 0xae230000
-    .word 0x5440007b
-    .word 0x9623000c
-    .word 0x1000001a
-    .word 0x8ec20008
-    .word 0x8e300014
-    .word 0x0250102b
-    .word 0x5440000b
-    .word 0x0240802d
-    .word 0x8e220024
-    .word 0x0200302d
-    .word 0x8e24001c
-    .word 0x0040f809
-    .word 0x0260282d
-    .word 0x0040802d
-    .word 0x5a00006d
-    .word 0x9623000c
-    .word 0x1000000c
-    .word 0x8ec20008
-    .word 0x8e240000
-    .word 0x0260282d
-    jal       func_00121920
-    .word 0x0200302d
-    .word 0x8e230008
-    .word 0x8e220000
-    .word 0x00701823
-    .word 0x00501021
-    .word 0xae230008
-    .word 0xae220000
-    .word 0x8ec20008
-    .word 0x02709821
-    .word 0x02509023
-    .word 0x00501023
-    .word 0x1440ffb3
-    .word 0xaec20008
-    .word 0x1000005c
-    .word 0x0000102d
-    .word 0x1640000a
-    .word 0x00000000
-    .word 0x0000b82d
-    .word 0x00000000
-    .word 0x8e930000
-    .word 0x8e920004
-    .word 0x26940008
-    .word 0x00000000
-    .word 0x00000000
-    .word 0x1240fffa
-    .word 0x00000000
-    .word 0x56e0000d
-    .word 0x8e260014
-    .word 0x0260202d
-    .word 0x2405000a
-    jal       func_001216F8
-    .word 0x0240302d
-    .word 0x0040182d
-    .word 0x10600003
-    .word 0x2662ffff
-    .word 0x10000002
-    .word 0x0062a823
-    .word 0x26550001
-    .word 0x24170001
-    .word 0x8e260014
-    .word 0x0255102b
-    .word 0x8e240008
-    .word 0x0240282d
-    .word 0x8e270000
-    .word 0x00c0402d
-    .word 0x8e230010
-    .word 0x02a2280a
-    .word 0x0067182b
-    .word 0x10600010
-    .word 0x00868021
-    .word 0x0205102a
-    .word 0x1040000d
-    .word 0x00e0202d
-    .word 0x0260282d
-    jal       func_00121920
-    .word 0x0200302d
-    .word 0x8e230000
-    .word 0x0220202d
-    .word 0x00701821
-    jal       func_0011FD88
-    .word 0xae230000
-    .word 0x14400028
-    .word 0x02b0a823
-    .word 0x10000018
-    .word 0x00000000
-    .word 0x00a8102a
-    .word 0x1440000a
-    .word 0x00a0802d
-    .word 0x8e220024
-    .word 0x0260282d
-    .word 0x0040f809
-    .word 0x8e24001c
-    .word 0x0040802d
-    .word 0x1a00001c
-    .word 0x02b0a823
-    .word 0x1000000c
-    .word 0x00000000
-    .word 0x8e240000
-    .word 0x0260282d
-    jal       func_00121920
-    .word 0x0200302d
-    .word 0x8e230008
-    .word 0x8e220000
-    .word 0x00701823
-    .word 0x00501021
-    .word 0xae230008
-    .word 0xae220000
-    .word 0x02b0a823
-    .word 0x56a00006
-    .word 0x8ec20008
-    jal       func_0011FD88
-    .word 0x0220202d
-    .word 0x14400009
-    .word 0x0000b82d
-    .word 0x8ec20008
-    .word 0x02709821
-    .word 0x02509023
-    .word 0x00501023
-    .word 0x1440ffac
-    .word 0xaec20008
-    .word 0x10000005
-    .word 0x0000102d
-    .word 0x9623000c
-    .word 0x2402ffff
-    .word 0x34630040
-    .word 0xa623000c
-    .word 0xdfbf0080
-    .word 0xdfb70070
-    .word 0xdfb60060
-    .word 0xdfb50050
-    .word 0xdfb40040
-    .word 0xdfb30030
-    .word 0xdfb20020
-    .word 0xdfb10010
-    .word 0xdfb00000
-    .word 0x03e00008
-    .word 0x27bd0090
+// Byte-matched (objdiff 100%), matching wave 2026-10-28 (was a 96.21% NEARMISS).
+// Fixes read from the original instructions:
+//  - The function is newlib's __sfvwrite written in newlib's own shape: the
+//    residual is first read into len (`if ((len = uio->resid) == 0)`), and len
+//    is reset to 0 after the iov pointer is fetched; p, len and nldist carry no
+//    initialisers. The old C initialised p, len and nldist at declaration,
+//    which gave ee-gcc three extra live values and moved every register of the
+//    three write loops.
+//  - The unbuffered chunk is MIN(len, BUFSIZ) spelled as `len < 1024 ? len : 1024`,
+//    and the comparisons against w are the plain size_t/int ones of the
+//    original source (no casts).
+
+// libc (newlib stdio): __sfvwrite, writes a gather list (uio: iov array +0,
+// count +4, residual bytes +8) to a FILE (fields: p +0, r +4, w +8, flags
+// +0xC, buffer base +0x10, buffer size +0x14, cookie +0x1C, write hook
+// +0x24). Nothing to write returns 0. A stream that cannot be written
+// (func_00124F58, the write set-up, fails when flag 0x8 or the buffer is
+// missing) returns -1.
+//  Unbuffered (flag 0x2): each iov goes straight to the write hook in
+//    pieces of at most 1024 bytes.
+//  Fully buffered: a string stream (flag 0x200) copies what fits; otherwise
+//    a partly full buffer is topped up and flushed (func_0011FD88), a
+//    request smaller than the buffer is copied in, and anything larger is
+//    written directly.
+//  Line buffered (flag 0x1): each iov is cut at its next newline
+//    (func_001216F8 memchr) and flushed after the line ends.
+// Any write error sets the error flag 0x40 and returns -1; 0 when all of
+// the residual has been written. func_00121920 is memmove.
+typedef struct Iov {
+    char *base;
+    unsigned int len;
+} Iov;
+
+typedef struct Uio {
+    Iov *iov;
+    int count;
+    int resid;
+} Uio;
+
+typedef struct File {
+    char *p;
+    int r;
+    int w;
+    unsigned short flags;
+    short file;
+    char *base;
+    int size;
+    int lbfsize;
+    void *cookie;
+    int (*read)(void *, char *, int);
+    int (*write)(void *, const char *, int);
+} File;
+
+extern int func_00124F58(File *fp);
+extern int func_0011FD88(File *fp);
+extern void *func_001216F8(const void *s, int c, unsigned int n);
+extern void *func_00121920(void *dst, const void *src, unsigned int n);
+
+int func_001205D8(File *fp, Uio *uio) {
+    unsigned int len;
+    char *p;
+    Iov *iov;
+    int w;
+    int s;
+    char *nl;
+    int nlknown;
+    int nldist;
+
+    if ((len = uio->resid) == 0) {
+        return 0;
+    }
+    if ((!(fp->flags & 8) || fp->base == 0) && func_00124F58(fp)) {
+        return -1;
+    }
+    iov = uio->iov;
+    len = 0;
+    if (fp->flags & 2) {
+        do {
+            while (len == 0) {
+                p = iov->base;
+                len = iov->len;
+                iov++;
+            }
+            w = fp->write(fp->cookie, p, len < 1024 ? len : 1024);
+            if (w <= 0) {
+                goto err;
+            }
+            p += w;
+            len -= w;
+        } while ((uio->resid -= w) != 0);
+    } else if ((fp->flags & 1) == 0) {
+        do {
+            while (len == 0) {
+                p = iov->base;
+                len = iov->len;
+                iov++;
+            }
+            w = fp->w;
+            if (fp->flags & 0x200) {
+                if (len < w) {
+                    w = len;
+                }
+                func_00121920(fp->p, p, w);
+                fp->w -= w;
+                fp->p += w;
+                w = len;
+            } else if (fp->p > fp->base && len > w) {
+                func_00121920(fp->p, p, w);
+                fp->p += w;
+                if (func_0011FD88(fp)) {
+                    goto err;
+                }
+            } else if (len >= (w = fp->size)) {
+                w = fp->write(fp->cookie, p, w);
+                if (w <= 0) {
+                    goto err;
+                }
+            } else {
+                w = len;
+                func_00121920(fp->p, p, w);
+                fp->w -= w;
+                fp->p += w;
+            }
+            p += w;
+            len -= w;
+        } while ((uio->resid -= w) != 0);
+    } else {
+        nlknown = 0;
+        do {
+            while (len == 0) {
+                nlknown = 0;
+                p = iov->base;
+                len = iov->len;
+                iov++;
+            }
+            if (!nlknown) {
+                nl = func_001216F8(p, '\n', len);
+                nldist = nl ? nl + 1 - p : len + 1;
+                nlknown = 1;
+            }
+            s = len < nldist ? len : nldist;
+            w = fp->w + fp->size;
+            if (fp->p > fp->base && s > w) {
+                func_00121920(fp->p, p, w);
+                fp->p += w;
+                if (func_0011FD88(fp)) {
+                    goto err;
+                }
+            } else if (s >= (w = fp->size)) {
+                w = fp->write(fp->cookie, p, w);
+                if (w <= 0) {
+                    goto err;
+                }
+            } else {
+                w = s;
+                func_00121920(fp->p, p, w);
+                fp->w -= w;
+                fp->p += w;
+            }
+            if ((nldist -= w) == 0) {
+                if (func_0011FD88(fp)) {
+                    goto err;
+                }
+                nlknown = 0;
+            }
+            p += w;
+            len -= w;
+        } while ((uio->resid -= w) != 0);
+    }
+    return 0;
+
+err:
+    fp->flags |= 0x40;
+    return -1;
 }
-
-// Readable C (NEARMISS companion, objdiff 96.21%): src/readable/func_001205D8.c

@@ -1,9 +1,14 @@
 // NEARMISS func_0021B1B0  (vram 0x0021B1B0, 0x344 bytes) — readable companion C, NOT byte-identical.
 //
-// objdiff 95.22% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own. Object
-// similarity does not prove semantic equivalence. Remaining differences:
-// Register allocation of the LCG step (the original keeps next / k / brightness in s1 / s3 / s2)
-// and FPU temporaries; the arithmetic order matches.
+// objdiff 99.47% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) when compiled on its own
+// (was 95.22%; matching wave 2026-10-28: the noise is scaled by 1280 before the segment x is set,
+// and the brightness strength is multiplied into d before the 255 scale). Object similarity does
+// not prove semantic equivalence. Remaining differences:
+// Integer temporaries of the LCG blend only: the original keeps the loop-invariant 5 and the seed
+// in a2 / a3 (sum and quotient stay in a2) where mwcc picks a0 / a1 and v1 / v0. Saved registers,
+// FPU registers and instruction order match. Declaration order, unsigned / signed types, split
+// locals, compound steps, an inline helper, loop form, 991202 / mwcc24 and a 9-minute permuter
+// run (6300 iterations, no gain) measured.
 //
 // The function links from the asm body in src/func_0021B1B0.c (kept by the user's asm-bodies decision
 // and so that matched_code does not drop); this companion is the readable ground truth and is
@@ -75,7 +80,8 @@ void func_0021B1B0(char *e) {
         if (d < 0.1f) {
             d = 0.0f;
         }
-        b = float_to_int(255.0f * (d * *(float *)(e + 8)));
+        d *= *(float *)(e + 8);
+        b = float_to_int(255.0f * d);
         w = (0.5f - func_0011DF78(0.5f - t)) / 0.5f;
         w = w * w;
         w = w * w;
@@ -84,8 +90,8 @@ void func_0021B1B0(char *e) {
         if (!(i & 0x3F)) {
             w += 0.2f;
         }
-        p1.x = (i + 0x700) * 16;
         fv *= 1280.0f;
+        p1.x = (i + 0x700) * 16;
         fv *= w;
         p1.y = float_to_int((float)*(int *)(e + 0x18) + fv);
         p1.z = 0xFFFFFF;
