@@ -60,7 +60,16 @@ that is a different, stale tree.
   the relocation-order normaliser). Batch 44 also reconciled 82 files' callee
   signatures with how the original calls them (every file re-measured, scores
   unchanged; a few kept for matching are commented in place).
-  What is left (185 NEARMISS in src/, 53 companions in src/readable/):
+  What is left (182 NEARMISS in src/, 37 companions in src/readable/, 82 asm
+  bodies with no C form). The 240 asm-only functions were all worked on
+  2026-10-28 (MATCHING_GUIDE "Queue batch 49"-"Queue batch 52"): 169
+  byte-matched, 18 NEARMISS, 34 with no C form, 12 data or padding (the data
+  entries func_0025F0D4..func_0025F144 and func_00243BA8 are still typed as
+  functions in config; reclassify them in a careful split change). A second
+  port audit (port main 13c8b46) covered the 60 port-referenced ones: one fix
+  (level-14 reach test 001AA2A0); three live-path fail-stop stubs now have
+  byte-matched C to translate from: 00178390 (ledge grab check),
+  001837B0 (0015B530 state 1), 001A99E0 (carry on a spinning object).
   - VU0 class (user approval 2026-10-28: inline VU0 macro asm, one instruction
     per asm statement, MATCHING_GUIDE "Queue batch 45"-"Queue batch 48"): 30
     matched (14 libvu0 helpers, 16 game functions); about 30 near-misses now at
