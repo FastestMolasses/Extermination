@@ -1,8 +1,10 @@
 // NEARMISS func_001EEEB0  (vram 0x001EEEB0, 0x30C bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 97.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Identical residual class to its twin func_001EEBA0 (NOT the clean-store nop): middle-iteration float-constant-load scheduling permutation + FP-register-coloring (ft0/ft1 vs fv0/fv1) in the trailing clamp, plus cosmetic data-symbol granularity in the header float-block stores. Body/structure 100% ...
+// objdiff 98.88% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 4). The LOGIC and STRUCTURE are faithful.
+// Matching wave 2026-10-27 (was 97.91%): the easing tail is a compound `*p += (0.02f - *p) / 8.0f`
+// through one float pointer (family fix from func_001EF780/func_001EF1C0); init blocks declared volatile like func_001EF1C0.
+// Remaining differences: setup order of the 1.0f / 1e-6f / 10.0f constant arguments before the
+// func_001CFB50 calls (family-wide; looks like a compiler-version difference).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -28,8 +30,8 @@
 // D_00275C34+8 toward 0.02 by 1/8 each call, then floors it up to 0.02.
 extern int *D_00275C34;
 extern int D_0081F8F0[2];
-extern float D_00257530[8];
-extern float D_00257650[8];
+extern volatile float D_00257530[8];
+extern volatile float D_00257650[8];
 extern int D_00257510[2];
 extern int D_00257900[2];
 extern int D_00257630[2];
@@ -89,14 +91,12 @@ void func_001EEEB0(int arg0, int arg1) {
     func_001CFBE0(arg1, 1, D_00257630, D_0081F8F0, 1);
 
     {
-        float v;
-        v = *(float *)((char *)D_00275C34 + 8);
-        v += (0.02f - v) / 8.0f;
-        *(float *)((char *)D_00275C34 + 8) = v;
-        v = *(float *)((char *)D_00275C34 + 8);
-        if (v < 0.02f) {
-            v = 0.02f;
-        }
-        *(float *)((char *)D_00275C34 + 8) = v;
+        float *p = (float *)((char *)D_00275C34 + 8);
+        *p += (0.02f - *p) / 8.0f;
     }
+    f = *(float *)((char *)D_00275C34 + 8);
+    if (f < 0.02f) {
+        f = 0.02f;
+    }
+    *(float *)((char *)D_00275C34 + 8) = f;
 }

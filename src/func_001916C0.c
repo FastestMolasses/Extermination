@@ -1,8 +1,8 @@
 // NEARMISS func_001916C0  (vram 0x001916C0, 0x674 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 98.80% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// 98.80% / 409 vs 409 instructions, identical instruction multiset, ZERO logic or control-flow differences. Two residual sites, both pure post-RA scheduling: (1) at 0x1917DC the -20/-10 clamp-limit if/else merge: target emits `b .L001917EC` + `nop`, mwcc 2.3.3 tail-duplicates the merge block's `lui...
+// objdiff 99.31% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0) (was 98.80%). The LOGIC and STRUCTURE are faithful; the residual
+// diff is one scheduling site that no source change tried so far fixes:
+// 409 vs 409 instructions, identical instruction multiset. Fixed matching wave 2026-10-27: the computed-yaw scratchpad word 0x70003A20 is the relocated extern D_70003A20 (idiom-32), which stops mwcc pulling its upper half into the -20/-10 clamp-limit merge branch slot. Remaining differences: in case 10/25 (mode 0 height call) the original materialises the 4.0f argument first and the first-argument address before the first add, while mwcc emits the same instructions in the order of the textually identical case 29-36 block; tried operand order/parentheses, block-local and function-level temporaries, int-to-float constant (idiom-24), double literal, pointer spellings, switch on arg2, and a 560 s 2-job 2.3.3 permuter run (no improvement on 375).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -42,6 +42,7 @@ extern char D_008105E0[];
 extern float D_008105E4;
 extern float D_00810690;
 extern char D_700038B0[];
+extern float D_70003A20;
 
 void func_001916C0(char *arg0, char *arg1, int arg2) {
     int mode;
@@ -72,32 +73,32 @@ void func_001916C0(char *arg0, char *arg1, int arg2) {
         }
         if (arg2 == 2) {
             func_001028D0(D_700038B0, arg0 + 0x20, arg0 + 0x10);
-            *(float *)0x70003A20 = func_0011E748(*(float *)0x700038B0 * *(float *)0x700038B0 +
+            D_70003A20 = func_0011E748(*(float *)0x700038B0 * *(float *)0x700038B0 +
                                                  *(float *)0x700038B8 * *(float *)0x700038B8);
         } else {
-            *(float *)0x70003A20 = D_00810690 - func_0011DF78(*(float *)(arg0 + 0xC));
+            D_70003A20 = D_00810690 - func_0011DF78(*(float *)(arg0 + 0xC));
         }
         if (*(float *)(arg0 + 0x64) == -46.8f) {
             lim = -20.0f;
         } else {
             lim = -10.0f;
         }
-        t = *(float *)0x70003A20;
+        t = D_70003A20;
         if (t < lim) {
             u = lim + (lim - t);
-            *(float *)0x70003A20 = u;
+            D_70003A20 = u;
             if (!(u <= -7.0f)) {
-                *(float *)0x70003A20 = -7.0f;
+                D_70003A20 = -7.0f;
             }
         }
         if (arg2 == 0) {
             func_0018C4B0(arg0 + 0x20,
                           11.0f + (*(float *)(arg1 + 0xA4) + *(float *)(arg0 + 0x8C) +
-                                   0.3f * *(float *)0x70003A20),
+                                   0.3f * D_70003A20),
                           4.0f);
         } else if (arg2 == 2) {
             *(float *)(arg0 + 0x24) = 11.0f + (*(float *)(arg1 + 0xA4) + *(float *)(arg0 + 0x8C) +
-                                               0.3f * *(float *)0x70003A20);
+                                               0.3f * D_70003A20);
         }
         break;
     case 10:

@@ -1,16 +1,15 @@
-// NEARMISS func_00197870  (vram 0x00197870, 0x4A4 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 93.91% via mwcc 2.3.3 (mwcps2-2.3.3-000906) (-O4,p -sdatathreshold 0). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// Body/structure fully recovered (two-exit float-clamp shape via the bc1t-jump-into-body idiom applied twice; correct arg counts and D_00275670-style reload conventions). Sole remaining residuals: (1) one idiom-13 genuine clean-constant-store delay-slot nop (target leaves nop before a lui/sw pair I...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: mwcc233
 // CFLAGS: -O4,p -sdatathreshold 0
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 93.91% NEARMISS).
+// Fixes read from the original instructions:
+// - The scratch hover-offset word at 0x70003604 is a relocated extern
+//   (D_70003604), not a literal address; with the literal, mwcc filled the
+//   -25 clamp branch's delay slot with the store's address setup.
+// - torso_done is set in both arms (if / else), not initialised before the if.
+// - The final range test checks "+0x54 above the threshold" first (clamp
+//   +0x14 up to it); the else arm re-seeds the scratch matrix and snaps the
+//   torso, as the original's branch order shows.
 //
 // Per-tick move/aim update for an actor (arg0, "self") driven by a target
 // context (arg1). Seeds scratch quat/matrix D_7000... buffers, blends the
@@ -42,6 +41,7 @@ extern char D_70003A10[];
 extern float D_008105D0;
 extern float D_008105E0;
 extern char D_70003B50[];
+extern float D_70003604;
 
 void func_00197870(char *arg0, char *arg1, int arg2) {
     char *row;
@@ -63,19 +63,19 @@ void func_00197870(char *arg0, char *arg1, int arg2) {
     func_001029C0(D_70003400);
     func_00102C58(D_70003400, D_70003400, D_70003B50);
     *(int *)0x70003600 = 0;
-    *(float *)0x70003604 = 0.0f;
+    D_70003604 = 0.0f;
     *(float *)0x70003608 = -30.0f;
     *(float *)0x7000360C = 1.0f;
     func_001031E0(D_70003430, D_70003A10);
     func_001026A0(arg0 + 0x10, D_70003400, D_70003600);
     func_00103230(D_70003600, row + 0xC0, -30.0f);
-    *(float *)(arg0 + 0x14) = 19.0f + (*(float *)0x70003604 + *(float *)0x70003A14);
+    *(float *)(arg0 + 0x14) = 19.0f + (D_70003604 + *(float *)0x70003A14);
 
-    if (*(float *)0x70003604 < -22.0f) {
-        if (*(float *)0x70003604 < -25.0f) {
-            *(float *)0x70003604 = -25.0f;
+    if (D_70003604 < -22.0f) {
+        if (D_70003604 < -25.0f) {
+            D_70003604 = -25.0f;
         }
-        f20 = 22.0f + *(float *)0x70003604;
+        f20 = 22.0f + D_70003604;
     } else {
         f20 = 0.0f;
     }
@@ -98,22 +98,25 @@ void func_00197870(char *arg0, char *arg1, int arg2) {
     }
     func_0018D7B0(arg0, 2);
 
-    torso_done = 0;
     if (arg2 != 0) {
         func_00102948(&D_008105D0, arg0 + 0x10);
         torso_done = 1;
+    } else {
+        torso_done = 0;
     }
 
     func_001028D0(D_70003630, arg0 + 0x10, D_70003A10);
-    if (!(func_0011E748(*(float *)0x70003630 * *(float *)0x70003630 +
-                         *(float *)0x70003638 * *(float *)0x70003638) < 7.0f)) {
-        /* out of dot-product range: nothing to do */
-    } else if (*(float *)(arg0 + 0x54) <= 18.0f + *(float *)0x70003A14 + f20) {
-        if (*(float *)(arg0 + 0x14) < 18.0f + *(float *)0x70003A14 + f20) {
+    if (func_0011E748(*(float *)0x70003630 * *(float *)0x70003630 +
+                      *(float *)0x70003638 * *(float *)0x70003638) < 7.0f) {
+        if (*(float *)(arg0 + 0x54) > 18.0f + *(float *)0x70003A14 + f20) {
+            if (*(float *)(arg0 + 0x14) < 18.0f + *(float *)0x70003A14 + f20) {
+                *(float *)(arg0 + 0x14) = 18.0f + *(float *)0x70003A14 + f20;
+            }
+        } else if (*(float *)(arg0 + 0x14) < 18.0f + *(float *)0x70003A14 + f20) {
             func_001029C0(D_70003400);
             func_00102C58(D_70003400, D_70003400, D_70003B50);
             *(int *)0x70003600 = 0;
-            *(int *)0x70003604 = 0;
+            D_70003604 = 0.0f;
             *(float *)0x70003608 = 5.0f;
             *(float *)0x7000360C = 1.0f;
             func_001031E0(D_70003430, D_70003A10);
@@ -123,8 +126,6 @@ void func_00197870(char *arg0, char *arg1, int arg2) {
             func_00102948(&D_008105D0, arg0 + 0x10);
             torso_done = 1;
         }
-    } else if (*(float *)(arg0 + 0x14) < 18.0f + *(float *)0x70003A14 + f20) {
-        *(float *)(arg0 + 0x14) = 18.0f + *(float *)0x70003A14 + f20;
     }
 
     if (torso_done == 0) {

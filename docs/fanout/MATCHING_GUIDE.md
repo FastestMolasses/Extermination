@@ -227,3 +227,17 @@ set up the second constant first. With func_0016F600, func_001916C0,
 func_0018BC20 and the func_001CFB50 / func_001CFAE0 callers (about 30
 functions) parked on this, the class is probably a compiler-version
 difference (the original's 2.3.1.01), not a source spelling.
+
+### Queue batch 8 (2026-10-27)
+
+5 byte-matched: func_00111680 (ee-gcc: one RPC word volatile, reloaded at
+each use) and the new file func_00111740 (the thread creator, split out of
+func_00111680's old C after splat named it; written from its target: a
+result local with one return, ThreadParam-shaped struct fields filled
+stackSize / gpReg / func / stack / initPriority), func_0017C860 (a Vec4
+struct scratch vector; storing a difference to a scratch extern and reading
+it back reproduces an FP self-move), func_00197870 (the final range test's
+arms were swapped), func_001181B0 (ee-gcc: table fields read as `T[i].f`,
+not through a cached element pointer). Improved and parked: func_001916C0
+99.31, sub_Invalid_macroblock_type_code_0 99.39, func_001EEEB0 98.88. The
+first of the 57 functions with no C file at all is now decompiled.

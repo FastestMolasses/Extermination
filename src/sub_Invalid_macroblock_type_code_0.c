@@ -1,8 +1,14 @@
 // NEARMISS sub_Invalid_macroblock_type_code_0  (vram 0xnvalid_macroblock_type_code_0, 0x524 bytes) — readable decompilation, NOT byte-identical.
 //
-// objdiff 94.02% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// eegcc GPR-coloring wall + one spill-reload/delay-slot divergence. The instruction sequence is otherwise identical end-to-end (both hardware-register RMWs, all four callee dispatches, the GIF/DMA channel setup, the field-clear blocks and the whole return tail). Residual is (a) a pure callee-saved ...
+// objdiff 99.39% via ee-gcc 2.9-991111-01 (-O2, 2.96 gas). Matching wave 2026-10-27 raised it from
+// 94.02%: the callee-saved swap of pmode/arg5 was our bug (the C cached *pmode in a local; the
+// original re-reads *pmode for each mode test), *pa is assigned from one ternary (not a
+// pre-zeroed local), the slot table is a struct array (2 x 0x140-byte slots + active index),
+// and dst[1] = 0 is hoisted ahead of the D_002414AC test in the tail.
+// Remaining differences: in the final field-clear block the scheduler places the constant 3 for
+// the D_002414AC compare one slot earlier than the original, which rotates which of the four
+// zero stores lands in the branch delay slot (3 instructions; all 24 store orders, chained
+// assignments, a combined guard and a pre-read local were tried).
 //
 // Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
 // from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
@@ -26,7 +32,17 @@ extern int D_002414B8;
 extern int D_0024153C;
 extern int D_00241540;
 extern int D_00241BB0;
-extern char D_002418F8[];
+struct mb_buf {
+    int w0;
+    int addr;
+    int pad[77];
+    int done;
+};
+struct mb_bufs {
+    struct mb_buf e[2];
+    int cur;
+};
+extern struct mb_bufs D_002418F8;
 extern char D_0026B490[];
 
 extern int func_00106540(int nbits);
@@ -43,14 +59,11 @@ int sub_Invalid_macroblock_type_code_0(int *flags, int *pmode, int *pa, int *dst
                                        int *pb, int arg5)
 {
     int code;
-    int mode;
     int t3;
     int t4;
     int t7;
     int tf;
     int v;
-    char *p;
-    int k;
     int *p540;
 
     *(int *)0x10002010 = (*(int *)0x10002010 & 0xF8FFFFFF) | (D_0024147C << 24);
@@ -72,23 +85,20 @@ int sub_Invalid_macroblock_type_code_0(int *flags, int *pmode, int *pa, int *dst
         *pmode = (D_002414AC == 3) ? 2 : 1;
     }
 
-    mode = *pmode;
     if (D_002414AC == 3) {
-        t3 = (mode == 1) ? 2 : 1;
-        t4 = (mode == 2);
+        t3 = (*pmode == 1) ? 2 : 1;
+        t4 = (*pmode == 2);
     } else {
-        t3 = (mode == 2) ? 2 : 1;
         t4 = 0;
+        t3 = (*pmode == 2) ? 2 : 1;
     }
-    tf = (mode == 3);
+    tf = (*pmode == 3);
     t7 = 0;
     if (!t4)
         t7 = (D_002414AC == 3);
 
-    v = 0;
-    if (D_002414AC == 3 && D_002414B4 == 0 && (*flags & 3) != 0)
-        v = func_00106948(1);
-    *pa = v;
+    *pa = (D_002414AC == 3 && D_002414B4 == 0 && (*flags & 3) != 0)
+          ? func_00106948(1) : 0;
 
     if (*flags & 0x10) {
         p540 = &D_00241540;
@@ -121,17 +131,14 @@ int sub_Invalid_macroblock_type_code_0(int *flags, int *pmode, int *pa, int *dst
         func_00106830(1);
 
     if (*flags & 3) {
-        p = D_002418F8;
-        k = *(int *)(p + 0x280) * 0x140;
-        *(volatile int *)0x1000B010 = (*(int *)(p + k + 4) & 0x0FFFFFFF) | 0x80000000;
+        *(volatile int *)0x1000B010 = (D_002418F8.e[D_002418F8.cur].addr & 0x0FFFFFFF) | 0x80000000;
         *(volatile int *)0x1000B020 = 0x30;
         *(volatile int *)0x1000B000 = 0x100;
         func_001063E8();
         func_001063B8(((*flags & 1) << 27) | (*pa << 25)
                       | ((D_0024153C << 26) | 0x20000000) | (D_00241540 << 16));
     } else {
-        p = D_002418F8;
-        *(int *)(p + *(int *)(p + 0x280) * 0x140 + 0x13C) = 1;
+        D_002418F8.e[D_002418F8.cur].done = 1;
     }
 
     D_0024153C = 0;
@@ -159,13 +166,12 @@ int sub_Invalid_macroblock_type_code_0(int *flags, int *pmode, int *pa, int *dst
 
     dst[0] = 0;
     dst[4] = 0;
+    dst[1] = 0;
     dst[5] = 0;
     if (D_002414AC == 3) {
-        dst[1] = 0;
         *pmode = 2;
     } else {
         *pmode = 1;
-        dst[1] = 0;
         *pb = (D_002414AC == 2);
     }
     return 1;

@@ -1,53 +1,37 @@
-// NEARMISS func_00111680  (vram 0x00111680, 0x194 bytes) — readable decompilation, NOT byte-identical.
-//
-// objdiff 94.68% via ee-gcc 2.9-991111-01 (-O2). The LOGIC and STRUCTURE are faithful; the residual
-// diff is a genuine compiler artifact that no source change fixes here:
-// SPLIT-SYMBOL (missing symbol at 0x00111740) -- 100% is structurally impossible, not a compiler wall. The splat symbol func_00111680 is 0x194/416 bytes but contains TWO functions: the thread loop (0x00111680..0x0011173B, ends with an infinite `b`, never returns) + an alignment nop at 0x0011173C + ...
-//
-// Boot ELF stays byte-identical: the linker fills this function from the splat .s, NOT
-// from this C (// NEARMISS is treated like a stub). Not compiled / not an objdiff unit /
-// excluded from matched_code. Registry: docs/NEARMISS.md.
-//
 // COMPILER: eegcc
 // EEGCC_AS: 2.96
-// (2.96 gas: matching wave 2026-10-27 sweep; it fills call/return delay slots as the original does)
 // CFLAGS: -O2
 
+// Byte-matched (objdiff 100%), matching wave 2026-10-27 (was a 94.68% NEARMISS).
+// Fixes read from the original instructions:
+//  - D_00241D4C (the current event/argument word) is volatile: the original reloads
+//    it for the null test, for the handler argument and for the event-11 compare,
+//    and never reuses one load across them.
+//  - D_00241D48 is volatile, as the byte-matched sibling func_00112440 declares it.
+//  - The "split symbol" note was stale: func_00111740 now has its own symbol, so this
+//    unit is the thread body only (the creator is split out to its own file).
+//  - Assembled with the 2.96 gas (call/return delay slots filled as the original).
+
 //
-// SEMANTICS: SDK service thread + its creator.
+// SEMANTICS: SDK service thread body.
 //
-// func_00111680 is the thread body: an infinite loop that waits on its semaphore,
-// exits (ExitThread) when D_00241D48 == 1, optionally traces, dispatches the
-// registered handler D_00241D44(D_00241D4C), runs func_00111AE0 for event 11,
-// and clears the "busy" flag D_00241D14 before looping.
-//
-// func_00111740 (address 0x00111740 -- NO SYMBOL IN symbol_addrs.txt, which is why
-// the splat symbol func_00111680 is 0x194 bytes and covers both functions) fills a
-// ThreadParam-shaped block at D_00279B38 (+4 entry, +8 stack, +0xC stack size,
-// +0x10 $gp, +0x14 priority) with func_00111680 as the entry point, creates the
-// thread and starts it; if the thread already exists it just changes its priority.
+// func_00111680 is an infinite loop that waits on its semaphore, exits (ExitThread)
+// when D_00241D48 == 1, optionally traces, dispatches the registered handler
+// D_00241D44(D_00241D4C), runs func_00111AE0 for event 11, and clears the "busy"
+// flag D_00241D14 before looping. Its creator func_00111740 fills a ThreadParam-shaped
+// block at D_00279B38 with this function as the entry point.
 //
 
 extern int D_00241CF8;
-extern int D_00241D04;
 extern int D_00241D10;
 extern volatile int D_00241D14;
 extern void (*D_00241D44)();
-extern int D_00241D48;
-extern int D_00241D4C;
+extern volatile int D_00241D48;
+extern volatile int D_00241D4C;
 extern char D_0026BB08[];
-extern int D_00279B00;
-extern int D_00279B08;
-extern int D_00279B38[];
-extern int D_0027D370;
 
 extern void WaitSema();
 extern void ExitThread();
-extern int GetThreadId();
-extern void ReferThreadStatus();
-extern int CreateThread();
-extern void StartThread();
-extern void ChangeThreadPriority();
 extern void func_00122B58();
 extern void func_00111AE0();
 
@@ -70,22 +54,4 @@ void func_00111680(void)
         }
         D_00241D14 = 0;
     }
-}
-
-int func_00111740(int prio, int stack, int stack_size)
-{
-    if (D_00241D04 != 0) {
-        ChangeThreadPriority(D_00241D04, prio);
-        return 0;
-    }
-    D_00279B00 = GetThreadId(D_00241D04);
-    ReferThreadStatus(D_00279B00, &D_00279B08);
-    D_00279B38[1] = (int)func_00111680;
-    D_00279B38[2] = stack;
-    D_00279B38[3] = stack_size;
-    D_00279B38[4] = (int)&D_0027D370;
-    D_00279B38[5] = prio;
-    D_00241D04 = CreateThread(D_00279B38);
-    StartThread(D_00241D04, 0);
-    return 1;
 }

@@ -1,3 +1,11 @@
+## 2026-10-27 — matching wave, queue batch 8: 5 more byte-matched (one new file)
+
+See MATCHING_GUIDE "Queue batch 8". src/func_00111740.c is new (it had no C
+file). Gate: fresh build + verify_all all six stages pass, boot ELF
+byte-identical, 19/19 overlays, matched_code 99.97%, 2497/2499 units;
+audit_link_provenance clean (1998 ordinary-C routes; 57 functions still have
+no C file).
+
 ## 2026-10-27 — matching wave, queue batch 7: 5 more byte-matched; GPREL16 normaliser
 
 See MATCHING_GUIDE "Queue batch 7" (also the constant-order class hypothesis:
