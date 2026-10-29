@@ -143,9 +143,35 @@ that is a different, stale tree.
   test-scene-no-shadow (em_area13_route.c:45),
   test-area01-player-view-reference, test-level14-player-frame-reference
   (-strict). Shared assets regenerated (effect_tables, player_hull, roger
-  resources, movies E007/E008S4, status_pages). Branches `drawbridge` (F1:
-  checker, then a01r_03 into AREA02) and `revisit` (R1: AREA02
-  pre-translation survey) continue past the goal.
+  resources, movies E007/E008S4, status_pages).
+  STOPPED FOR REVIEW (user, 2026-10-29). Two port branches past the goal,
+  neither merged into main, nothing pushed, both worktrees clean:
+    - `drawbridge` 69f9893 (../port-drawbridge, F2): test_level_smoke.py
+      passes New Game through a02_00 (45 live phases); a01r_03 941/941,
+      a02_00 1423/1423, every recorded side beat of the three levels PASS
+      (a01_s0..s7, a00_s0, a01r_s0, a01r_s1). Includes F1's iterations
+      28-29 (+B0 = hip, b612fbb onward, after F1's firewall slip; see
+      build/agentkit/port/F1_FIREWALL_SLIP.md); keep-or-recheck is a pending
+      user decision. Stops: a02_01 row 485 (00184BA0 reading D_00275480;
+      fixed by revisit 319d4eb's one descriptor window, not yet merged into
+      drawbridge) and a02_s0 row 379 (owner 00159620, 00247F34, the bed).
+      prefix_report still prints 590/941 for a01r_03 (no return alignment).
+    - `revisit` b537033 (../port-revisit, R1): use descriptors folded into
+      export_effect_tables (one window D_00275458..D_0027548F), start points
+      a02_01..a02_05, export_area02_library.py (models 0x57, 0x7D), area-2
+      crate roots, light list D_00269680, room-list root D_0024D7C8,
+      00121A28 memset worker (no reference case yet), static-world run bound.
+      Discovery (not row-exact): a02_01, a02_02 run to the pad's end;
+      a02_03 600+/830 frames at ~0.25 frames/s; a02_04/05 not run.
+  Next integration: merge revisit into drawbridge, re-run a02_01, then both
+  into main; the first-level smoke must run (iterations 28-29 change AREA11);
+  regenerate assets in order: export_effect_tables,
+  export_area01_water_effects, export_area00_runtime_tables,
+  export_roger_banks, export_area00_library, export_area02_library,
+  build_start_saves; delete assets/use_descriptors.emrg (no longer read).
+  Open user questions: firewall-slip commits; a02_05 (exit into AREA04)
+  in scope; a faster headless mode for discovery runs; build/ is 46 GB
+  (fork_refs 19 GB, s87 12 GB) and needs a reference-checked cleanup.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
