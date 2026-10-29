@@ -690,6 +690,21 @@ context block held for them. Evidence: both functions byte-matched (matching
 wave queue batch 52, decompiled from asm-word bodies). Callers and any visible
 effect are not traced yet; nothing here is known to run in the first level.
 
+## 34. The AREA00 arrival scene ignores START for its first 62 frames — decoded
+
+*Kind: engine quirk (player-visible).* The in-engine cutscene skip
+(func_001AE6B0, byte-matched) accepts START or SELECT while the scratchpad
+byte 0x70003B91 is 1 and D_0028A9A0 is 0. In the AREA00 arrival scene
+(script 0x828D60, after the a01_07 load), 3B91 becomes 1 on row 543, but the
+skip is first accepted on row 605: for 62 frames, while the arrival's fade-in
+is still running, START does nothing. Every other skippable scene from AREA01
+through the revisit accepts the skip on the frame 3B91 rises (the revisit's
+a01r_01 event two frames later). Evidence: the original's skip runs on the
+PCSX2 fork, which log the rise and the first accepting row (K1 lane,
+2026-10-29; captures in local build/startup-reference/cutscene_skip/), and the port's
+`make test-cutscene-skip` against them. Not a switch candidate: the port
+reproduces it as the original does.
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the source list in port
