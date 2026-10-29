@@ -174,6 +174,18 @@ that is a different, stale tree.
   9.599849; start saves built in the main checkout. Not run: the full smoke.
   Next: re-run a02_01 past row 485; the a02_s0 bed; a02_03's divergence;
   a reference case for 00121A28.
+  Cleanup (2026-10-29, user request): main's assets re-exported at 028af35
+  (AREA02 level / textures / shadow receivers, effect tables, libraries,
+  status pages, module loader, sfx registry); the lane worktrees
+  port-drawbridge, port-revisit, extermination-port-platforms,
+  extermination-port-codex2 and Extermination-buildaudit removed (merged
+  branches drawbridge, revisit, pretrans-a00, build-audit deleted; the cited
+  receipts build/frontier, rand_replay and the a01r/a02 drive tables moved
+  into the port main checkout's build/). Kept as branches only: `platforms`
+  (673e90a, Linux headless CPU backend + proof runner, unmerged) and
+  `codex2` (7 unmerged audit / SPU2 commits; deletion is the user's call).
+  Unreferenced stale build/ scratch removed (~6 GB); original captures and
+  cited folders kept.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
