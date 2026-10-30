@@ -275,9 +275,13 @@ that is a different, stale tree.
   EM_START_AT_RAND / EM_START_AT_MARKS (port tools/mid_route_beats.py). From
   their cards, 10 of 21 beats play to their end with the recorded progress
   block (a22_00..02, a01u_00..02, a01u_s0, a06_00, a01v_00, a22b_00); none is
-  row-exact yet (no New Game path through AREA04). Blockers: the GS frame fault
-  at the AREA01 -> AREA22 and AREA22 -> AREA04 door arrivals (lane G1, branch
-  gs-arrival); the infected player models 0x3E..0x40 (infection 100 in the
+  row-exact yet (no New Game path through AREA04). The GS frame fault at the
+  AREA01 -> AREA22 and AREA22 -> AREA04 door arrivals is fixed (port main
+  e676912, lanes D1 + G1: the parser ends a queued span at a recorder barrier
+  just before the span-ending FRAME_1 write; the original's GS dumps show the
+  same span end; CURIOSITIES 36); a01u_s1 and a22b_01 pass, a01v_02 differs
+  only in end-block creature bits. Blockers left: the infected player models
+  0x3E..0x40 (infection 100 in the
   chained a06_01); 00161020 at the keypad (a06_02/03), 001AAD00's close-out
   (a06_04, a06b_00), effect node 0021AE90 (a06_05), a streak NaN on a06_01's
   card (lane C1 continues). Lane D1 (AREA04 a04_00..05 and a04b_00..04 to the

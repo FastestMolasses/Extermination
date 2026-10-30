@@ -726,6 +726,22 @@ next to sub 0 (58 records) and sub 1 (14).
 - Open: a dynamic check that the AREA04 record never requests area 2 with
   bit 7, and what sub 2 places, before this could become a switch.
 
+## 36. World triangles that take their colour from the frame's first pixel — partial
+
+*Kind: engine quirk (data).* AREA22's and AREA04's static world banks hold
+vertex records whose batches carry a TEX0 of zero, so those triangles sample a
+1 x 1 texture at GS address 0, which is the first pixel of the frame buffer at
+FBP 0. The original draws them that way: its GS dumps over the door [18] and
+door [6] arrivals show them on every world frame dumped (6 a frame at door
+[18]; 4, then 10, at AREA04). On a frame whose field is at FBP 0x38 the
+sampled texel is not part of the field being drawn.
+
+Evidence: port lane G1 (2026-10-30), fork GS dumps of a01u_s1, a01v_02 and
+a22b_01; port `docs/LEVEL8_PORT.md` "The GS barrier at three door arrivals"
+and `docs/STATIC_WORLD.md`. Open: what these triangles are in the scene, and
+whether an authoring tool left the zero TEX0 or it is intended. Not a switch
+candidate; the port reproduces it.
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the source list in port
