@@ -742,6 +742,53 @@ and `docs/STATIC_WORLD.md`. Open: what these triangles are in the scene, and
 whether an authoring tool left the zero TEX0 or it is intended. Not a switch
 candidate; the port reproduces it.
 
+## 37. The first boss: a ×5 spot, a shotgun that counts one pellet, and a blind spot — partial
+
+*Kind: engine quirk (player-visible).* All from port lane F1's fork recordings
+(2026-10-30, pad input only; port `docs/EIGHTH_LEVEL_ROUTE.md` section 8) and
+the decomp C.
+
+- **Ten pellets, one hit.** The shotgun fires 10 pellets at 42 / 35 / 25 by
+  distance, but each pellet overwrites the creature's pending damage (+0x36),
+  so a shell lands one pellet's damage in a tick. Measured health: 200, 158,
+  116, 74, 32, 0, five of the six shells the pickup gives. Decoded.
+- **The ×5 spot.** Two hull records on bone 4, about 10 units up, carry mask
+  byte 0x80; a hit there multiplies damage by 5 with effect 0x80000076 and
+  sound 0x15D. The recorded pistol run's first hit, 25, is one. A shell there
+  would do 210, which is more than the creature's health; that is inferred from
+  the code, not recorded. That these polygons are the visible shoulder core
+  (the public guide's weak point) is also inferred.
+- **It cannot be shot from the conveyor.** The creature arms only when the
+  player is at y >= 47 inside polygon D_00245020; until then it stays in
+  state 9 and refuses hits. Decoded.
+- Beating it gives DOGTAG 1 (item 0x2D) and nothing the route needs: a04b_04
+  rides the lift past it alive, and the world graph shows no gate on the tag.
+
+## 38. The boss's blood pool is placed by a stack slot nothing wrote — partial
+
+*Kind: engine quirk (latent).* 0x824A40 spawns the purple pool 0x80000004
+(001F77B0) at the creature's death, and the pool's position comes from a stack
+slot the function never writes. Both fork recordings put it at
+(544.9, 54.3, 255.7), right beside the dog tag's fixed place, so what is left in
+that slot is stable on the two paths recorded. Evidence: port lane F1
+(2026-10-30). Open: what leaves that value there, and whether another path
+moves the pool. The port reproduces the recorded place; other paths are not
+measured.
+
+## 39. An unexplained script actor in the boss event — partial
+
+*Kind: unknown.* Event [3]'s script 0x828450 places a 19-node script actor of
+kind 0x34 (+0x96) with library model 0x53. Port lane D1 (2026-10-30) exported
+its shadow proxy; what it depicts is not established.
+
+## 40. The boss's guide-book names, checked — note
+
+*Kind: note on sources.* A public walkthrough says first person is L1 in this
+fight; on the original R2 enters first person (action 0x32). A public cheat
+list puts dog tag 1 "on the treadmill"; on the original it lies at a fixed
+(544.9, 55, 255.7), about 40 units past the conveyor's top, so that is at best
+the same end of the room.
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the source list in port

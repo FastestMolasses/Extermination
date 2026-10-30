@@ -340,9 +340,29 @@ that is a different, stale tree.
   shells; fit via SWITCH / CUSTOMISE SPR4; the weak point is a green core in the
   creature's shoulder; a dog tag lies where it falls. The user confirms the
   shotgun attachment is the intended way to win.
-  Running: F1 (branch boss-fight, a fork recording that beats the creature with
-  the shotgun, then the port of it); E1 (branch route-chain, a06_01 through
-  a06b, a01v, a22b, a04b_03 from New Game).
+  First boss fight (port main b0c94f4, then 00bcbd6; lane F1): recorded on the
+  fork with pad input only (decomp build/fork_refs/boss_fight_20261030/s87:
+  a04b_g0..g5, a04b_s5..s7, stores, per-tick tables) and row-exact against both
+  chains with anchors: `make test-boss-fight`, shotgun 4444 rows (card `boss`),
+  pistol 5194 rows (card a04b_03), 0 differing, lock row through AREA13's load.
+  Anchors (EM_START_AT_RESTORE, RANDS, SYNC) are comparison only: a plain
+  EM_START_AT=boss run plays the same code on other draws. Compared: position,
+  heading, action, health, infection, creature, spawned bugs; not pixels or
+  sound. Second stage answered: 00131B10 state 0 writes counter 0x12 = 1, 0x824930
+  runs script 0x8286D0, flag 0x12 = 0xFF; 0x824A40 spawns the tag (item 0x2D),
+  the veil and the pool. Not needed to progress. Shotgun: SHOTGUN UNIT g[4] at
+  (416.1, 15, 102.2) behind door [45], 6 shells, fitted on the take's V.U.R.S.
+  page (Cross, Cross, Left, Cross, then Triangle); the recorded route does not
+  take it. Zoom scope g[2] at (434.1, 15, 79.8), not taken in any recording, its
+  take untested in the port. Open: model 0x35 not exported (fitting it
+  fail-stops, named); SPR4 through Start not verified; 001B3F10's new sight
+  steps have no oracle. CURIOSITIES 37..40. test_start_saves now names the two
+  same-source pairs (00bcbd6); it had been failing since lane C1's points.
+  Slip to remember: F1's first route smoke failed at a01r_03 row 590 while it
+  rebuilt and re-exported during the run; a clean rerun passed. Lanes must not
+  re-export under a running smoke.
+  Running: E1 (branch route-chain, a06_01 .. a04b_03 from New Game; a22b_01
+  committed on its branch as bf7e98e, not merged).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
