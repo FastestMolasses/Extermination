@@ -284,8 +284,29 @@ that is a different, stale tree.
   0x3E..0x40 (infection 100 in the
   chained a06_01); 00161020 at the keypad (a06_02/03), 001AAD00's close-out
   (a06_04, a06b_00), effect node 0021AE90 (a06_05), a streak NaN on a06_01's
-  card (lane C1 continues). Lane D1 (AREA04 a04_00..05 and a04b_00..04 to the
-  boss; worktree port-area04, branch area04-boss) is running.
+  card (lane C1 continues).
+  AREA04 (port main 13fd633, lane D1): a04_00..a04_05 row-exact from New Game
+  (3615, 1818, 942, 1015, 553, 723 rows) to AREA22 control, route smoke
+  --until a04_05 = 56 live phases, with --rand-replay
+  build/rand_replay/route_a04_05_20261030/table.txt (the harness otherwise takes
+  the newest table by mtime). a04_05's fork trace is not reproduced by a
+  re-drive from a04_04's state (rows 1..163 of the walk differ; the port
+  matches the trace), so its drive table is kept as .reads.diverged and named
+  in tools/drive_replay.py DIVERGED_ACCEPTED. The second visit runs from start
+  cards only (a04b_00..04, 47 cards in all): from the card the chain reaches
+  the reader, event [3], the creature's spawn and the fight; aligned on the
+  lock byte, a04b_03 matches 1321 rows (player, camera, locks, owners), the
+  creature's end snapshot equals the recording's. The hits are qualitative
+  (the creature's choices draw rand(), loaded bugs differ). With a scratch pad
+  the lift ride reaches the AREA13 request; AREA13 has no module or host yet.
+  The creature's node on the bed branch is 0x7C2660 (0x7BF180 was another
+  branch's). Re-exported on main: resources.emrs (models 0x53..0x5D, bank
+  0x3A), effect_tables.emet (108 windows), area01_boot_scripts (new lift.emsc,
+  required), npc34_shadow.emdl. Open: "not the exported model" at 001CAA00
+  when the player's +0x44 becomes 0x010991C0, reachable by ordinary play in
+  AREA04 (lane C1, first item). Running: C1 (AREA06 faults), E1 (branch
+  route-chain, New Game harness through a22, a01u, a06_00), F1 (branch
+  boss-fight, a fork recording that beats the creature, then the port of it).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
