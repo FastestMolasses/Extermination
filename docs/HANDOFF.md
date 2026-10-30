@@ -304,9 +304,22 @@ that is a different, stale tree.
   0x3A), effect_tables.emet (108 windows), area01_boot_scripts (new lift.emsc,
   required), npc34_shadow.emdl. Open: "not the exported model" at 001CAA00
   when the player's +0x44 becomes 0x010991C0, reachable by ordinary play in
-  AREA04 (lane C1, first item). Running: C1 (AREA06 faults), E1 (branch
-  route-chain, New Game harness through a22, a01u, a06_00), F1 (branch
-  boss-fight, a fork recording that beats the creature, then the port of it).
+  AREA04 (lane C1, first item).
+  New Game route through a06_00 (port main 4bfe2b0, lane E1): a22_00 626,
+  a22_01 663, a22_02 683, a01u_00 235, a01u_01 1446, a01u_02 1064, a06_00 357
+  rows, 0 differences, 63 live phases, ~13.5 min: `python3
+  tools/test_level_smoke_area01r.py --run --until a06_00 --rand-replay
+  build/rand_replay/route_a01u_02_20261030/table.txt`. No gameplay change was
+  needed; C1's bindings held. New check_block_end: from AREA22 on the whole
+  block D_00810700..D_00810D3F equals each beat's end RAM (only the frame count
+  D_00810750..53 excluded; no negative test on a22_02 / a01u_02). Each such
+  run writes a 2.8 GB ticks.jsonl. Not covered: kpad and owner rot rows, pixels,
+  sound, and the host-speed path (comparison uses drive replay and rand anchors
+  entry22, entry01.3, entry06). prefix_report pairs rows naively across a
+  shortened load: after a later failure trust check.log's per-phase lines.
+  Running: C1 (AREA06 faults), F1 (branch boss-fight, a fork recording that
+  beats the creature, then the port of it). When C1 lands, E1 continues from
+  a06_01 through a06b, a01v, a22b, a04b.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
