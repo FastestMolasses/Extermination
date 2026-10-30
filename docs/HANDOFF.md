@@ -253,8 +253,35 @@ that is a different, stale tree.
   fail-stops at 0020CDC0 (no phase-6 accepted-save step; needs a fork save on
   a formatted card file). Sub 2 is unreachable in play (CURIOSITIES 35). The
   original's walk west also stops on turntable [28]; how play turns it is open.
-  Lanes B2 (AREA02 menu healing, medicines, car sound) and C1 (AREA22, AREA01
-  upper floor, AREA06 start points) are still running.
+  AREA02 items (port main 75a6ccf, lane B2): HEALING from the status menu
+  (00185420 / 00184D20 for every item id; oracle 7594 cases), the hub's
+  HEALING hover layout 5 (status_hub.emhs, 12 layouts), the stale Use token
+  after a crawling take, the medicines' count-up (D_00810858 counts while the
+  scene word waits for 0015C700), and the car's sound 0x8B4 (B0 07 volume
+  slides, 001181B0; also AREA00's 0x89E / 0x8A0; sfx reference pass V equal
+  tick by tick). New side phases row-exact from New Game: a02_s1 (the cure at
+  the bed), a01r_s2 (no device, banner 0x19), a01_s8 (the fire's burn, 0x1E);
+  fork beats in decomp build/fork_refs/s87 (route_a02/a02_s1_menu_cure,
+  route_a01r/a01r_s2_menu_cure_none, route_a01/a01_s8_fire_medicine), port
+  tables build/drive_replay/route_heal_20261030 and
+  build/rand_replay_sides/heal_20261030 (kept outside rand_replay/ on purpose).
+  Open: the port's rand() state leaves a01_s5 different from the recording
+  (7CF0999D vs 7B3898E6; a01_s8's run seeds the recording's state at row 0);
+  0x1F from the menu not recorded; SPU2 audio output of AREA02 not compared.
+  Mid route checkpoint (port main 40df03c, lane C1): AREA22 and AREA06 in the
+  area runtime (AREA06's init 0x824290 translated, oracle 5102/5102), hook
+  adapters src/game/em_mid_route_bridge.inc, 001E7440, MID_WINDOWS, 20 new
+  EM_START_AT points (area22 .. a22b_01; 36 cards in all) and the switches
+  EM_START_AT_RAND / EM_START_AT_MARKS (port tools/mid_route_beats.py). From
+  their cards, 10 of 21 beats play to their end with the recorded progress
+  block (a22_00..02, a01u_00..02, a01u_s0, a06_00, a01v_00, a22b_00); none is
+  row-exact yet (no New Game path through AREA04). Blockers: the GS frame fault
+  at the AREA01 -> AREA22 and AREA22 -> AREA04 door arrivals (lane G1, branch
+  gs-arrival); the infected player models 0x3E..0x40 (infection 100 in the
+  chained a06_01); 00161020 at the keypad (a06_02/03), 001AAD00's close-out
+  (a06_04, a06b_00), effect node 0021AE90 (a06_05), a streak NaN on a06_01's
+  card (lane C1 continues). Lane D1 (AREA04 a04_00..05 and a04b_00..04 to the
+  boss; worktree port-area04, branch area04-boss) is running.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
