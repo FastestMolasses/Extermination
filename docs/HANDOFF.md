@@ -317,9 +317,32 @@ that is a different, stale tree.
   sound, and the host-speed path (comparison uses drive replay and rand anchors
   entry22, entry01.3, entry06). prefix_report pairs rows naively across a
   shortened load: after a later failure trust check.log's per-phase lines.
-  Running: C1 (AREA06 faults), F1 (branch boss-fight, a fork recording that
-  beats the creature, then the port of it). When C1 lands, E1 continues from
-  a06_01 through a06b, a01v, a22b, a04b.
+  AREA06 second pass (port main 30e067b, lane C1): the player's turned models
+  0x3D..0x40 and texture packets for AREA00, 01, 02, 04, 06, 22 (the "not the
+  exported model" fail-stop: +0x44 is written only by 001CA6E0 from 0015C1F0;
+  001B07C0 re-copies D_00810707 at every area or card load, which fits the
+  low-infection case by reading the code, not replayed), the keypad (0020CDC0's
+  no-request route, 002072C0 / 00207350, modules 0x25 / 0x26; picture not
+  compared), the cable 0x823B10 (+0x34 contact, oracle), 001BB310, 001E4CE0,
+  001F8350, 0021AE90, node 0x80000048 outside AREA11, 001E7570. From cards 12
+  of 21 beats pass; a06_01..05 play to the end, differing in creature-driven
+  bytes (infection, health, a taken bit); a06b_00/01 miss the running jump and
+  a01v_01 misses the gap jump in this chain. The streak operand fault on
+  a06_01's card is not resolved: it stopped appearing, cause not found, still a
+  fail-stop with no clamp. a22_s1 / a22_s2 not run. Slip: C1 ran
+  export_status_pages.py with symlinked outputs and wrote through into main's
+  ignored assets (superset content; the exporter now refuses a symlinked
+  output; main's files regenerated at the merge, equal to the lane's except a
+  path in the source json). Route smoke on 30e067b ran only through a02_04 in
+  the lane; E1's first step re-runs it through a06_00.
+  Boss fight, from the public GameRevolution walkthrough, unverified on the
+  original: the room behind door [45] holds the Shotgun Unit, Zoom Scope and
+  shells; fit via SWITCH / CUSTOMISE SPR4; the weak point is a green core in the
+  creature's shoulder; a dog tag lies where it falls. The user confirms the
+  shotgun attachment is the intended way to win.
+  Running: F1 (branch boss-fight, a fork recording that beats the creature with
+  the shotgun, then the port of it); E1 (branch route-chain, a06_01 through
+  a06b, a01v, a22b, a04b_03 from New Game).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
