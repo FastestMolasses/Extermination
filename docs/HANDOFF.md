@@ -205,6 +205,35 @@ that is a different, stale tree.
   AREA02 yet (same shared code path). Verified on 7955b48: zero warnings,
   newgame-control, test-start-at, test-cutscene-skip 5/5,
   test-glow-dissolve, the three harness contracts, test-level-smoke.
+  Gun lamp fail-stop fixed (port main 869b0e6, 2026-10-29, user report "when
+  trying to reload"): the lamp on (Square while aiming) outside AREA11.
+  00187780's quadword copy of the cell record at 0x700030D0 had no 16-byte
+  view, and the cone shells 001D9530 (drawn wherever D_008106C8 lacks
+  0x20000000: AREA01 / AREA00 / AREA02) were not composed. Now composed from
+  the existing translations, with the chain-page kernels 00237180 / 00239C90.
+  `make test-aim-fire-lamp-cone` (~16 s) checks the cone pages against the
+  original VU1 microcode; no original capture shows the lamp on outside
+  AREA11. Re-exported: effect_tables.emet, scene_snow/roger/resources.emrs.
+  AREA02 (port main 0a145ea, 2026-10-30, user request "the supply room ...
+  the train sequence that creates the hole in the wall"): from New Game,
+  a02_s0 (the bed) 1008/1008, a02_00 1423/1423, a02_01 630/630, a02_02 (the
+  car run; gate [38] freed) 1016/1016, a02_03 831/831, a02_04 1577/1577 rows
+  row-exact (the a02_03 "4.2 units off" was an EM_START_AT discovery artefact).
+  Bound or translated: the bed's scripts, HEALING kind 2 (page 8) with the
+  0020CDC0 count-up, switch [31]'s lamps, movie E010 (selector 5) and music
+  0x13, the car's workers and burst emitter, 001580C0 (battery panel),
+  001EC820 (the wreck's fire), console [4]. Re-exported: effect_tables.emet,
+  area01_boot_scripts/, streams/, movies/e010.mov. Open: a02_05 (door [25] into
+  AREA04) not a harness phase yet; HEALING from the menu near the bed
+  (00184D20's item 0x20 arm) still fail-stops; medicines 0x1E / 0x1F
+  count-up health differs in the tick log; door [5], the save terminal, sub 2
+  and the western nest not reached; the car's sound 0x8B4 silent.
+  Verified on 0a145ea: zero warnings, newgame-control, test-start-at,
+  test-cutscene-skip, test-glow-dissolve, test-aim-fire-lamp-cone, the three
+  harness contracts, test-level-smoke, and the New Game route smoke through
+  a02_04 (49 live phases) and a02_s0 (45). Lane worktrees and branches
+  removed; port branches: main only (README table of EM_START_AT points
+  bca133e).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
