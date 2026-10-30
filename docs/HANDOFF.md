@@ -181,11 +181,30 @@ that is a different, stale tree.
   extermination-port-codex2 and Extermination-buildaudit removed (merged
   branches drawbridge, revisit, pretrans-a00, build-audit deleted; the cited
   receipts build/frontier, rand_replay and the a01r/a02 drive tables moved
-  into the port main checkout's build/). Kept as branches only: `platforms`
-  (673e90a, Linux headless CPU backend + proof runner, unmerged) and
-  `codex2` (7 unmerged audit / SPU2 commits; deletion is the user's call).
-  Unreferenced stale build/ scratch removed (~6 GB); original captures and
-  cited folders kept.
+  into the port main checkout's build/). Unreferenced stale build/ scratch
+  removed (~6 GB); original captures and cited folders kept.
+  Branches resolved (2026-10-29, user request): `codex2` deleted, its content
+  already on main as the squash 6c04534 (only its history, including the
+  commit that used a leaked SDK manual, is gone); `platforms` merged as
+  04e3aa9 (Linux headless CPU backend adapted to main's GS raster; Linux
+  runtime and amd64 untested; GCC gives 154 warnings in shared code;
+  export_movie_cache.py calls the system FFmpeg at export time only) plus
+  docs ccd3810, then deleted. Port branches now: main only.
+  Bug-kill fail-stop fixed (port main 7955b48, user report "a few seconds
+  after I kill a bug"): the glow 001F6FB0 (death dissolve) bridge mapped its
+  parent (+0x24) on every tick, but the original reads it only in states
+  0/1; on the state-3 tick the parent has already freed itself, so the map
+  faulted (hidden while firing, because an impact marker took the freed
+  record). The kill was in AREA00 (start card a01_07, through the shaft
+  door). 1b29d8a maps the parent only in states 0/1 and adds EM_GLOW_TRACE;
+  7955b48 binds 001C2690 (creature hit reaction, a fail-stop when shooting
+  a 0012A5D0 in AREA02, from the byte-matched decomp C). New original fork
+  capture build/startup-reference/glow_dissolve/a00_04_kill.json: the
+  0012A5D0 dissolve equals the original tick by tick (251 ticks);
+  `make test-glow-dissolve` (~17 s). No kill reached in AREA01 / revisit /
+  AREA02 yet (same shared code path). Verified on 7955b48: zero warnings,
+  newgame-control, test-start-at, test-cutscene-skip 5/5,
+  test-glow-dissolve, the three harness contracts, test-level-smoke.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
