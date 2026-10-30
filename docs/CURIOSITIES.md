@@ -705,6 +705,27 @@ PCSX2 fork, which log the rise and the first accepting row (K1 lane,
 `make test-cutscene-skip` against them. Not a switch candidate: the port
 reproduces it as the original does.
 
+## 35. AREA02's third population (sub 2) that play never loads — partial
+
+*Kind: unused content (placement data).* AREA02 carries a third placement
+table, sub 2 (0x8283D0, 53 records, a later "after" population of the floor),
+next to sub 0 (58 records) and sub 1 (14).
+
+- **No route into it.** No door record enters AREA02 with sub 2. The only
+  other selector is the duct's 00179910, and it picks sub 2 from sub 1 only
+  when bit 7 of D_00810730[2] is set.
+- **Nothing sets that bit in play.** Only the script-op-0x11 request path
+  (001B7700 into 001FF030 / 001FEFE0) writes bit 7 there. A scan of AREA02.BIN
+  and of the boot ELF's script windows finds no op 0x11 record that runs in
+  area 2. Two op 0x11 records exist elsewhere, one in AREA00.BIN (the switch's
+  sub-1 request) and one in AREA04.BIN; their exact targets are not written
+  up here yet. So in play the duct always leads to sub 0. No capture loads
+  sub 2.
+- Evidence: port lane B1 (2026-10-30), from the code. The static reasoning is
+  in port `docs/FOURTH_LEVEL_ROUTE.md` section 8 item 7.
+- Open: a dynamic check that the AREA04 record never requests area 2 with
+  bit 7, and what sub 2 places, before this could become a switch.
+
 ## Notes for the port's candidate lists
 
 The candidate list in port `LAUNCHER_OPTIONS.md` and the source list in port

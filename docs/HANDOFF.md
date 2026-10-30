@@ -234,6 +234,27 @@ that is a different, stale tree.
   a02_04 (49 live phases) and a02_s0 (45). Lane worktrees and branches
   removed; port branches: main only (README table of EM_START_AT points
   bca133e).
+  First-boss goal (user 2026-10-30, "keep working until we reach the first
+  boss ... the enemy that comes down from the elevator once we have the correct
+  access key"): the 0012E3A0 creature at AREA04's lift [51], spawned when
+  reader [50] takes item 0x23 (a04b_03; port EIGHTH_LEVEL_ROUTE.md). Route:
+  a02_05, AREA04 a04_00..05, AREA22, AREA01 upper floor, AREA06 keypad, back
+  (a06b, a01v, a22b), a04b_00..03. No recording beats the boss yet.
+  AREA04 arrival (port main 64e70c2, lane B1): a02_05 row-exact from New Game
+  (1726/1726 rows; door [25], the loader's 19 states, the AREA04 arrival
+  script, control; route smoke --until a02_05 = 50 live phases). Area 4 is in
+  the shared composition (em_area04_state, src/game/em_area04_runtime_overlay.inc,
+  001F6210's sprites, NPC [2]'s kind 0x2A shadow). Door [25]'s Use needs the
+  player within 10 of its centre, facing within pi/4 of +z (001BB860 /
+  00183EF0). Re-exported on main: modules.emml, sfx_registry, streams,
+  resources.emrs (model 0x41); new assets area04_sub0_world_textures.emot,
+  area04_sub0_shadow_receivers.emsr, npc2a_shadow.emdl. Also: door [5] and the
+  save terminal's prompt play without a fault, but YES at the save prompt still
+  fail-stops at 0020CDC0 (no phase-6 accepted-save step; needs a fork save on
+  a formatted card file). Sub 2 is unreachable in play (CURIOSITIES 35). The
+  original's walk west also stops on turntable [28]; how play turns it is open.
+  Lanes B2 (AREA02 menu healing, medicines, car sound) and C1 (AREA22, AREA01
+  upper floor, AREA06 start points) are still running.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
