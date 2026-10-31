@@ -7423,7 +7423,7 @@ A03_CHANGE_BEATS: set[str] = set()
 # 001418F0 needs 90 frames of 001B3F10 (radius 180 in front, 80 elsewhere,
 # |dy| <= 18, a clear ray) before the creature wakes; it attacks only inside
 # 20 units.  So the beats below run past the creatures and keep the rounds.
-SIXTEENTH_GROUPS = ("a03b", "a08", "a03c")
+SIXTEENTH_GROUPS = ("a03b", "a08", "a03c", "a04c")
 A03B_OWNERS = {                       # a19e_07's sub-0 load (pool nodes, 0013D2D0 creatures)
     "cre8_13D2D0": 0x7A6DC0, "cre9_13D2D0": 0x7A70B0, "cre10_13D2D0": 0x7A73A0,
     "cre11_13D2D0": 0x7A7690, "cre12_13D2D0": 0x7A7980, "cre13_13D2D0": 0x7A7C70,
@@ -8135,11 +8135,13 @@ def a03c_beat_slider(r: Route) -> dict:
     return {"what": "AREA03 sub 2: the slider [6]: sub 1 entry 6", "hp_end": a01_hp(r)}
 
 
-def a03c_beat_seal(r: Route) -> dict:
+def a03c_beat_duct(r: Route) -> dict:
     # Sub 1 reloaded: the curtains stand again (001C1030 nodes 0x7A8830 at x 677
-    # and 0x7A8540 at x 639.6, cut from the east); the corridor west, the room,
-    # the stairs to the deck, the y-40 passage west to the seal [23] (00158430, a
-    # melee from (235, 633.5) facing -x: D_00810844 bit 0, D_00810845 bit 2).
+    # and 0x7A8540 at x 639.6, cut from the east).  The corridor to door [26] from
+    # (557.5, 655.8) facing +z; its room; the hatch (facing +z) and the west duct
+    # north to the junction at z 735.5, west out of the mouth: past the creature
+    # at (522, 641) and the room's stairs (the first run by the room cost three
+    # leaps, health 90 -> 25; section 6 of the port doc).
     use_sixteenth_sampler(r)
     next_long_frames(r)
     a13_settle(r, 3)
@@ -8153,9 +8155,60 @@ def a03c_beat_seal(r: Route) -> dict:
     r.step(6)
     a13_face(r, -math.pi / 2, tol=0.1)
     sixteenth_cut(r, 0x7A8540)
-    sixteenth_run(r, [(600, 648), (505, 648), (470, 650), (440, 651), (425, 652), (425, 690), (424, 708), (400, 708),
-                      (400, 672), (378, 664), (372, 637), (330, 628), (300, 628), (262, 636), (242, 634), (236, 634)],
-                  tol=1.2, limit=400)
+    sixteenth_run(r, [(600, 648), (570, 650), (560, 652)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 557.5, 655.8, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, 0.0, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    sixteenth_run(r, [(557, 690), (557, 706)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    for _ in range(30):
+        if r.rows[-1]["pos"][2] >= 710.2:
+            break
+        r.stick_toward(556.95, 716, 0.4)
+        r.step(1)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, 0.0, tol=0.08)
+    sixteenth_hatch_in(r)
+    sixteenth_crawl_to(r, 2, 733.0, 1)
+    a01_turn_crawl(r, -math.pi / 2)
+    sixteenth_crawl_out(r)
+    r.until(in_control, 600)
+    return {"what": "AREA03 sub 1: the curtains again, door [26], the west duct to its mouth", "hp_end": a01_hp(r)}
+
+
+def a03c_beat_seal(r: Route) -> dict:
+    # From the mouth west.  The creature at (374, 734) stands in the deck's corner:
+    # waiting at (412, 735) until its leap has landed east of the player frees the
+    # corner.  Round by floors 64 and 60, the y-40 passage west, the seal [23]
+    # (00158430, a melee from (235, 633.5) facing -x: D_00810844 bit 0, D_00810845
+    # bit 2).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(412, 735)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(6)
+    hp0 = r.rows[-1]["hp"]
+    for _ in range(400):
+        r.step(1)
+        if r.rows[-1]["hp"] < hp0:
+            break
+    for _ in range(80):
+        if r.rows[-1]["m1F0"] in (0, 1):
+            break
+        if r.rows[-1]["m1F0"] in A19D_GRABS:
+            a19d_rock(r, 100)
+            continue
+        r.step(1)
+    sixteenth_run(r, [(392, 735), (381, 729), (376, 716), (378, 664), (372, 637), (330, 628), (300, 628), (262, 636),
+                      (242, 634), (236, 634)], tol=1.2, limit=300)
     r.set_pad(0)
     r.step(4)
     a19d_go_rock(r, 235, 633.5, tol=0.5)
@@ -8173,7 +8226,7 @@ def a03c_beat_seal(r: Route) -> dict:
     else:
         raise TimeoutError("seal not broken: " + summary(r.rows[-1]))
     r.step(30)
-    return {"what": "AREA03 sub 1: the curtains again, west to the seal [23]: D_00810844 bit 0", "hp_end": a01_hp(r)}
+    return {"what": "AREA03 sub 1: the deck, the passage west, the seal [23]: D_00810844 bit 0", "hp_end": a01_hp(r)}
 
 
 def a03c_beat_door24(r: Route) -> dict:
@@ -8197,10 +8250,110 @@ def a03c_beat_door24(r: Route) -> dict:
 
 A03C_BEATS: list[tuple] = [
     ("a03c_00_slider", "a08_06_back", a03c_beat_slider),
-    ("a03c_01_seal", "a03c_00_slider", a03c_beat_seal),
-    ("a03c_02_door24", "a03c_01_seal", a03c_beat_door24),
+    ("a03c_01_duct", "a03c_00_slider", a03c_beat_duct),
+    ("a03c_02_seal", "a03c_01_duct", a03c_beat_seal),
+    ("a03c_03_door24", "a03c_02_seal", a03c_beat_door24),
 ]
-SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS
+def a04c_beat_event(r: Route) -> dict:
+    # AREA04 sub 1 entry 2: the west balcony's fence (attribute 0x50 walls at x
+    # 346..350) stops the walk east, the north end does not: off the edge at z
+    # 335, a fall of 40 (no damage below 50, 0017C580), then south under the balcony
+    # into 0x825040's polygon (x 320..345.5, z 345..380, y < 25): flag 0x28 = 1,
+    # script 0x829020; at its end item C64 0x29, CC3 0x10, counter 0x28 = 1; the
+    # page closes on Triangle.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(334, 350), (334, 338), (334, 328), (334, 322)], tol=1.2, limit=160)
+    r.set_pad(0)
+    r.step(3)
+    r.until(lambda row: row["m1F0"] in (0, 1) and row["pos"][1] < 16, 200)
+    sixteenth_run(r, [(334, 340), (334, 352)], tol=1.2, limit=120, soft=True)
+    r.set_pad(0)
+    a15b_close_page(r, 12000)
+    r.until(in_control, 900)
+    a13_settle(r, 5)
+    return {"what": "AREA04 sub 1: off the balcony, the polygon: flag 0x28, item 0x29, CC3 0x10", "hp_end": a01_hp(r)}
+
+
+def sixteenth_walk(r: Route, points, tol: float = 2.0, limit: int = 200) -> None:
+    """sixteenth_run that moves on when a point is not reached (the point's
+    creature is in the way): the next point takes over."""
+    for x, z in points:
+        for _ in range(limit):
+            row = r.rows[-1]
+            if row["m1F0"] in A19D_GRABS:
+                a19d_rock(r, 200)
+                continue
+            if math.hypot(row["pos"][0] - x, row["pos"][2] - z) <= tol:
+                break
+            r.stick_toward(x, z, 1.0)
+            r.step(1)
+        else:
+            return
+    r.set_pad(0)
+
+
+def a04c_beat_door73(r: Route) -> dict:
+    # North up the west side (the boxes x 345..361 close the pocket's east; the
+    # creatures walk slower than the player), south of the two blocks at z 139..
+    # 169.6 and the hanging box at (390..404, 169..183), east of it through (409.5,
+    # 183), to the slider [73] (001BB860, model 0x16, id 5, D_00810845 bit 5) from
+    # (440, 116) facing -z: entry 9, the north room.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(336, 360), (328, 335), (326, 300), (340, 240), (345, 190), (382, 190), (400, 187), (409.5, 183),
+                      (414, 168), (420, 145), (438, 130), (440, 119)], tol=2.0, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 440, 116, tol=0.6)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4, wait=30)
+    a19c_until_control(r, 1500)
+    return {"what": "AREA04 sub 1: north round the machines, the slider [73]: entry 9", "hp_end": a01_hp(r)}
+
+
+def a04c_beat_lift(r: Route) -> dict:
+    # East round the bar at z 83..86; the outer button [86] (001BDFC0) from (444,
+    # 31.5) facing -z (D_00810845 bit 0: the socket [83] saw item 0x29 at the
+    # load); into the car [84]; the inner button [87] from (418, 2.5) facing -x:
+    # AREA07 entry 0.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(459, 92), (458, 74), (447, 60), (444, 36)], tol=1.5, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 444, 31.5, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4, wait=30)
+    a19c_until_control(r, 1500)
+    r.step(90)
+    sixteenth_run(r, [(431, 34), (430, 20), (428, 6), (423, 3)], tol=1.2, limit=200, soft=True)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 418, 2.5, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, -math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4, wait=30)
+    r.until(lambda row: row["area4"][:2] == "07", 1500)
+    a19c_until_control(r, 3000)
+    a13_settle(r, 5)
+    return {"what": "AREA04 sub 1: the lift's buttons [86] / [87]: AREA07 entry 0", "hp_end": a01_hp(r)}
+
+
+A04C_BEATS: list[tuple] = [
+    ("a04c_00_event", "a03c_03_door24", a04c_beat_event),
+    ("a04c_01_door73", "a04c_00_event", a04c_beat_door73),
+    ("a04c_02_lift", "a04c_01_door73", a04c_beat_lift),
+]
+SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS
 SIXTEENTH_SIDE_BEATS: set[str] = set()
 
 
