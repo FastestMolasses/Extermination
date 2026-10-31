@@ -920,3 +920,9 @@ return uses the crawl. What ends them, if anything, is unknown (same source).
 *Kind: note.* Door [17]'s recorded inside Cross stands at the very edge of the Use's
 reach, so a small steering difference misses the door (lane M1, 2026-10-31, beat
 a13c_01).
+
+## 46. Surface attribute 0x0A hurts only in AREA08 sub 2 — partial
+
+*Kind: engine quirk.* D_00810770 gates surface attribute 0x0A's damage through
+0021C3F0: mode 0xA does not hurt outside AREA08 sub 2, or with the flag at 0xFF (lane
+P1, 2026-10-31, from the translated 0021C3F0).

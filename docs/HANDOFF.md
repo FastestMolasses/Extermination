@@ -465,7 +465,18 @@ that is a different, stale tree.
   a19d_06 are not explained. Main verified: quick set, harness contracts, route
   --until a13_05 85 phases. tools/test_area01_collision_view_reference.py stops on its
   capture-folder count assertion, before any port code, on main too.
-  Running: N1 (area03x), P1 (area08, merging main).
+  AREA08 and AREA07 (lane P1, port main 30e9e8c, port docs/AREA08_PORT.md): 8 of 16
+  beats pass from cards (a08_00, a08_05, a07b_01..06), none row-exact to its end and
+  none from New Game; best openings a07b_06 1,786 and a07b_02 897 rows. Four more end
+  in position with vitals differing (a08_01, a08_02, a07_00, a07b_00; a08_02 also
+  D_00810707). a08_03 and a08_06 die from cards (restored bugs, health not the route's;
+  not traced as gameplay), a08_04 misses the swing, a07b_07 stops at the lift's load
+  until N1's pack is merged. Infected status screens no longer fail-stop in any area
+  (models 0x3D, 0x3F, 0x40). Stand-ins: 001CB1F0 boxes and the infected menu player's
+  glow w_001CD520 are not drawn. tests/status_models_test.c:243-244 still expect glyph
+  0x6D to fault; make test-status-models fails those two. Main verified: quick set,
+  harness contracts, a07b_01, a08_05, route --until a13_05 85 phases.
+  Running: N1 (area03x, merging main).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
