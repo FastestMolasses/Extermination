@@ -407,7 +407,32 @@ that is a different, stale tree.
   test-aim-fire-lamp-cone, test-gs-world, test-level-smoke, test-boss-fight,
   test-start-saves, the three harness contracts, beat a03_00. The lane's route
   smoke reached a04_05 (56 phases); the full route is rerun with AREA13's merge.
-  Running: H1 (branch area13, New Game through a13_05 committed), J1 (branch area19).
+  New Game through AREA13 (port main 7208a32, lane H1): row-exact from New Game to
+  the row before AREA19's load, 85 live phases: `python3
+  tools/test_level_smoke_area01r.py --run --until a13_05 --rand-replay
+  build/rand_replay_bed/route_a13_20261030/route.txt`. a04b_04 2,083 rows (its
+  ROW_LIMIT is gone), a13_00 7,063, a13_01 572, a13_02 1,098, a13_03 562, a13_04 812,
+  a13_05 176 of 925 (ROW_LIMIT before AREA19's load). Side `--until a04b_s7
+  --rand-replay build/rand_replay_bed/route_a13s_20261030/route.txt` also passes on
+  the merged tree. Both verified on main with the quick set and the three harness
+  contracts. Not compared: pixels (weather strips, sky, fade), sound. Every non-AREA11
+  area now runs the weather state through the outdoor tick, so AREA15 sub 1's snow is
+  reported once and not drawn (port docs/AREA15_PORT.md). Not bound: em_level9's
+  001838B0. Reached from cards: door [8], button [15], door [17], the lift back,
+  lobby bugs and crates, firing. Not reached: door [20], hatch [63], [44]'s event,
+  [7]. Older reference tests that failed at 3cd93a3 and were not rerun:
+  test_area01_sfx_registry, test_area01_runtime_reference, test_area01_door_live_reference,
+  test_area02_runtime_reference, test_area01_revisit_runtime_reference,
+  test_area11_interaction_host, test_camera_interaction_fixture.
+  New recordings (lane L1, decomp 6662a66..39f5b84, port docs/SIXTEENTH_LEVEL_ROUTE.md):
+  build/fork_refs/levels-recordings-20261030-1/, 45,007 frames from a03_00 through
+  AREA03 subs 1 and 2, AREA08 subs 0, 2, 3, AREA04 sub 1 and AREA07 sub 0 (groups a03b,
+  a08, a03c, a04c, a07), all pad input. It stops at a07_00, health 17, infection 100.
+  User 2026-10-31: finish the areas in progress (AREA19, AREA13's later beats, AREA03's
+  rest, AREA04 sub 1, AREA08, AREA07), start no new area, then pause for the user's
+  playtest, fixing missing implementations up to the last ported area.
+  Running: J1 (branch area19), M1 (area13x), N1 (area03x), P1 (area08), L1 (recording
+  AREA07's rest on route16).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit

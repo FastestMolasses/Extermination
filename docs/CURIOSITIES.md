@@ -896,3 +896,9 @@ Kept so the old claims are not reintroduced.
 - Evidence: the original's 00118790 and 00118418 (the script loop and pan slide)
   and the fork's track trace; the port's SFX lockstep passes V over 0x44E, past its
   loop (lane K1, 2026-10-30).
+
+## 42. AREA13 never plays its second wind — note
+
+*Kind: note.* AREA13's outdoor wind 0x44E is the looping script of entry 41, here a
+7,152-tick loop with pan slides. Sound 0x44F is absent in AREA13: D_00282164 = -1
+(lane H1, 2026-10-30; the captures agree).
