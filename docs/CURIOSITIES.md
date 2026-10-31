@@ -885,3 +885,14 @@ Kept so the old claims are not reintroduced.
     but Dennis is alone there and the scene spawns no other actor.
   - What the disc does keep from cut or untranslated work is entries 29 and
     30 (Japanese-only audio and text), not the blog's subplot.
+
+## 41. AREA15's ambient loop: a 63-step drone that plays forever, one tick short — decoded
+
+- AREA15 sub 1's ambient sound 0x44E (0x4E3 and 0x58A..0x59A use the same script)
+  is a 63-operation SFX script of volume, pitch and pan slides that never ends: it
+  loops through its B0 60 operation.
+- The first wait after the jump is one tick shorter than on the first pass, so the
+  second and later passes run out of phase with the first.
+- Evidence: the original's 00118790 and 00118418 (the script loop and pan slide)
+  and the fork's track trace; the port's SFX lockstep passes V over 0x44E, past its
+  loop (lane K1, 2026-10-30).

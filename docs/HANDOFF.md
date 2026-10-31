@@ -386,6 +386,28 @@ that is a different, stale tree.
   the three harness contracts, and --until a04b_s7 = 81 live phases. Lanes all
   merged; port branches: main only. Next: AREA13 (the lift stops at its load);
   the save terminal's accepted save; model 0x35; the Zoom scope's take.
+  AREA15 and AREA03 from cards (port main 35aeab4, lane K1, overnight 2026-10-30;
+  port docs/AREA15_PORT.md): AREA15 subs 0 and 1 and AREA03 sub 0 run in the
+  shared composition. `python3 tools/mid_route_beats.py a15a a15 a15b a03`: 6 of 8
+  beats pass; a15_00 and a15b_04 stop at AREA19's load (the pack lacks its
+  sectors) until the AREA19 lane merges. Row counts are card-only: a15a_00 9,402
+  of 9,429; the a15b chain 11,024 of 18,881; a03_00 271 of 2,558 (first difference
+  row 14, not investigated). The steered walks are not comparable before the New
+  Game chain reaches them. a03_00 is the last recorded beat: AREA03's door [13],
+  subs 1 and 2 and any fight with its six 0013D2D0 creatures are unrecorded. Shared
+  fixes: SFX pan slide and B0 60 loop (first wait after the target is one tick
+  short, pass V over 0x44E), 0022EC30's whole table for 38 scenes (0022EEF0's audio
+  track not compared; scene 27's 3852..3960 ramp faults), 0022BBC0 on pool actors,
+  generic shadow proxies 0x2A..0x34. Open: AREA15 sub 1 [3]'s class-6 draw
+  (001CB2B0 -> 001D4440) is a logged stand-in that draws nothing; E46S4's feed_end
+  725 is derived, not probed; test_area01_runtime_reference does not link
+  (em_aim_fire_binding_bytes, from before this lane). Card `area15` needs
+  build/fork_refs/area15_arrival_20261030/. Merged checks: zero warnings,
+  newgame-control, test-start-at, test-cutscene-skip, test-glow-dissolve,
+  test-aim-fire-lamp-cone, test-gs-world, test-level-smoke, test-boss-fight,
+  test-start-saves, the three harness contracts, beat a03_00. The lane's route
+  smoke reached a04_05 (56 phases); the full route is rerun with AREA13's merge.
+  Running: H1 (branch area13, New Game through a13_05 committed), J1 (branch area19).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
