@@ -58,7 +58,8 @@ PY = sys.executable
 TIME_KEYS = {"counter", "f", "fi", "fld", "vs", "vsync"}
 
 LEVEL_ORDER = ["a01", "a00", "a01r", "a02", "a04", "a22", "a01u", "a06", "a06b", "a01v", "a22b", "a04b",
-               "a13", "a19", "a13b", "a13c", "a13d", "a19b", "a19c", "a19d", "a15", "a15b", "a19e", "a03"]
+               "a13", "a19", "a13b", "a13c", "a13d", "a19b", "a19c", "a19d", "a15", "a15b", "a19e", "a03",
+               "a03b"]
 FIRST_LEVEL_GROUPS = ["main", "c7", "aim", "exit", "dmg", "br", "opt"]
 
 
@@ -76,7 +77,7 @@ def all_beats() -> dict[str, tuple[str, object, str]]:
             out[name] = (source, fn, group_of(name))
     for sel in (rc.eighth_selected, rc.a13_selected, rc.tenth_selected, rc.eleventh_selected,
                 rc.twelfth_selected, rc.thirteenth_selected, rc.fourteenth_selected,
-                rc.fourteenth_a15_selected, rc.fifteenth_selected, rc.aim_selected, rc.exit_selected,
+                rc.fourteenth_a15_selected, rc.fifteenth_selected, rc.sixteenth_selected, rc.aim_selected, rc.exit_selected,
                 rc.dmg_selected, rc.br_selected, rc.opt_selected):
         for prefix in LEVEL_ORDER[8:] + ["aim", "exit", "dmg", "br", "opt"]:   # a06b on (A06_BEATS holds only a06)
             for name, source, fn in sel(prefix):

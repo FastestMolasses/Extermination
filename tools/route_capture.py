@@ -79,6 +79,7 @@ None of them runs under `--beats all`.
     .venv/bin/python tools/route_capture.py run --beats a19c       # thirteenth level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a19d,a15   # fourteenth level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a15b,a19e,a03  # fifteenth level (opt-in)
+    .venv/bin/python tools/route_capture.py run --beats a03b       # sixteenth level (opt-in; port docs/SIXTEENTH_LEVEL_ROUTE.md)
 The AREA13 beats (a13_*, from the a04b_04_lift snapshot) write to
 build/s87/route_a13/<beat>/; they are described in the port's
 docs/NINTH_LEVEL_ROUTE.md.
@@ -7413,6 +7414,416 @@ A03_BEATS: list[tuple] = [
 A03_SIDE_BEATS: set[str] = set()
 A03_CHANGE_BEATS: set[str] = set()
 
+# Sixteenth level (lane L1, 2026-10-30; port docs/SIXTEENTH_LEVEL_ROUTE.md):
+# past a03_00's lift.  Opt-in groups named by area (a03b, then the areas the
+# story route reaches); no recording of these groups exists under the v2.6.3
+# paths, so they are fork-only (build/fork_refs/<set>/s87/route_<group>/).
+# Hit rules read from the C (0013D2D0's neighbours): a round is 5 points,
+# 00141A30 subtracts them from +0x34 (60 for flags without bit 7 of +0xD);
+# 001418F0 needs 90 frames of 001B3F10 (radius 180 in front, 80 elsewhere,
+# |dy| <= 18, a clear ray) before the creature wakes; it attacks only inside
+# 20 units.  So the beats below run past the creatures and keep the rounds.
+SIXTEENTH_GROUPS = ("a03b",)
+A03B_OWNERS = {                       # a19e_07's sub-0 load (pool nodes, 0013D2D0 creatures)
+    "cre8_13D2D0": 0x7A6DC0, "cre9_13D2D0": 0x7A70B0, "cre10_13D2D0": 0x7A73A0,
+    "cre11_13D2D0": 0x7A7690, "cre12_13D2D0": 0x7A7980, "cre13_13D2D0": 0x7A7C70,
+}
+SIXTEENTH_SPANS = [
+    ("fl758", 0x810758, 0x80),          # every story flag D_00810758..D7
+    ("ct818", 0x810818, 0x40),          # the counters past D_008107D8..817 (row "d2")
+    ("lk840", 0x810840, 0x20),          # the area lock bytes D_00810840..5F
+    ("cc0", 0x810CC0, 0x40),            # D_00810CC0.. (documents, CC3 + id)
+    ("hud6e0", 0x8106EC, 0x4),          # after the three locks
+]
+
+
+def decode_sixteenth(r: dict[str, bytes], owners=None) -> dict:
+    row = decode_a15b(r, owners=owners)
+    row["fl"] = r["fl758"].hex()
+    row["ct2"] = r["ct818"].hex()
+    row["lk"] = r["lk840"].hex()
+    row["cc"] = r["cc0"].hex()
+    return row
+
+
+def use_sixteenth_sampler(r: Route, owners=None) -> None:
+    spans = [sp for sp in A19D_SPANS if ":" not in sp[0]] + A15B_EXTRA_SPANS + SIXTEENTH_SPANS
+    for _name, _base in (owners or {}).items():
+        spans += [(_name + ":h", _base, 0x10), (_name + ":p", _base + 0xB0, 0x10),
+                  (_name + ":s", _base + 0x1F0, 0x10), (_name + ":t", _base + 0x2DC, 0x14),
+                  (_name + ":c", _base + 0x10, 0x4), (_name + ":r", _base + 0xC0, 0x10),
+                  (_name + ":k", _base + 0x30, 0x10)]
+    sampler = A01USampler(r.s, spans=spans)
+    r.sampler = sampler
+    r.now = lambda: decode_sixteenth(sampler.raw(), owners=owners or {})
+    r.rows[0] = dict(r.now(), f=0)
+
+
+def sixteenth_run(r: Route, points, tol: float = 1.2, limit: int = 500) -> None:
+    """The stick at full tilt through each point; a grab is rocked off.  A point
+    not reached fails the beat."""
+    for x, z in points:
+        for _ in range(limit):
+            row = r.rows[-1]
+            if row["m1F0"] in A19D_GRABS:
+                a19d_rock(r, 200)
+                continue
+            if math.hypot(row["pos"][0] - x, row["pos"][2] - z) <= tol:
+                break
+            r.stick_toward(x, z, 1.0)
+            r.step(1)
+        else:
+            raise TimeoutError(f"not reached ({x}, {z}): " + summary(r.rows[-1]))
+    r.set_pad(0)
+
+
+def a03b_beat_door13(r: Route) -> dict:
+    # From the lift's foot out of the car, down the tunnel and up the stair 32
+    # (floor 32, x 371.5..421.8); the block x 367..417.5, z 471..502 and the
+    # player-only walls 122..125 (attribute 0x51) close the room's east end,
+    # so the way to the stair 33 is round the west end of the fallen beam (x <
+    # 266) and back east along z 518; the corridor 23 to door [13] (001BC350,
+    # id 0x85) facing +z: AREA03 entry 1 sub 1.
+    use_sixteenth_sampler(r, A03B_OWNERS)
+    next_long_frames(r)
+    a19d_rock(r, 200)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(551, 423), (545, 420), (541, 414), (530, 420), (480, 462), (440, 462), (425, 462),
+                      (372, 462), (345, 456), (300, 456), (262, 466), (254, 490), (255, 510), (270, 518),
+                      (350, 518), (364, 514), (414, 514), (424, 520), (432, 540), (432.5, 591)])
+    r.set_pad(0)
+    r.step(10)
+    a13_face(r, 0.0, tol=0.1)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00" or row["area4"] != "03000203", tries=4)
+    r.until(lambda row: row["area4"] == "03010103", 900)
+    a19c_until_control(r, 1500)
+    return {"what": "AREA03 sub 0: past the creatures, round the beam, door [13] to sub 1 entry 1",
+            "hp_end": a01_hp(r)}
+
+
+def sixteenth_crawl_to(r: Route, axis: int, target: float, sign: int, limit: int = 2000) -> None:
+    """Stick up in the crawl (action 0x2D) until pos[axis] passes `target` in
+    the direction `sign`, then let go."""
+    for _ in range(limit):
+        row = r.rows[-1]
+        if (row["pos"][axis] - target) * sign >= 0 or row["m1F0"] != 0x2D:
+            break
+        r.set_pad(0, 0x7F, 0x00)
+        r.step(1)
+    r.set_pad(0)
+    r.step(5)
+
+
+def sixteenth_hatch_drop(r: Route) -> None:
+    """The duct's exit leaves the player hanging from the hatch (0016D130, +5
+    0x18, +D 2: action 0x2C): the stick down (00174FD0's quadrant 1) with a Use
+    press drops to the floor."""
+    r.until(lambda row: row["m1F0"] == 0x2C and row["p5"] == 0x18, 400)
+    r.step(20)
+    for _ in range(6):
+        r.set_pad(0, 0x7F, 0xFF)
+        r.step(6)
+        r.set_pad(PAD["CROSS"], 0x7F, 0xFF)
+        r.step(3)
+        r.set_pad(0, 0x7F, 0xFF)
+        r.step(10)
+        r.set_pad(0)
+        r.step(10)
+        if r.rows[-1]["m1F0"] != 0x2C:
+            break
+    r.until(in_control, 600)
+    a13_settle(r, 10)
+
+
+def sixteenth_crawl_out(r: Route) -> None:
+    """Stick up until the crawl ends (action 0x2E at a hatch)."""
+    for _ in range(30):
+        r.set_pad(0, 0x7F, 0x00)
+        r.step(20)
+        if r.rows[-1]["m1F0"] != 0x2D:
+            break
+
+
+def a03b_beat_duct_west(r: Route) -> dict:
+    # Sub 1 from entry 1: the stair 165 (+z) to the y-45 platform 72, the stair
+    # 164 (-z) to y 55, round by floors 64 and 69 to the attribute-0x37 square
+    # (x 491.6..497.5, z 732..739) facing +x: the crawl.  East along z 735.7 to
+    # the junction at x 557 (the walls 27 / 299 at x 647..648 close the way on
+    # east: g[11] sits at that dead end, not taken here), south to the junction
+    # at z 802.5, east to the hatch over room A: 0016D130's hang, the drop.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(425, 650), (425, 690), (424, 708), (400, 708), (400, 672), (378, 664), (376, 720),
+                      (392, 735), (484, 735.5)])
+    for _ in range(60):
+        if r.rows[-1]["pos"][0] >= 491.8:
+            break
+        r.stick_toward(496, 735.5, 0.7)
+        r.step(1)
+    a13_settle(r, 5)
+    a13_face(r, math.pi / 2)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x2C, 0x2D))
+    r.until(lambda row: row["m1F0"] == 0x2D, 300)
+    r.idle(90)
+    sixteenth_crawl_to(r, 0, 556.9, 1)
+    r.step(10)
+    a01_turn_crawl(r, 0.0)
+    sixteenth_crawl_to(r, 2, 802.3, 1)
+    r.step(10)
+    a01_turn_crawl(r, math.pi / 2)
+    sixteenth_crawl_out(r)
+    sixteenth_hatch_drop(r)
+    return {"what": "AREA03 sub 1: the stairs to the y-55 deck, the duct's west part, the hatch into room A",
+            "hp_end": a01_hp(r)}
+
+
+def a03b_beat_duct_east(r: Route) -> dict:
+    # Room A east to the hatch at (630.9, 802.5) facing +x: Cross jumps to the
+    # hatch (the same hang), the stick up climbs in; east to the junction at x
+    # 658, north (-z) to the hatch over [22]'s room, the drop.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(620, 802.5)])
+    for _ in range(100):
+        if r.rows[-1]["pos"][0] >= 628.5:
+            break
+        r.stick_toward(640, 802.5, 0.5)
+        r.step(1)
+    a13_settle(r, 5)
+    a13_face(r, math.pi / 2)
+    a19_press_until(r, lambda row: row["m1F0"] in (0x2C, 0x2D))
+    r.step(60)
+    r.until(lambda row: row["m1F0"] == 0x2D, 400, 0, 0x7F, 0x00)
+    r.idle(90)
+    sixteenth_crawl_to(r, 0, 657.9, 1)
+    r.step(10)
+    a01_turn_crawl(r, math.pi)
+    sixteenth_crawl_to(r, 2, 716, -1)
+    sixteenth_crawl_out(r)
+    sixteenth_hatch_drop(r)
+    return {"what": "AREA03 sub 1: room A, the east hatch, the duct north, the hatch into [22]'s room",
+            "hp_end": a01_hp(r)}
+
+
+def sixteenth_heal(r: Route) -> None:
+    """The status screen's HEALING page, as a19e_beat_battery: item 0x1F, kind 1:
+    health 100."""
+    a15b_status_open(r)
+    a15b_status_pick(r, 0x00, 0x7F)            # ITEM
+    a15b_status_pick(r, 0x00, 0x7F)            # ITEM hover 5: HEALING
+    r.press("CROSS", 2)
+    r.until(lambda row: row["ui"][10:12] == "04", 200)
+    r.step(30)
+    r.press("LEFT", 2)
+    r.step(20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["hp"] >= 99.9, 900)
+    for _ in range(8):                         # the HEALING page, the ITEM root and the hub stay open
+        if r.rows[-1]["ui"][2:4] == "00" and r.rows[-1]["t130"][2:4] == "00":
+            break
+        r.press("TRIANGLE", 2)
+        r.step(30)
+    r.until(in_control, 900)
+    a13_settle(r, 5)
+
+
+def flag(row: dict, i: int) -> str:
+    """Story flag i: D_00810758[i] as two hex digits."""
+    return row["fl"][2 * i:2 * i + 2]
+
+
+def a03b_beat_item2a(r: Route) -> dict:
+    # g[3] (0x823810, C) inside the player-only hull 569..573 is used from
+    # its south side facing -z: D_00810781 = 1; [22] (0x8235A0, C) plays script
+    # 0x827170 and at its end gives C64 0x2A and CC3 0x12 (counter 0x29 = 0xFF);
+    # the page closes on Triangle.  Then item 0x1F, kept since a19e_03, from
+    # the HEALING page (health 45 -> 100).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(655, 695), (651.3, 686)], tol=1.0)
+    for _ in range(40):
+        if r.rows[-1]["pos"][2] <= 684.2:
+            break
+        r.stick_toward(651.3, 676, 0.5)
+        r.step(1)
+    a13_settle(r, 5)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: flag(row, 0x29) != "00" or row["spad"][2:4] != "00", tries=4)
+    a15b_close_page(r, 6000)
+    r.until(in_control, 900)
+    a13_settle(r, 10)
+    sixteenth_heal(r)
+    return {"what": "AREA03 sub 1: g[3]'s Use, [22]'s script: flag 0x29, items C64 0x2A / CC3 0x12; item 0x1F used",
+            "hp_end": a01_hp(r)}
+
+
+def sixteenth_hatch_in(r: Route) -> None:
+    """Standing on an attribute-0x38 square facing the wall: Cross jumps to the
+    hatch (0016D130's hang), the stick up climbs in."""
+    a19_press_until(r, lambda row: row["m1F0"] in (0x2C, 0x2D))
+    r.step(60)
+    r.until(lambda row: row["m1F0"] == 0x2D, 400, 0, 0x7F, 0x00)
+    r.idle(90)
+
+
+def a03b_beat_back(r: Route) -> dict:
+    # Out of [22]'s room: its hatch (facing +z), the duct south to the junction
+    # at z 802.5 (the walls at x 667 close both east branches), west to the hatch
+    # into room A, across it, the west hatch, west to the junction at x 557,
+    # north past z 735 to the hatch over door [26]'s room.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(657.9, 700), (657.9, 709.5)], tol=0.8)
+    for _ in range(40):
+        if r.rows[-1]["pos"][2] >= 710.4:
+            break
+        r.stick_toward(657.9, 716, 0.4)
+        r.step(1)
+    a13_settle(r, 5)
+    a13_face(r, 0.0, tol=0.08)
+    sixteenth_hatch_in(r)
+    sixteenth_crawl_to(r, 2, 800.0, 1)
+    a01_turn_crawl(r, -math.pi / 2)
+    sixteenth_crawl_out(r)
+    sixteenth_hatch_drop(r)
+    sixteenth_run(r, [(590, 802.5)])
+    for _ in range(100):
+        if r.rows[-1]["pos"][0] <= 581:
+            break
+        r.stick_toward(570, 802.5, 0.5)
+        r.step(1)
+    a13_settle(r, 5)
+    a13_face(r, -math.pi / 2)
+    sixteenth_hatch_in(r)
+    sixteenth_crawl_to(r, 0, 559.4, -1)
+    a01_turn_crawl(r, math.pi)
+    sixteenth_crawl_out(r)
+    sixteenth_hatch_drop(r)
+    return {"what": "AREA03 sub 1: back through room A and the ducts to door [26]'s room", "hp_end": a01_hp(r)}
+
+
+def sixteenth_cut(r: Route, owner: int) -> None:
+    """A knife cut (Circle, melee 0x21) at a 001C1030 curtain: 00189EC0 type 0x51,
+    the hit's 0x1000 flag; its +4 leaves 1."""
+    for _ in range(6):
+        r.press("CIRCLE", 2)
+        for _ in range(40):
+            r.step(1)
+            if r.s.read(owner + 4, 4)[0] != 1:
+                r.step(10)
+                return
+    raise TimeoutError("curtain not cut: " + summary(r.rows[-1]))
+
+
+def a03b_beat_slider(r: Route) -> dict:
+    # Door [26] (001BC350, room move id 2) facing -z into the corridor; east
+    # along z 647.5; the two curtains [17] / [18] (001C1030, class 4 type 0x51, y
+    # 45, hit points 1) stop the player at x 632 and x 669; one light melee frees
+    # each; the east room, the slider [29] (001BB860, id 0x84) facing +x: AREA03
+    # entry 0 sub 2.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    try:
+        sixteenth_run(r, [(561.9, 680), (561.9, 668)], tol=0.8, limit=120)
+    except TimeoutError:
+        pass                                    # the door stops the walk at z 669.4
+    a13_settle(r, 5)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    sixteenth_run(r, [(600, 648), (628, 648)])
+    r.set_pad(0)
+    r.step(6)
+    try:
+        sixteenth_run(r, [(631, 647.5)], tol=0.8, limit=60)
+    except TimeoutError:
+        pass                                    # the curtain stops the walk at x 632
+    r.set_pad(0)
+    r.step(8)
+    a13_face(r, math.pi / 2, tol=0.1)
+    sixteenth_cut(r, 0x7A8830)
+    sixteenth_run(r, [(666, 647.5)], tol=1.0, limit=120)
+    r.set_pad(0)
+    r.step(8)
+    a13_face(r, math.pi / 2, tol=0.1)
+    sixteenth_cut(r, 0x7A8B20)
+    sixteenth_run(r, [(690, 648), (730, 672), (749, 672)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(8)
+    a13_settle(r, 3)
+    a13_face(r, math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    r.until(lambda row: row["area4"][:4] == "0302", 900)
+    a19c_until_control(r, 1500)
+    return {"what": "AREA03 sub 1: door [26], the corridor, the curtains cut, the slider [29]: sub 2", "hp_end": a01_hp(r)}
+
+
+def a03b_beat_lift(r: Route) -> dict:
+    # Sub 2: the socket s2[6] (00159E70) has set D_00810844 bit 7 by itself at
+    # the load (item 0x2A held).  Round the bar 28 (x 780.5..783.5) by its south
+    # end; the outer button [10] (001BDFC0) from (834, 677) facing +x; into the
+    # car; the inner button [11] from (865.5, 650) facing -z: the lift [8]
+    # (001BD560, id 0x87): AREA08 entry 0.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(776, 680), (778, 693), (790, 692), (825, 677), (833.5, 677)], tol=1.0)
+    r.set_pad(0)
+    r.step(8)
+    a13_settle(r, 3)
+    a13_face(r, math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    r.step(90)
+    sixteenth_run(r, [(840, 664), (855, 662), (865.5, 652)], tol=1.0, limit=240)
+    r.set_pad(0)
+    r.step(5)
+    a13_settle(r, 3)
+    a19d_go_rock(r, 865.5, 650, tol=0.6)
+    r.set_pad(0)
+    r.step(5)
+    a13_settle(r, 3)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    r.until(lambda row: row["area4"][:2] == "08", 1500)
+    a19c_until_control(r, 3000)
+    a13_settle(r, 10)
+    return {"what": "AREA03 sub 2: the lift's buttons [10] / [11], the ride: AREA08 entry 0", "hp_end": a01_hp(r)}
+
+
+A03B_BEATS: list[tuple] = [
+    ("a03b_00_door13", "a03_00_elevator", a03b_beat_door13),
+    ("a03b_01_duct_west", "a03b_00_door13", a03b_beat_duct_west),
+    ("a03b_02_duct_east", "a03b_01_duct_west", a03b_beat_duct_east),
+    ("a03b_03_item2a", "a03b_02_duct_east", a03b_beat_item2a),
+    ("a03b_04_back", "a03b_03_item2a", a03b_beat_back),
+    ("a03b_05_slider", "a03b_04_back", a03b_beat_slider),
+    ("a03b_06_lift", "a03b_05_slider", a03b_beat_lift),
+]
+SIXTEENTH_BEATS: list[tuple] = A03B_BEATS
+SIXTEENTH_SIDE_BEATS: set[str] = set()
+
+
+def sixteenth_selected(spec: str) -> list[tuple]:
+    """The sixteenth-level groups (opt-in; side beats run only by name)."""
+    wanted = spec.split(",")
+    out = []
+    for b in SIXTEENTH_BEATS:
+        head = b[0].split("_")[0]
+        if (head in wanted and b[0] not in SIXTEENTH_SIDE_BEATS) or \
+                any(b[0] == w or b[0].startswith(w + "_") for w in wanted):
+            out.append(b)
+    return out
+
+
+def sixteenth_owners(name: str):
+    return A03B_OWNERS if name.startswith("a03b_00") else None
+
 
 A15B_BEATS: list[tuple] = [
     ("a15b_00_event", "a15_01_door51", a15b_beat_event),
@@ -10352,6 +10763,8 @@ def _legacy_beat_dir(name: str) -> Path:
         return OUT_A19E / name
     if name.startswith("a03_"):                 # fifteenth level, AREA03
         return OUT_A03 / name
+    if name.split("_")[0] in SIXTEENTH_GROUPS:  # sixteenth level, one folder per group
+        return ROOT / "build/s87" / ("route_" + name.split("_")[0]) / name
     if name.startswith("aim_"):                 # AIM capture group (docs/CAPTURES_C10.md)
         return OUT_AIM / name
     if name.startswith("exit_"):                # EXIT capture group (docs/CAPTURES_C10.md)
@@ -10609,6 +11022,8 @@ if __name__ == "__main__":
                 run_beat(name, source, fn)
             for name, source, fn in fifteenth_selected(a.beats):  # the fifteenth-level groups
                 run_beat(name, source, fn)
+            for name, source, fn in sixteenth_selected(a.beats):  # the sixteenth-level groups
+                run_beat(name, source, fn)
             for name, source, fn in aim_selected(a.beats):     # the AIM capture group
                 run_beat(name, source, fn)
             for name, source, fn in exit_selected(a.beats):    # the EXIT capture group
@@ -10642,6 +11057,7 @@ if __name__ == "__main__":
         chosen += fourteenth_selected(a.beats) if a.beats != "all" else []
         chosen += fourteenth_a15_selected(a.beats) if a.beats != "all" else []
         chosen += fifteenth_selected(a.beats) if a.beats != "all" else []
+        chosen += sixteenth_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []
@@ -10665,7 +11081,7 @@ if __name__ == "__main__":
                       A06_OWNERS if name.startswith("a06_") else
                       eighth_owners(name) or ninth_owners(name) or tenth_owners(name)
                       or eleventh_owners(name) or twelfth_owners(name) or thirteenth_owners(name)
-                      or fourteenth_owners(name) or fifteenth_owners(name))
+                      or fourteenth_owners(name) or fifteenth_owners(name) or sixteenth_owners(name))
             for line in events(doc, owners):
                 print("  ", line)
     elif a.command == "legacy-refs":
@@ -10729,6 +11145,7 @@ if __name__ == "__main__":
         chosen += fourteenth_selected(a.beats) if a.beats != "all" else []
         chosen += fourteenth_a15_selected(a.beats) if a.beats != "all" else []
         chosen += fifteenth_selected(a.beats) if a.beats != "all" else []
+        chosen += sixteenth_selected(a.beats) if a.beats != "all" else []
         chosen += aim_selected(a.beats) if a.beats != "all" else []
         chosen += exit_selected(a.beats) if a.beats != "all" else []
         chosen += dmg_selected(a.beats) if a.beats != "all" else []
