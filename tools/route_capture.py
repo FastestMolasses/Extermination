@@ -7423,7 +7423,7 @@ A03_CHANGE_BEATS: set[str] = set()
 # 001418F0 needs 90 frames of 001B3F10 (radius 180 in front, 80 elsewhere,
 # |dy| <= 18, a clear ray) before the creature wakes; it attacks only inside
 # 20 units.  So the beats below run past the creatures and keep the rounds.
-SIXTEENTH_GROUPS = ("a03b", "a08", "a03c", "a04c")
+SIXTEENTH_GROUPS = ("a03b", "a08", "a03c", "a04c", "a07")
 A03B_OWNERS = {                       # a19e_07's sub-0 load (pool nodes, 0013D2D0 creatures)
     "cre8_13D2D0": 0x7A6DC0, "cre9_13D2D0": 0x7A70B0, "cre10_13D2D0": 0x7A73A0,
     "cre11_13D2D0": 0x7A7690, "cre12_13D2D0": 0x7A7980, "cre13_13D2D0": 0x7A7C70,
@@ -8294,17 +8294,51 @@ def sixteenth_walk(r: Route, points, tol: float = 2.0, limit: int = 200) -> None
     r.set_pad(0)
 
 
+def sixteenth_heal_30(r: Route) -> None:
+    """The HEALING page with item 0x1E as its only entry: kind 0, +30 (the cap
+    is 60 at infection 100: 002160B0)."""
+    a15b_status_open(r)
+    a15b_status_pick(r, 0x00, 0x7F)            # ITEM
+    a15b_status_pick(r, 0x00, 0x7F)            # ITEM hover 5: HEALING
+    r.press("CROSS", 2)
+    r.until(lambda row: row["ui"][10:12] == "04", 200)
+    r.step(30)
+    r.press("LEFT", 2)
+    r.step(20)
+    r.press("CROSS", 2)
+    hp0 = r.rows[-1]["hp"]
+    r.until(lambda row: row["hp"] > hp0 + 5, 900)
+    r.step(120)
+    for _ in range(8):                         # the HEALING page, the ITEM root and the hub stay open
+        if r.rows[-1]["ui"][2:4] == "00" and r.rows[-1]["t130"][2:4] == "00":
+            break
+        r.press("TRIANGLE", 2)
+        r.step(30)
+    r.until(in_control, 900)
+    a13_settle(r, 5)
+
+
 def a04c_beat_door73(r: Route) -> dict:
     # North up the west side (the boxes x 345..361 close the pocket's east; the
-    # creatures walk slower than the player), south of the two blocks at z 139..
-    # 169.6 and the hanging box at (390..404, 169..183), east of it through (409.5,
-    # 183), to the slider [73] (001BB860, model 0x16, id 5, D_00810845 bit 5) from
-    # (440, 116) facing -z: entry 9, the north room.
+    # creatures walk slower than the player).  The box [40] (001551B0) at (368.1,
+    # 224.6) broken from the west, its pickup g[3] (item 0x1E) from (361, 224.5),
+    # used at once (health 27 -> 57).  South of the two blocks at z 139..169.6 and
+    # the hanging box at (390..404, 169..183), east of it through (409.5, 183), to
+    # the slider [73] (001BB860, model 0x16, id 5, D_00810845 bit 5) from (440,
+    # 116) facing -z: entry 9, the north room.
     use_sixteenth_sampler(r)
     next_long_frames(r)
     a13_settle(r, 3)
-    sixteenth_run(r, [(336, 360), (328, 335), (326, 300), (340, 240), (345, 190), (382, 190), (400, 187), (409.5, 183),
-                      (414, 168), (420, 145), (438, 130), (440, 119)], tol=2.0, limit=200)
+    sixteenth_run(r, [(336, 360), (328, 335), (326, 300), (340, 240), (354, 226)], tol=2.0, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, math.pi / 2, tol=0.12)
+    sixteenth_melee_until(r, 0x7ACBC0)
+    r.step(40)
+    a19e_take(r, 368.4, 224.3, (361, 224.5))
+    sixteenth_heal_30(r)
+    sixteenth_run(r, [(370, 196), (382, 190), (400, 187), (409.5, 183), (414, 168), (420, 145), (438, 130), (440, 119)],
+                  tol=2.0, limit=200)
     r.set_pad(0)
     r.step(4)
     a19d_go_rock(r, 440, 116, tol=0.6)
@@ -8313,7 +8347,8 @@ def a04c_beat_door73(r: Route) -> dict:
     a13_face(r, math.pi, tol=0.08)
     a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4, wait=30)
     a19c_until_control(r, 1500)
-    return {"what": "AREA04 sub 1: north round the machines, the slider [73]: entry 9", "hp_end": a01_hp(r)}
+    return {"what": "AREA04 sub 1: the box, item 0x1E used, north round the machines, the slider [73]: entry 9",
+            "hp_end": a01_hp(r)}
 
 
 def a04c_beat_lift(r: Route) -> dict:
@@ -8353,7 +8388,49 @@ A04C_BEATS: list[tuple] = [
     ("a04c_01_door73", "a04c_00_event", a04c_beat_door73),
     ("a04c_02_lift", "a04c_01_door73", a04c_beat_lift),
 ]
-SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS
+def a07_beat_switch(r: Route) -> dict:
+    # AREA07 sub 0 shares AREA08's lift room and door [35] (= AREA08's [17]).
+    # West of it three octagon rooms: along z 541 (the north wall's pilasters
+    # reach z 535) to the slider [33] (001BB860, id 4) from (220, 550.5) facing
+    # +z: entry 0xB; round the table's west side to the switch [28] (0015A070)
+    # from (207, 587) facing -x: D_00810848 bit 1 (the slider [26] to sub 2).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(380, 670), (370, 648)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 366.2, 646.0, tol=0.5)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, -math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    sixteenth_run(r, [(312, 612), (308, 541), (240, 541), (225, 542)], tol=2.0, limit=240)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 220, 550.5, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, 0.0, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    sixteenth_run(r, [(206, 568), (206, 582)], tol=2.0, limit=100)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 207, 587, tol=0.6)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, -math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4, wait=30)
+    r.until(in_control, 1200)
+    return {"what": "AREA07 sub 0: door [35], the slider [33], the switch [28]: D_00810848 bit 1", "hp_end": a01_hp(r)}
+
+
+A07_BEATS: list[tuple] = [
+    ("a07_00_switch", "a04c_02_lift", a07_beat_switch),
+]
+SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS + A07_BEATS
 SIXTEENTH_SIDE_BEATS: set[str] = set()
 
 
