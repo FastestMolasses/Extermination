@@ -914,3 +914,9 @@ that only stop the player, read from the collision grid; taking them was not tri
 *Kind: engine quirk.* The flames and the band walls stay after flag 0x15 is set, and
 the band costs about 5 health per 90 frames, measured in exploration, so the recorded
 return uses the crawl. What ends them, if anything, is unknown (same source).
+
+## 45. AREA13's door [17]: the recorded Use at the edge of its reach — note
+
+*Kind: note.* Door [17]'s recorded inside Cross stands at the very edge of the Use's
+reach, so a small steering difference misses the door (lane M1, 2026-10-31, beat
+a13c_01).

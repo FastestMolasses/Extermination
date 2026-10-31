@@ -444,7 +444,18 @@ that is a different, stale tree.
   their own random draws; the way past chamber C is this branch. Next story step:
   AREA19 sub 1's [53]. Not entered: AREA14, 16, 17, 18, 20, 21. No rand tables or
   census for either set yet.
-  Running: J1 (area19, open items), M1 (area13x), N1 (area03x), P1 (area08).
+  AREA13's later beats (lane M1, port main 69f824a, port docs/AREA13_LATER.md): the
+  second AREA13 load through hatch [63] into AREA19 entry 10 plays from cards; 19 of 23
+  beats pass on the final tree, the a13d chain 8 of 8. All card-based, none row-exact
+  from New Game. Not passing: a13b_05 misses the lift on the final steering; a13c_04
+  ends 5.21 off and a13b_s0 9.70 off, blocks equal; a13b_00 timed out under load (passed
+  at 136 s on the previous binary). Beasts' 00146F80, 0021BF90, 0021C040 are fail-stops
+  free play can hit. An untraced VU1 translation fault (detail 2) followed long stays in
+  the east room after a13c_01 missed door [17]. Sentries 0x824BB0 fire and reach their
+  hit path natively; whether they are the attacker that hits for 5 is not proven.
+  EM_START_AT_FINE and PATH_EDIT are test steering only. Main verified: quick set,
+  harness contracts; the lane's route --until a13_05 was 85 phases on this source.
+  Running: J1 (area19, open items), N1 (area03x), P1 (area08).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
