@@ -8547,8 +8547,8 @@ A04D_BEATS: list[tuple] = [
 ]
 def a07b_beat_sub2(r: Route) -> dict:
     # Back through chamber C, door [35] (the block by (292, 543) is passed on the
-    # diagonal), past creature [11] at the junction (not fought: shooting it from
-    # (365, 572) took infection to 100 in exploration), slider [26].
+    # diagonal), past the junction creature (not fought: shooting it from (365,
+    # 572) took infection to 100 in exploration), slider [26].
     use_sixteenth_sampler(r)
     next_long_frames(r)
     a13_settle(r, 3)
@@ -8640,11 +8640,10 @@ def a07b_beat_sub3(r: Route) -> dict:
 
 
 def a07b_beat_terminal(r: Route) -> dict:
-    # Sub 3, AREA08 sub 3's plan: round the pit (creature [9] at (133.5, 136.6)
-    # stayed asleep on this line), the stair, door [11] from the east, [17]
-    # (00823990) from (161.5, 81) facing -z: script 0x826930 sets flag 0x25 1;
-    # 2,985 frames later 00823C20 grants items 0x11 and 0x14 and sets flag 0x15
-    # and flag 0x25 to 0xFF.
+    # Sub 3, AREA08 sub 3's plan: round the pit (creature [9] stays by (135, 141)
+    # on this line), the stair, door [11] from the east, [17] (00823990) from
+    # (161.5, 81) facing -z: script 0x826930 sets flag 0x25 1; about 3,000 frames
+    # later 00823C20 grants items 0x11 and 0x14 and flags 0x15 and 0x25 are 0xFF.
     use_sixteenth_sampler(r)
     next_long_frames(r)
     a13_settle(r, 3)
@@ -8673,8 +8672,8 @@ def a07b_beat_terminal(r: Route) -> dict:
 
 
 def a07b_beat_back(r: Route) -> dict:
-    # g[0] (00219550, item 0x62) from (174, 80.2): the player-only wall 670 at z
-    # 75.8 stops the walk there.  Door [11] from the west, the stair down, the
+    # g[0] (00219550, item 0x62) from (174, 80.2), where the walk stops short of
+    # the player-only wall 670 (z 75.8).  Door [11] from the west, the stair down, the
     # slider [10] facing +x: sub 2, entry 1.
     use_sixteenth_sampler(r)
     next_long_frames(r)
@@ -8748,8 +8747,8 @@ def a07b_beat_duct_back(r: Route) -> dict:
 
 
 def a07b_beat_lift(r: Route) -> dict:
-    # AREA08's lift plan in AREA07: past [11] (it hits once on this line), the
-    # outer button [23] from (395, 674.5) facing +z, the inner button [24] from
+    # AREA08's lift plan in AREA07: past the junction creature (one hit on this
+    # line), the outer button [23] from (395, 674.5) facing +z, the inner button [24] from
     # (367.5, 705) facing -x: the lift [21]: AREA04 entry 10, sub 1.
     use_sixteenth_sampler(r)
     next_long_frames(r)
