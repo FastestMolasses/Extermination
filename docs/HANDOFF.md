@@ -455,7 +455,17 @@ that is a different, stale tree.
   hit path natively; whether they are the attacker that hits for 5 is not proven.
   EM_START_AT_FINE and PATH_EDIT are test steering only. Main verified: quick set,
   harness contracts; the lane's route --until a13_05 was 85 phases on this source.
-  Running: J1 (area19, open items), N1 (area03x), P1 (area08).
+  AREA19 second pass (lane J1, port main 1f44660, port docs/AREA19_PORT.md): 19 of 34
+  cards pass, no row counts. Bound: 00130AB0 with 00133CD0, 0021BF90 with 0017C370,
+  001F28D0, the crawl node, 0019A440 and twins, 0021FB40, 0021FED0, 002208C0, 00220B50,
+  [18]'s callbacks. Awaiting the user: ERCPR/ERLENG of zero stays a fail-stop in the
+  streak rooms (a19b_01, a19c_01, a19d_15); the fork's measured values are the
+  emulator's, not hardware. Scene 27's ramp and latch kinds 2..4 fail-stop if reached;
+  tendril and worm draws are absent. a19c_03 (10.68 off) and the a19d chain's death at
+  a19d_06 are not explained. Main verified: quick set, harness contracts, route
+  --until a13_05 85 phases. tools/test_area01_collision_view_reference.py stops on its
+  capture-folder count assertion, before any port code, on main too.
+  Running: N1 (area03x), P1 (area08, merging main).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
