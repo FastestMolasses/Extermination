@@ -59,7 +59,7 @@ TIME_KEYS = {"counter", "f", "fi", "fld", "vs", "vsync"}
 
 LEVEL_ORDER = ["a01", "a00", "a01r", "a02", "a04", "a22", "a01u", "a06", "a06b", "a01v", "a22b", "a04b",
                "a13", "a19", "a13b", "a13c", "a13d", "a19b", "a19c", "a19d", "a15", "a15b", "a19e", "a03",
-               "a03b", "a08", "a03c", "a04c", "a07"]
+               "a03b", "a08", "a03c", "a04c", "a07", "a03d", "a04d", "a07b"]
 FIRST_LEVEL_GROUPS = ["main", "c7", "aim", "exit", "dmg", "br", "opt"]
 
 
