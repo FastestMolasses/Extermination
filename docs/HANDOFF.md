@@ -431,8 +431,20 @@ that is a different, stale tree.
   User 2026-10-31: finish the areas in progress (AREA19, AREA13's later beats, AREA03's
   rest, AREA04 sub 1, AREA08, AREA07), start no new area, then pause for the user's
   playtest, fixing missing implementations up to the last ported area.
-  Running: J1 (branch area19), M1 (area13x), N1 (area03x), P1 (area08), L1 (recording
-  AREA07's rest on route16).
+  AREA19 from cards (port main f2a2342, lane J1, port docs/AREA19_PORT.md): 19 of 34
+  beats pass alone from cards, none compared row by row; 7 of 7 other lanes' beats
+  through AREA19's load pass (a15_00, a15b_00..04, a13_05). Main verified: quick set,
+  harness contracts, route --until a13_05 85 phases. Open: VU1 ERCPR/ERLENG of zero
+  fail-stops (a player can hit it, room at (1056.25, 160, 920)); unbound 00130AB0,
+  0021BF90 with 0017C370, 001F28D0; tendril and worm draws 001CB1F0/130/060.
+  Second recording set (lane L1, port docs/SEVENTEENTH_LEVEL_ROUTE.md, decomp 1baab95,
+  bbb0139): build/fork_refs/levels-recordings-20261031-1/, 29,294 frames, groups a03d,
+  a04d, a07b, branched from a03c_01, finishes AREA07 (flag 0x25 = 0xFF) and ends at
+  the AREA04 sub 1 landing, hp 55, infection 85. The two sets are separate lines with
+  their own random draws; the way past chamber C is this branch. Next story step:
+  AREA19 sub 1's [53]. Not entered: AREA14, 16, 17, 18, 20, 21. No rand tables or
+  census for either set yet.
+  Running: J1 (area19, open items), M1 (area13x), N1 (area03x), P1 (area08).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit

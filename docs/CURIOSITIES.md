@@ -902,3 +902,15 @@ Kept so the old claims are not reintroduced.
 *Kind: note.* AREA13's outdoor wind 0x44E is a 7,152-tick looping script with pan
 slides. Sound 0x44F is absent in AREA13: D_00282164 = -1, and the captures have
 none (lane H1, 2026-10-30).
+
+## 43. AREA07 sub 3's cabinet pickups, sealed in — partial
+
+*Kind: engine quirk.* Sub 3's cabinet pickups (items 0x20 and 0x1E) sit inside walls
+that only stop the player, read from the collision grid; taking them was not tried
+(lane L1, port `docs/SEVENTEENTH_LEVEL_ROUTE.md` section 7).
+
+## 44. AREA07 sub 2's flames outlast the event — partial
+
+*Kind: engine quirk.* The flames and the band walls stay after flag 0x15 is set, and
+the band costs about 5 health per 90 frames, measured in exploration, so the recorded
+return uses the crawl. What ends them, if anything, is unknown (same source).
