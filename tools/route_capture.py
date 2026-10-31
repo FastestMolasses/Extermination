@@ -79,7 +79,7 @@ None of them runs under `--beats all`.
     .venv/bin/python tools/route_capture.py run --beats a19c       # thirteenth level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a19d,a15   # fourteenth level (opt-in)
     .venv/bin/python tools/route_capture.py run --beats a15b,a19e,a03  # fifteenth level (opt-in)
-    .venv/bin/python tools/route_capture.py run --beats a03b       # sixteenth level (opt-in; port docs/SIXTEENTH_LEVEL_ROUTE.md)
+    .venv/bin/python tools/route_capture.py run --beats a03b,a08   # sixteenth level (opt-in; port docs/SIXTEENTH_LEVEL_ROUTE.md)
 The AREA13 beats (a13_*, from the a04b_04_lift snapshot) write to
 build/s87/route_a13/<beat>/; they are described in the port's
 docs/NINTH_LEVEL_ROUTE.md.
@@ -7423,7 +7423,7 @@ A03_CHANGE_BEATS: set[str] = set()
 # 001418F0 needs 90 frames of 001B3F10 (radius 180 in front, 80 elsewhere,
 # |dy| <= 18, a clear ray) before the creature wakes; it attacks only inside
 # 20 units.  So the beats below run past the creatures and keep the rounds.
-SIXTEENTH_GROUPS = ("a03b",)
+SIXTEENTH_GROUPS = ("a03b", "a08")
 A03B_OWNERS = {                       # a19e_07's sub-0 load (pool nodes, 0013D2D0 creatures)
     "cre8_13D2D0": 0x7A6DC0, "cre9_13D2D0": 0x7A70B0, "cre10_13D2D0": 0x7A73A0,
     "cre11_13D2D0": 0x7A7690, "cre12_13D2D0": 0x7A7980, "cre13_13D2D0": 0x7A7C70,
@@ -7459,9 +7459,9 @@ def use_sixteenth_sampler(r: Route, owners=None) -> None:
     r.rows[0] = dict(r.now(), f=0)
 
 
-def sixteenth_run(r: Route, points, tol: float = 1.2, limit: int = 500) -> None:
+def sixteenth_run(r: Route, points, tol: float = 1.2, limit: int = 500, soft: bool = False) -> None:
     """The stick at full tilt through each point; a grab is rocked off.  A point
-    not reached fails the beat."""
+    not reached fails the beat, unless `soft`: then the walk ends there."""
     for x, z in points:
         for _ in range(limit):
             row = r.rows[-1]
@@ -7473,6 +7473,8 @@ def sixteenth_run(r: Route, points, tol: float = 1.2, limit: int = 500) -> None:
             r.stick_toward(x, z, 1.0)
             r.step(1)
         else:
+            if soft:
+                break
             raise TimeoutError(f"not reached ({x}, {z}): " + summary(r.rows[-1]))
     r.set_pad(0)
 
@@ -7805,7 +7807,253 @@ A03B_BEATS: list[tuple] = [
     ("a03b_05_slider", "a03b_04_back", a03b_beat_slider),
     ("a03b_06_lift", "a03b_05_slider", a03b_beat_lift),
 ]
-SIXTEENTH_BEATS: list[tuple] = A03B_BEATS
+def a08_beat_door17(r: Route) -> dict:
+    # Out of the car, door [0] (placement [17], 001BC350, room move id 4) from
+    # (366, 646) facing -x: entry 3, the room west of the wall.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(380, 686), (380, 670), (370, 648)], tol=1.0, limit=300)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 366.2, 646.0, tol=0.5)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, -math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    return {"what": "AREA08 sub 0: the lift room, door [17]: entry 3", "hp_end": a01_hp(r)}
+
+
+def sixteenth_melee_until(r: Route, owner: int, tries: int = 6) -> None:
+    """Circle (the light melee, combos while it swings) until the 001551B0 box
+    at `owner` leaves its rest state 4."""
+    for _ in range(tries):
+        if r.rows[-1]["m1F0"] in A19D_GRABS:
+            a19d_rock(r, 200)
+        r.press("CIRCLE", 2)
+        for _ in range(45):
+            r.step(1)
+            if r.s.read(owner + 4, 4)[0] != 4:
+                return
+    raise TimeoutError("box not broken: " + summary(r.rows[-1]))
+
+
+def a08_beat_magazine(r: Route) -> dict:
+    # The room's boxes (001551B0, model 0x1E, about 14 wide) close it north to
+    # south at x 310..333.  The light melee breaks [41] from the east; the next
+    # breaks [38], [42] and the two stacked boxes [40] / [43], which fell and
+    # broke.  Then [37] from the north and the pickup inside it, g[3]: item 0x10,
+    # +30 rounds (001C40B0).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(337.5, 651.5)], tol=1.0, limit=120)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, -math.pi / 2, tol=0.15)
+    sixteenth_melee_until(r, 0x7ACEB0)
+    r.step(6)
+    sixteenth_run(r, [(328, 653), (325, 654)], tol=1.0, limit=60, soft=True)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, -math.pi / 2, tol=0.15)
+    for _ in range(5):
+        if r.rows[-1]["m1F0"] in A19D_GRABS:
+            a19d_rock(r, 200)
+            a13_face(r, -math.pi / 2, tol=0.15)
+        r.press("CIRCLE", 2)
+        for _ in range(45):
+            r.step(1)
+            if r.s.read(0x7AD490 + 4, 4)[0] != 4:
+                break
+        if r.s.read(0x7AD490 + 4, 4)[0] not in (4, 1):
+            break
+    r.step(30)
+    sixteenth_run(r, [(316, 656), (303, 655.5), (300, 656)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, 0.0, tol=0.15)
+    sixteenth_melee_until(r, 0x7AC2F0)
+    r.step(40)
+    a19e_take(r, 299.7, 667.5, (299.7, 661.5))
+    return {"what": "AREA08 sub 0: the boxes broken, g[3]: item 0x10 (+30 rounds)", "hp_end": a01_hp(r)}
+
+
+def a08_beat_switch(r: Route) -> dict:
+    # The switch [21] (0015A070, model 5) on the west box from (270, 660) facing
+    # -x: D_00810849 bit 1 (the slider [19] at the room's far north).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(285, 660), (271, 660)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, -math.pi / 2, tol=0.1)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    r.until(lambda row: in_control(row), 1200)
+    return {"what": "AREA08 sub 0: the switch [21]: D_00810849 bit 1", "hp_end": a01_hp(r)}
+
+
+def a08_beat_slider(r: Route) -> dict:
+    # Back through door [17] from the west (352.3, 645.5) facing +x; north up
+    # the corridor x 362..388, west along z 578 and north: the slider [19]
+    # (001BB860, model 0x16, id 0x81, D_00810849 bit 1) facing -z: entry 0 sub 2.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(288, 661), (300, 658), (318, 655), (335, 650), (350, 646)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 352.3, 645.5, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    sixteenth_run(r, [(375, 625), (375, 580), (345, 578), (336, 545), (335, 538)], tol=1.2, limit=240)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 335, 535.5, tol=0.6)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    r.until(lambda row: row["area4"][:4] == "0802", 900)
+    a19c_until_control(r, 1500)
+    return {"what": "AREA08 sub 0: door [17] back, the corridor, the slider [19]: sub 2", "hp_end": a01_hp(r)}
+
+
+def sixteenth_trav(r: Route, x: float, z: float, limit: int = 500) -> None:
+    """Hand over hand on an attribute-0x1E ceiling (+5 0x12) with the stick toward
+    (x, z); a bite's reaction (+5 7) rides out."""
+    for _ in range(limit):
+        r.stick_toward(x, z, 1.0)
+        r.step(1)
+        px, _py, pz = r.rows[-1]["pos"]
+        if math.hypot(px - x, pz - z) < 1.5 or r.rows[-1]["p5"] not in (0x11, 0x12, 7):
+            break
+    r.set_pad(0)
+    r.step(5)
+
+
+def a08_beat_ceiling(r: Route) -> dict:
+    # Sub 2's floor nodes 74 / 76 (attribute 0x0A, y 221, x 334.5..367 and x
+    # 235..367) cost 8 health per contact (exploration: 90 -> 18 walking).  Over
+    # them: the box at (335..345, 292..307) by a ledge climb from the safe floor
+    # south of z 307.5; its attribute-0x3A pad, the attribute-0x1E ceiling east
+    # and north to the attribute-0x36 edge at z 246; the swing (0016A4B0) and the
+    # release onto the next box; its pad, the ceiling east, north and west to x
+    # 228; the drop onto the safe floor west of x 235; the slider [9] (001BB860,
+    # id 0x88) facing -x: entry 0 sub 3.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(345, 322), (340, 313)], tol=1.0, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 340, 312, tol=0.5)
+    r.set_pad(0)
+    r.step(4)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: row["pos"][1] > 230 or row["m1F0"] not in (0, 1))
+    r.until(in_control, 600)
+    a13_settle(r, 5)
+    sixteenth_run(r, [(340, 300)], tol=1.0, limit=100, soft=True)
+    r.set_pad(0)
+    r.step(5)
+    a13_settle(r, 5)
+    a19_press_until(r, lambda row: row["m1F0"] == 0x20 or row["p5"] == 0x11)
+    r.until(lambda row: row["p5"] == 0x12, 200)
+    for x, z in ((355, 300), (355, 270), (340, 262), (340, 248)):
+        sixteenth_trav(r, x, z)
+    for _ in range(200):
+        r.stick_toward(341.5, 200, 1.0)
+        r.step(1)
+        if r.rows[-1]["m1F0"] == 0x28:
+            break
+    else:
+        raise TimeoutError("no swing at the edge: " + summary(r.rows[-1]))
+    for _ in range(120):
+        r.stick_toward(341.5, 200, 1.0)
+        r.step(1)
+    r.set_pad(PAD["CROSS"], *r.pad_state[1:])
+    r.step(2)
+    for _ in range(400):
+        r.stick_toward(341.5, 200, 1.0)
+        row = r.step(1)
+        if row["p5"] not in (0x11, 0x12) and row["m1F0"] in (0, 1):
+            break
+    r.set_pad(0)
+    r.step(5)
+    a13_settle(r, 5)
+    sixteenth_run(r, [(340, 219)], tol=1.0, limit=100, soft=True)
+    r.set_pad(0)
+    r.step(5)
+    a13_settle(r, 5)
+    a19_press_until(r, lambda row: row["m1F0"] == 0x20 or row["p5"] == 0x11)
+    r.until(lambda row: row["p5"] == 0x12, 200)
+    for x, z in ((355, 222), (355, 190), (342, 172), (322, 170), (308, 162), (298, 158), (228, 158)):
+        sixteenth_trav(r, x, z)
+    a19d_ceiling_drop(r)
+    r.until(in_control, 400)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(214, 165)], tol=1.2, limit=200)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 210, 165, tol=0.6)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, -math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    r.until(lambda row: row["area4"][:4] == "0803", 900)
+    a19c_until_control(r, 1500)
+    return {"what": "AREA08 sub 2: over the live floor by the ceilings and the swing, the slider [9]: sub 3",
+            "hp_end": a01_hp(r)}
+
+
+def a08_beat_terminal(r: Route) -> dict:
+    # Sub 3: round the pit, west end of the rail, up the stair 52 (attribute
+    # 0x35, y 220 -> 250, +x); door [16] (001BC350, room move id 6) from (188.5,
+    # 94.5) facing -x; [13] (0x8245E0, descriptor 0x827160: 0x824790 with
+    # D_0081076D not 0xFF) from (161.5, 81) facing -z: script 0x826420 (flag 0x18
+    # 1, then 0xFF), CC3 0x13, D_008107F0 = 0xFF.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(188, 140), (150, 135), (146, 120), (160, 118), (183, 118), (190, 110), (189, 90)],
+                  tol=1.2, limit=300)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 188.5, 94.5, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, -math.pi / 2, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00", tries=4)
+    a19c_until_control(r, 1500)
+    sixteenth_run(r, [(166, 86), (161.5, 84)], tol=1.2, limit=200, soft=True)
+    r.set_pad(0)
+    r.step(4)
+    a19d_go_rock(r, 161.5, 81, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, math.pi, tol=0.08)
+    a19_press_until(r, lambda row: row["spad"][2:4] != "00" or flag(row, 0x18) != "00", tries=4)
+    r.until(lambda row: in_control(row) and row["d2"][0x30:0x32] == "ff"
+            and row["fl"][0x30:0x32] == "ff", 3000)
+    return {"what": "AREA08 sub 3: the stair, door [16], [13]'s script: flag 0x18, CC3 0x13, counter 0x18 = 0xFF",
+            "hp_end": a01_hp(r)}
+
+
+A08_BEATS: list[tuple] = [
+    ("a08_00_door17", "a03b_06_lift", a08_beat_door17),
+    ("a08_01_magazine", "a08_00_door17", a08_beat_magazine),
+    ("a08_02_switch", "a08_01_magazine", a08_beat_switch),
+    ("a08_03_slider", "a08_02_switch", a08_beat_slider),
+    ("a08_04_ceiling", "a08_03_slider", a08_beat_ceiling),
+    ("a08_05_terminal", "a08_04_ceiling", a08_beat_terminal),
+]
+SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS
 SIXTEENTH_SIDE_BEATS: set[str] = set()
 
 
