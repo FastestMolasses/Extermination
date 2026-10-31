@@ -361,8 +361,31 @@ that is a different, stale tree.
   Slip to remember: F1's first route smoke failed at a01r_03 row 590 while it
   rebuilt and re-exported during the run; a clean rerun passed. Lanes must not
   re-export under a running smoke.
-  Running: E1 (branch route-chain, a06_01 .. a04b_03 from New Game; a22b_01
-  committed on its branch as bf7e98e, not merged).
+  New Game to the first boss (port main 5c1c179, lane E1): row-exact from New
+  Game through a04b_03 (the reader, event [3], the creature), the pistol fight
+  a04b_s5, the drop a04b_s6 and the lift to the row before AREA13's load (s7
+  1764 of 2410 rows, a04b_04 1437 of 2083, ROW_LIMIT), 81 live phases:
+  `python3 tools/test_level_smoke_area01r.py --run --until a04b_s7 --rand-replay
+  build/rand_replay_bed/route_bed_20261030/route.txt`. Canonical line through
+  a22b_01: 73 phases, --rand-replay
+  build/rand_replay/route_a22b_01_20261030/table.txt. a04b exists only on the
+  fork continuation levels-recordings-20261018-10, which leaves the canonical
+  line at the bed (a02_s0): --until a04b_* plays a02_s0, then compares a02_00
+  onward against that set, so a06_01..a22b_01 passed on both sets. Whole beats
+  from AREA22 on also equal the full block D_00810700..D_00810D3F minus the frame
+  count. Fixes: the spat hazard's infection (+0x220..+0x22F at their real storage
+  in the aim/fire views; F1's pending-infection collect removed), the player's
+  +0x1C infection node (00182D70), 0x70003B50 as 0015BCF0's tail publication
+  (001BC560 turns from it). Bed-branch tables are build/drive_replay_bed and
+  build/rand_replay_bed. Not covered: pixels, sound, the keypad picture, owner
+  rot, the shotgun chain from New Game (card-only in test-boss-fight), host
+  speed (comparison anchors). A bed run writes about 4 GB of ticks. Verified on
+  port main 5c1c179 (README-only commit 3cd93a3 after it): zero warnings,
+  newgame-control, test-start-at, test-cutscene-skip, test-glow-dissolve,
+  test-aim-fire-lamp-cone, test-level-smoke, test-boss-fight, test-start-saves,
+  the three harness contracts, and --until a04b_s7 = 81 live phases. Lanes all
+  merged; port branches: main only. Next: AREA13 (the lift stops at its load);
+  the save terminal's accepted save; model 0x35; the Zoom scope's take.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
