@@ -476,7 +476,22 @@ that is a different, stale tree.
   glow w_001CD520 are not drawn. tests/status_models_test.c:243-244 still expect glyph
   0x6D to fault; make test-status-models fails those two. Main verified: quick set,
   harness contracts, a07b_01, a08_05, route --until a13_05 85 phases.
-  Running: N1 (area03x, merging main).
+  AREA03 subs 1, 2 and AREA04 sub 1 (lane N1, port main f172709, port docs/AREA03X_PORT.md):
+  load and play from cards, no beat row-compared, none from New Game. Bound: 0013D2D0 states,
+  00147390 family, 001B3670, 001B3C30, 001C82A0, 00158430, 0021C040, AREA03 0x8235A0,
+  0x823810, 0x825200, AREA04 0x824EF0, 0x825310, 001C81C0, 001C94B0. Stand-ins: tendrils
+  001546C0 not drawn. Open: a04c_00's held face at infection 100 fail-stops at 001CB3C0;
+  a03b_01's crawl overshoots; 0019DB50's no-span path returns -1; AREA03 sub 2 has 49
+  silent sound ids.
+  All lanes merged, main f172709 verified: quick set, harness contracts, area07, area08,
+  level16, walker and status oracles, route --until a13_05 85 phases. Every beat from its own
+  card: 86 of 141 pass (build/final_sweep, chains not re-run). a04b_* singles differ
+  from cards but the route runs them row-exact. The sweep's real fail-stops:
+  a04d_01 (latch kind 2, the AREA04 sub 1 creature's grab), a04c_00, and ERCPR on zero
+  in a19b_01, a19c_01, a19d_15. The other non-passes are end-block differences or
+  timeouts with no fault line; not classified one by one.
+  Running: J1 (branch latch, latch kinds 2..4: 00220D30, 00221060, 00221630, 002217C0,
+  00221C70).
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
