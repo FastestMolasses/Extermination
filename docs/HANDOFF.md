@@ -487,11 +487,20 @@ that is a different, stale tree.
   level16, walker and status oracles, route --until a13_05 85 phases. Every beat from its own
   card: 86 of 141 pass (build/final_sweep, chains not re-run). a04b_* singles differ
   from cards but the route runs them row-exact. The sweep's real fail-stops:
-  a04d_01 (latch kind 2, the AREA04 sub 1 creature's grab), a04c_00, and ERCPR on zero
+  a04d_01 (the AREA04 sub 1 creature's grab, fixed below), a04c_00, and ERCPR on zero
   in a19b_01, a19c_01, a19d_15. The other non-passes are end-block differences or
   timeouts with no fault line; not classified one by one.
-  Running: J1 (branch latch, latch kinds 2..4: 00220D30, 00221060, 00221630, 002217C0,
-  00221C70).
+  Latch kinds 2, 3, 4 (port main 2525aa6, docs/AREA19_PORT.md): 00220D30, 00221060,
+  00221630, 002217C0, 00221C70 translated, oracle 2,792 cases, every reachable word.
+  The AREA04 sub 1 grab is hit +3 = 5, kind 4. Kind 4 has run live; kinds 2 and 3 rest on
+  the oracle alone. a04d_01 no longer faults but still does not reach its end: the
+  recording is never grabbed, the port is bitten and grabbed before row 400 and dies with
+  no stick input; why it diverges is not established. Main verified at 2525aa6: quick set,
+  status models, harness contracts, level12 oracle, a04d_02, a07b_01, route --until
+  a13_05 85 phases, side a04b_s7 81 phases. The sweep ran before this commit.
+  Paused for the user's playtest (their request 2026-10-31): no lanes running, no
+  worktrees left, nothing pushed. Not started: AREA14, 16, 17, 18, 20, 21. Awaiting the
+  user: the ERCPR decision.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit
