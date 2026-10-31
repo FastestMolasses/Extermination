@@ -921,8 +921,8 @@ return uses the crawl. What ends them, if anything, is unknown (same source).
 reach, so a small steering difference misses the door (lane M1, 2026-10-31, beat
 a13c_01).
 
-## 46. Surface attribute 0x0A hurts only in AREA08 sub 2 — partial
+## 46. AREA08 sub 2 is the one place surface mode 0xA can stop hurting — note
 
-*Kind: engine quirk.* D_00810770 gates surface attribute 0x0A's damage through
-0021C3F0: mode 0xA does not hurt outside AREA08 sub 2, or with the flag at 0xFF (lane
-P1, 2026-10-31, from the translated 0021C3F0).
+*Kind: engine quirk.* The player's hit path takes surface mode 0xA as a hit everywhere
+except AREA08 sub 2 once D_00810770 (event 0x18) is 0xFF: the byte-matched 0021C3F0
+returns 0 only in that case (port `em_player_stage_workers.c`, lane P1, 2026-10-31).
