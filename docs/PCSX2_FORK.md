@@ -1183,10 +1183,22 @@ partly pressed analog trigger may not replay.
 
 **In the port** (`tools/watch_takes.py`, port README "Watching your own recorded
 takes"): a chain of takes plays as one run from the title with no restart, and every
-tick is compared with the recording. test1 stayed on the recording for all 11,591 ticks
-compared, through AREA11 into AREA01, and its first run found two faults no scripted
-route had reached: the MAP page (the keypad's node bind had replaced MAP's since port
-827d3c2) and the cable's hit effect (an on-demand table load missing).
+tick's position and heading are compared with the recording. test1 plays to its end,
+17,212 of 17,212 ticks compared on the recording. run1 is on the recording for 45,481
+ticks, through AREA11 and AREA01 into AREA00, where it stops at a real gap: a broken
+box's burst effect 001E4CE0 has no AREA00 binding. So far the takes have found three
+things no scripted route had reached: the MAP page (the keypad's node bind had replaced
+MAP's since port 827d3c2), the cable's hit effect (an on-demand table load missing) and
+that burst.
+
+rand()'s state follows the recording tick by tick in this playback. Without that, the
+stream is identical through AREA11 and into AREA01, up to counter 23480, where a face's
+7 draws come a tick early (the known voice line that ends a tick early, port
+`docs/LEVEL2_CRASHES.md`). The timers drawn from then on differ, so later creature
+decisions differ: at counter 37976 the player took a hit from another angle. Port loads
+have their own length, so tick counts also part there. A take's `rand` column is the
+state at each tick's loop top, and the port's first draw of a tick starts from it
+(checked on every tick of those 36,116).
 
 ### Video comparison on the fork (`ps2.py --emulator fork`)
 

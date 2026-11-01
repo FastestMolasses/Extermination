@@ -8,6 +8,19 @@ Working directory: `/Users/abe/Documents/Extermination.nosync/Extermination` (po
 `../extermination-port`). **Never** the iCloud copy at `~/Documents/Extermination` —
 that is a different, stale tree.
 
+## Latest (2026-11-01): the user's own takes drive the port
+
+The user records play on the original (`tools/record_original_play.py`, keep every
+take) and `tools/watch_takes.py` in the port plays a chain of takes as one run from the
+title and compares every tick (PCSX2_FORK.md "A person's play recorded on the
+original"). test1 is 100% to its end; run1 (50.4 min, AREA11, 01, 00, 02, 04, 22, 06) is
+exact for 45,481 ticks, then stops in AREA00 at the broken box's burst 001E4CE0 (no
+binding there). Next: the fix loop on run1 (run, read the first fault or departure,
+fix, repeat), then the card-section stuck spots the user saw. Save terminal Yes works
+(port SAVE_GAME.md, byte-equal to the original's save); new takes have a formatted card
+(`tools/ps2_card.py`). Open: a replay drops a held key for one tick about once per run
+at a random place (cause unknown; verify retries), and the ERCPR decision below.
+
 ## Start here
 1. Read both `CLAUDE.md` files (this repo and `../extermination-port`). They hold the
    legal hard rules (never commit or print disc-derived material), the fidelity rules

@@ -82,7 +82,8 @@ SPANS = [dict(name='pad', src='ee', addr='0x00810E70', len=32),
          dict(name='bd8', src='ee', addr='0x00275BD8', len=4),
          dict(name='spad', src='ee', addr='0x70003B8C', len=4),
          dict(name='task0', src='ee', addr='0x0028A750', len=16),
-         dict(name='yaw', src='ee', addr='0x00810374', len=4)]
+         dict(name='yaw', src='ee', addr='0x00810374', len=4),
+         dict(name='rand', src='ee', addr='0x002426C8', len=4)]     # rand()'s state, *D_0024295C + 0x58
 # The movie's flag: the blocking movie runs inside one main-loop iteration.
 MOVIE_SPANS = [dict(name='movie', src='ee', addr='0x00821058', len=4)]
 SDL = {'Up': 'DPadUp', 'Right': 'DPadRight', 'Down': 'DPadDown', 'Left': 'DPadLeft', 'Triangle': 'FaceNorth',
@@ -285,10 +286,10 @@ def trace(args):
     """The take as an EMREC recording. A take played since 2026-11-01 holds all
     the columns; an older one needs an exact replay for them."""
     take = OUT / args.take
-    if 'counter' in Table(take / 'rows.tbl').numpy().dtype.names:
+    if 'rand' in Table(take / 'rows.tbl').numpy().dtype.names:
         return write_rec(take, '')
-    report = take / 'verify.json'
-    if (take / 'replay_movie.tbl').exists() and json.loads(report.read_text())['exact']:
+    if (take / 'replay_rows.tbl').exists() and 'rand' in Table(take / 'replay_rows.tbl').numpy().dtype.names and \
+            json.loads((take / 'verify.json').read_text())['exact']:
         return write_rec(take, 'replay_')
     code = verify(args)
     if code:
@@ -315,7 +316,7 @@ def write_rec(take, prefix):
     count, n = len(rows), 0
     lines = ['# EMREC 1', '# source ps2-take', '# mode recording', '# area0 world', f'# take {take.name}',
              '# tick_hz 59.94',
-             '#cols ' + ' '.join(emrec.COLS)]
+             '#cols ' + ' '.join(emrec.COLS) + ' rand']
     for k in range(count):
         row = rows[k]
         vsync = int(row['vsync'])
@@ -329,12 +330,12 @@ def write_rec(take, prefix):
         bd8 = row['bd8'].tobytes()[0]
         x, y, z = struct.unpack('<3f', row['pos'].tobytes())
         yaw = struct.unpack('<f', row['yaw'].tobytes())[0]
-        counter = struct.unpack('<I', row['counter'].tobytes())[0]
+        counter, rand = (struct.unpack('<I', row[name].tobytes())[0] for name in ('counter', 'rand'))
         # Area 0 is the title and AREA00: only the game's task tells them apart.
         world = area[0] or task0[9] == 5 or task0[11] or spad[1]
         phase = emrec.phase_of(1 if world else 0, bd8, task0[9], spad[1])
         lines.append(f'{n} {counter} 0 {phase} 0x{btn:04x} {lx} {ly} {rx} {ry} {area[0]} {area[1]} {area[2]} {bd8} '
-                     f'{spad[1]} {task0[9]} {task0[11]} {x:.9g} {y:.9g} {z:.9g} {yaw:.9g} -1 -1 -1 -1')
+                     f'{spad[1]} {task0[9]} {task0[11]} {x:.9g} {y:.9g} {z:.9g} {yaw:.9g} -1 -1 -1 -1 {rand:08x}')
         n += 1
     (take / 'take.rec').write_text('\n'.join(lines) + '\n')
     print(f'{take.name}: take.rec, {count} ticks')
