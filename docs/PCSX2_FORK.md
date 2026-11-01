@@ -1159,13 +1159,34 @@ The user's first take (test1, 18,080 vsyncs, keyboard, title through New Game in
 play) replayed exact once a host pad's log was shifted: the game reads a host pad one
 vsync before the log's record of it, so the timeline's entries go one vsync earlier.
 All five hashes, the tick and the EE cycle were equal at the last vsync, and no row's
-position differed. One difference remains and passes: for five ticks from tick 3090
-(vsync 3284) the replay's pad block reads the held key as released once, with the
-applied pad unchanged, and nothing of it survives to the end. Its cause is not
-established. A take that drops a pad read during play would fail its check, so a
-long playthrough goes in takes of under an hour. Not yet shown: a real controller.
-The input record holds no button pressures, so a partly pressed analog trigger may
-not replay.
+position differed. The user's second take (run1, 181,372 vsyncs, 50.4 minutes) replayed
+exact the same way.
+
+**A replay is not perfectly repeatable.** About once per replay the game reads a held
+key as released for one tick, with the applied pad unchanged, at a place that differs
+between replays of the same take: ticks 3090 and 4611 of test1 and tick 9438 of run1 so
+far. Usually nothing of it survives. At test1's tick 4611 it moved the player for 587
+ticks and the end hashes differed. Its cause is not established. So a verify gets three
+tries, and a take's own tables hold every column an EMREC needs, so `take.rec` comes
+from the take itself without a replay. test1 and run1 predate that: `trace` replays
+them until one is exact.
+
+**Takes and memory cards.** A session's fresh cards are unformatted and the game's
+Format fails on them (port `docs/SAVE_GAME.md` 6.2), so in test1 and run1 a save at a
+terminal ended in that message and nothing was written. Later takes play with their
+own formatted card from `tools/ps2_card.py` in slot 1 and no card in slot 2. A take
+that follows another continues its `card_end.ps2`, and a replay starts from the same
+`card_start.ps2`. `start.json` names the card; a take without the key used a fresh card.
+
+Not yet shown: a real controller. The input record holds no button pressures, so a
+partly pressed analog trigger may not replay.
+
+**In the port** (`tools/watch_takes.py`, port README "Watching your own recorded
+takes"): a chain of takes plays as one run from the title with no restart, and every
+tick is compared with the recording. test1 stayed on the recording for all 11,591 ticks
+compared, through AREA11 into AREA01, and its first run found two faults no scripted
+route had reached: the MAP page (the keypad's node bind had replaced MAP's since port
+827d3c2) and the cable's hit effect (an on-demand table load missing).
 
 ### Video comparison on the fork (`ps2.py --emulator fork`)
 

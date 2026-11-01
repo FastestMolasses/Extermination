@@ -28,19 +28,20 @@ times normal speed; Ctrl+C skips that, and verify runs it later.
 The window is the one exception to the fork's hidden-only launch rule: the
 user asked for it (2026-11-01). Everything else stays on the launcher's
 scratch data: the user's slots, memory cards and settings are never touched.
-A game saved inside a take goes to a scratch card that is deleted with the
-session.
+A take plays with its own formatted card (tools/ps2_card.py), continued from
+the take before it, so a save inside a take is really written.
 
 Output: build/human_play/<take>/ (derived from the user's disc: never
 committed): input.log (the fork's 32-byte input records), rows.tbl (the pad
 block and player position per game tick, for finding a first difference),
-start.json, end.json, end.p2s, verify.json, take.rec (an EMREC recording of the
+start.json, end.json, end.p2s, card_start.ps2, card_end.ps2, verify.json, take.rec (an EMREC recording of the
 take for the port, docs/VIDEO_COMPARE.md; the port's tools/watch_takes.py
 stitches takes into one continuous playback). trace builds take.rec again, and
 for takes recorded before their tables held all its columns replays them first.
 """
 import argparse
 import json
+import os
 import shutil
 import struct
 import subprocess
@@ -56,6 +57,8 @@ import pcsx2_session as session  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / 'video_compare'))
 import emrec  # noqa: E402
+
+import ps2_card  # noqa: E402
 
 sys.path.insert(0, str(session.FORK_PY))
 from pcsx2dbg import launcher  # noqa: E402
@@ -103,6 +106,20 @@ def play_ini(take):
 def show(pid):
     subprocess.run(['osascript', '-e', 'tell application "System Events" to tell (first process whose unix id is '
                     f'{pid}) to set {{visible, frontmost}} to {{true, true}}'], capture_output=True, timeout=20)
+
+
+def use_card(s, take, cfg):
+    """The take's card in slot 1 of the session: a formatted one, so a save in
+    a take is written (the fresh cards a session gets by default are not), and
+    no second card. A take's card continues the take it follows. The folder is
+    the session's own: returns it. Takes from before this have no card."""
+    if not (take / 'card_start.ps2').exists():
+        return None
+    cards = Path(os.path.realpath(s.dir / 'cards'))
+    cards.mkdir(parents=True)
+    shutil.copyfile(take / 'card_start.ps2', cards / 'Mcd001.ps2')
+    cfg.ini_overrides.update({'Folders': {'MemoryCards': str(cards)}, 'MemoryCards': {'Slot2_Enable': 'false'}})
+    return cards
 
 
 def live_config(take, state, hidden):
@@ -165,18 +182,26 @@ def play(args):
     if not state.exists():
         sys.exit(f'{state} is missing')
     take.mkdir(parents=True)
+    before = OUT / args.after / 'card_end.ps2' if args.after else None
+    if before and before.exists():
+        shutil.copyfile(before, take / 'card_start.ps2')
+    else:
+        ps2_card.write(take / 'card_start.ps2')
     if args.hidden:
         print('hidden check: no window, no input')
     else:
         launcher._hide = lambda pid: None
     print('Starting the emulator (this waits if a check is using it)...', flush=True)
     with Session(lock_wait=LOCK_WAIT) as s:
-        inst = s.launch('play', live_config(take, state, args.hidden))
+        cfg = live_config(take, state, args.hidden)
+        cards = use_card(s, take, cfg)
+        inst = s.launch('play', cfg)
         c = inst.client()
         c.wait_vm(120)
         arm(c)
         start = machine(c)
-        (take / 'start.json').write_text(json.dumps(dict(start, state=str(state), after=args.after), indent=1) + '\n')
+        (take / 'start.json').write_text(json.dumps(dict(start, state=str(state), after=args.after,
+                                                         card='card_start.ps2'), indent=1) + '\n')
         c.call('run', **{'until': {'vsyncs': 1 << 30}, 'timeout_s': 7 * 86400, 'async': True})
         if not args.hidden:
             show(inst.pid)
@@ -201,6 +226,7 @@ def play(args):
         disarm(c, root, take)
         c.call('state_save', path='end.p2s', exact=True)
         shutil.copyfile(root / 'end.p2s', take / 'end.p2s')
+        shutil.copyfile(cards / 'Mcd001.ps2', take / 'card_end.ps2')
     end['seconds'] = round(time.time() - t0, 1)
     (take / 'end.json').write_text(json.dumps(end, indent=1) + '\n')
     n = end['vsync'] - start['vsync']
@@ -227,7 +253,9 @@ def replay(take, name):
     start, end = (json.loads((take / f).read_text()) for f in ('start.json', 'end.json'))
     rows = records(take)
     with Session(lock_wait=LOCK_WAIT) as s:
-        inst = s.launch('replay', replay_config(Path(start['state'])))
+        cfg = replay_config(Path(start['state']))
+        cards = use_card(s, take, cfg)
+        inst = s.launch('replay', cfg)
         c = inst.client()
         c.wait_vm(120)
         arm(c)
@@ -241,6 +269,8 @@ def replay(take, name):
         root = Path(inst.info().get('root') or inst.scratch / 'root')
         got = machine(c)
         disarm(c, root, take, 'replay_')
+        if cards:
+            shutil.copyfile(cards / 'Mcd001.ps2', take / 'replay_card_end.ps2')
     same = got['hashes'] == end['hashes'] and got['ee_cycle'] == end['ee_cycle']
     first = first_difference(take)
     report = dict(exact=same, seconds=round(seconds, 1), take=end, replay=got, first_difference=first)
@@ -257,6 +287,9 @@ def trace(args):
     take = OUT / args.take
     if 'counter' in Table(take / 'rows.tbl').numpy().dtype.names:
         return write_rec(take, '')
+    report = take / 'verify.json'
+    if (take / 'replay_movie.tbl').exists() and json.loads(report.read_text())['exact']:
+        return write_rec(take, 'replay_')
     code = verify(args)
     if code:
         print(f'{args.take}: no exact replay, so no take.rec')
@@ -280,7 +313,8 @@ def write_rec(take, prefix):
     if group:
         moves.append(group)
     count, n = len(rows), 0
-    lines = ['# EMREC 1', '# source ps2-take', '# mode recording', f'# take {take.name}', '# tick_hz 59.94',
+    lines = ['# EMREC 1', '# source ps2-take', '# mode recording', '# area0 world', f'# take {take.name}',
+             '# tick_hz 59.94',
              '#cols ' + ' '.join(emrec.COLS)]
     for k in range(count):
         row = rows[k]
@@ -296,7 +330,9 @@ def write_rec(take, prefix):
         x, y, z = struct.unpack('<3f', row['pos'].tobytes())
         yaw = struct.unpack('<f', row['yaw'].tobytes())[0]
         counter = struct.unpack('<I', row['counter'].tobytes())[0]
-        phase = emrec.phase_of(area[0], bd8, task0[9], spad[1])
+        # Area 0 is the title and AREA00: only the game's task tells them apart.
+        world = area[0] or task0[9] == 5 or task0[11] or spad[1]
+        phase = emrec.phase_of(1 if world else 0, bd8, task0[9], spad[1])
         lines.append(f'{n} {counter} 0 {phase} 0x{btn:04x} {lx} {ly} {rx} {ry} {area[0]} {area[1]} {area[2]} {bd8} '
                      f'{spad[1]} {task0[9]} {task0[11]} {x:.9g} {y:.9g} {z:.9g} {yaw:.9g} -1 -1 -1 -1')
         n += 1
