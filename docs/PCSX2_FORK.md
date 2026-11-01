@@ -1139,6 +1139,25 @@ reviewer; receipts are in `build/fork_diverge_a04/`: `chain2.out` for beat
   (beat 03 powers the panel, beat 04 uses the elevator); their phases, save
   PCs and spans are cached.
 
+### A person's play recorded on the original (2026-11-01)
+
+`tools/record_original_play.py` records a person playing in a visible fork
+window: a take starts from `slot01_title` or from the state an earlier take ended
+on, the fork's `input_log` keeps the pad applied at every vsync (source 0, host),
+and Enter in the terminal ends the take. The take is then replayed hidden from the
+same state with an `input_timeline` indexed by vsync, and EE RAM, scratchpad, VU
+data and IOP RAM are hashed at the last vsync. The window is the user's one
+exception to the launcher's hidden-only rule (their request, 2026-11-01); the data
+is still the launcher's scratch data.
+
+Measured: 6,000 vsyncs of timeline input from `slot01_title`, paced, Metal renderer,
+presented, Cubeb muted, replayed unlimited on the software renderer: all five
+region hashes, the tick and the EE cycle equal (100.6 s against 28.3 s). A hidden
+run of the tool with the host pad at rest was also exact. Not yet shown: real
+keys or a real controller in a visible window. The input record holds no button
+pressures, so a partly pressed analog trigger may not replay; the first short take
+checks this.
+
 ### Video comparison on the fork (`ps2.py --emulator fork`)
 
 `tools/video_compare/ps2_fork.py` is the PCSX2 pass of the video comparison
