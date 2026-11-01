@@ -18,6 +18,7 @@ decomp's .venv python):
   .venv/bin/python tools/record_original_play.py play run1
   .venv/bin/python tools/record_original_play.py play run2 --after run1
   .venv/bin/python tools/record_original_play.py verify run1
+  .venv/bin/python tools/record_original_play.py trace run1
   .venv/bin/python tools/record_original_play.py list
 
 Press Enter in the terminal to end a take; do not close the game window, as
@@ -33,7 +34,10 @@ session.
 Output: build/human_play/<take>/ (derived from the user's disc: never
 committed): input.log (the fork's 32-byte input records), rows.tbl (the pad
 block and player position per game tick, for finding a first difference),
-start.json, end.json, end.p2s, verify.json.
+start.json, end.json, end.p2s, verify.json, take.rec (an EMREC recording of the
+take for the port, docs/VIDEO_COMPARE.md; the port's tools/watch_takes.py
+stitches takes into one continuous playback). trace builds take.rec again, and
+for takes recorded before their tables held all its columns replays them first.
 """
 import argparse
 import json
@@ -45,8 +49,13 @@ import threading
 import time
 from pathlib import Path
 
+import numpy as np
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import pcsx2_session as session  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / 'video_compare'))
+import emrec  # noqa: E402
 
 sys.path.insert(0, str(session.FORK_PY))
 from pcsx2dbg import launcher  # noqa: E402
@@ -57,8 +66,22 @@ OUT = session.ROOT / 'build/human_play'
 TITLE = session.FORK_STATES / 'slot01_title/state.p2s'
 RTC = '2026-01-01 00:00:00'
 REGIONS = ['ee_ram', 'ee_scratch', 'vu0_data', 'vu1_data', 'iop_ram']
+# Lock_wait: a take started while another job holds the emulator waits its turn.
+LOCK_WAIT = 1800
+# A replay's held key can read as released for one tick, once a run, at a place
+# that differs between runs (seen at ticks 3090, 4611 and 9438). Mostly harmless;
+# when it changes play the machine differs at the end, so a replay gets tries.
+TRIES = 3
 SPANS = [dict(name='pad', src='ee', addr='0x00810E70', len=32),
-         dict(name='pos', src='ee', addr='0x00810350', len=12)]
+         dict(name='pos', src='ee', addr='0x00810350', len=12),
+         dict(name='counter', src='ee', addr='0x70003B64', len=4),
+         dict(name='area', src='ee', addr='0x00810700', len=4),
+         dict(name='bd8', src='ee', addr='0x00275BD8', len=4),
+         dict(name='spad', src='ee', addr='0x70003B8C', len=4),
+         dict(name='task0', src='ee', addr='0x0028A750', len=16),
+         dict(name='yaw', src='ee', addr='0x00810374', len=4)]
+# The movie's flag: the blocking movie runs inside one main-loop iteration.
+MOVIE_SPANS = [dict(name='movie', src='ee', addr='0x00821058', len=4)]
 SDL = {'Up': 'DPadUp', 'Right': 'DPadRight', 'Down': 'DPadDown', 'Left': 'DPadLeft', 'Triangle': 'FaceNorth',
        'Circle': 'FaceEast', 'Cross': 'FaceSouth', 'Square': 'FaceWest', 'Select': 'Back', 'Start': 'Start',
        'L1': 'LeftShoulder', 'R1': 'RightShoulder', 'L2': '+LeftTrigger', 'R2': '+RightTrigger', 'L3': 'LeftStick',
@@ -115,13 +138,15 @@ def arm(c):
     c.call('set_tick_pc', pc=session.LOOP_TOP)
     c.call('input_log', on=True, path='input.log')
     c.call('table_add', name='rows', path='rows.tbl', trigger='tick', spans=SPANS)
+    c.call('table_add', name='movie', path='movie.tbl', trigger='vsync', spans=MOVIE_SPANS)
 
 
 def disarm(c, root, take, prefix=''):
     """Collect the run's logs from the instance root into the take."""
     c.call('input_log', on=False)
     c.call('table_remove', name='rows')
-    for name in ('input.log', 'rows.tbl', 'rows.tbl.json'):
+    c.call('table_remove', name='movie')
+    for name in ('input.log', 'rows.tbl', 'rows.tbl.json', 'movie.tbl', 'movie.tbl.json'):
         shutil.copyfile(root / name, take / f'{prefix}{name}')
 
 
@@ -144,7 +169,8 @@ def play(args):
         print('hidden check: no window, no input')
     else:
         launcher._hide = lambda pid: None
-    with Session() as s:
+    print('Starting the emulator (this waits if a check is using it)...', flush=True)
+    with Session(lock_wait=LOCK_WAIT) as s:
         inst = s.launch('play', live_config(take, state, args.hidden))
         c = inst.client()
         c.wait_vm(120)
@@ -179,15 +205,28 @@ def play(args):
     (take / 'end.json').write_text(json.dumps(end, indent=1) + '\n')
     n = end['vsync'] - start['vsync']
     print(f'Take {args.take}: {n} vsyncs, {n / 59.94 / 60:.1f} minutes of game time.', flush=True)
+    write_rec(take, '')
     print('Checking that the pad alone reproduces it; Ctrl+C skips this.', flush=True)
     return verify(args)
 
 
 def verify(args):
+    """Replays until one is exact, up to TRIES."""
     take = OUT / args.take
+    for attempt in range(TRIES):
+        if not replay(take, args.take):
+            return 0
+        if attempt < TRIES - 1:
+            print(f'{args.take}: trying again ({attempt + 2} of {TRIES})', flush=True)
+    return 1
+
+
+def replay(take, name):
+    """The take's pad from its start state, hidden; its last vsync's machine
+    against the take's. Returns 0 when exact."""
     start, end = (json.loads((take / f).read_text()) for f in ('start.json', 'end.json'))
     rows = records(take)
-    with Session() as s:
+    with Session(lock_wait=LOCK_WAIT) as s:
         inst = s.launch('replay', replay_config(Path(start['state'])))
         c = inst.client()
         c.wait_vm(120)
@@ -206,10 +245,64 @@ def verify(args):
     first = first_difference(take)
     report = dict(exact=same, seconds=round(seconds, 1), take=end, replay=got, first_difference=first)
     (take / 'verify.json').write_text(json.dumps(report, indent=1) + '\n')
-    print(f'{args.take}: replay {"EXACT" if same else "DIFFERS"} at vsync {got["vsync"]} (replay took {seconds:.0f} s)')
+    print(f'{name}: replay {"EXACT" if same else "DIFFERS"} at vsync {got["vsync"]} (replay took {seconds:.0f} s)')
     if first:
         print(f'  {"a passing difference, gone by the end" if same else "first differing row"}: {first}')
     return 0 if same else 1
+
+
+def trace(args):
+    """The take as an EMREC recording. A take played since 2026-11-01 holds all
+    the columns; an older one needs an exact replay for them."""
+    take = OUT / args.take
+    if 'counter' in Table(take / 'rows.tbl').numpy().dtype.names:
+        return write_rec(take, '')
+    code = verify(args)
+    if code:
+        print(f'{args.take}: no exact replay, so no take.rec')
+        return code
+    return write_rec(take, 'replay_')
+
+
+def write_rec(take, prefix):
+    """take.rec: one row per game tick with the pad that tick's input step read
+    and the anchors the port's playback syncs on, one M row per blocking movie."""
+    rows = Table(take / f'{prefix}rows.tbl').numpy()
+    movie = Table(take / f'{prefix}movie.tbl').numpy()
+    pads = {r[0]: r[2:] for r in records(take)}
+    flags = [int(v) for v in movie['vsync'][np.frombuffer(movie['movie'].tobytes(), '<u4') == 1]]
+    moves, group = [], []
+    for v in flags:
+        if group and v != group[-1] + 1:
+            moves.append(group)
+            group = []
+        group.append(v)
+    if group:
+        moves.append(group)
+    count, n = len(rows), 0
+    lines = ['# EMREC 1', '# source ps2-take', '# mode recording', f'# take {take.name}', '# tick_hz 59.94',
+             '#cols ' + ' '.join(emrec.COLS)]
+    for k in range(count):
+        row = rows[k]
+        vsync = int(row['vsync'])
+        while moves and moves[0][0] < vsync:
+            group = moves.pop(0)
+            skip = any(pads.get(v, (0,))[0] & emrec.START for v in group)
+            lines.append(f'{n} 0 1 M 0x{emrec.START if skip else 0:04x} 128 128 128 128 0 0 0 0 0 0 0 0 0 0 0 -1 -1 -1 -1')
+            n += 1
+        btn, lx, ly, rx, ry = pads.get(vsync, emrec.NEUTRAL)
+        area, spad, task0 = row['area'].tobytes(), row['spad'].tobytes(), row['task0'].tobytes()
+        bd8 = row['bd8'].tobytes()[0]
+        x, y, z = struct.unpack('<3f', row['pos'].tobytes())
+        yaw = struct.unpack('<f', row['yaw'].tobytes())[0]
+        counter = struct.unpack('<I', row['counter'].tobytes())[0]
+        phase = emrec.phase_of(area[0], bd8, task0[9], spad[1])
+        lines.append(f'{n} {counter} 0 {phase} 0x{btn:04x} {lx} {ly} {rx} {ry} {area[0]} {area[1]} {area[2]} {bd8} '
+                     f'{spad[1]} {task0[9]} {task0[11]} {x:.9g} {y:.9g} {z:.9g} {yaw:.9g} -1 -1 -1 -1')
+        n += 1
+    (take / 'take.rec').write_text('\n'.join(lines) + '\n')
+    print(f'{take.name}: take.rec, {count} ticks')
+    return 0
 
 
 def first_difference(take):
@@ -244,6 +337,9 @@ def main():
     p = sub.add_parser('verify')
     p.add_argument('take')
     p.set_defaults(run=verify)
+    p = sub.add_parser('trace')
+    p.add_argument('take')
+    p.set_defaults(run=trace)
     sub.add_parser('list').set_defaults(run=listing)
     args = parser.parse_args()
     return args.run(args)
