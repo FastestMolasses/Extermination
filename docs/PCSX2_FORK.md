@@ -1153,10 +1153,19 @@ is still the launcher's scratch data.
 Measured: 6,000 vsyncs of timeline input from `slot01_title`, paced, Metal renderer,
 presented, Cubeb muted, replayed unlimited on the software renderer: all five
 region hashes, the tick and the EE cycle equal (100.6 s against 28.3 s). A hidden
-run of the tool with the host pad at rest was also exact. Not yet shown: real
-keys or a real controller in a visible window. The input record holds no button
-pressures, so a partly pressed analog trigger may not replay; the first short take
-checks this.
+run of the tool with the host pad at rest was also exact.
+
+The user's first take (test1, 18,080 vsyncs, keyboard, title through New Game into
+play) replayed exact once a host pad's log was shifted: the game reads a host pad one
+vsync before the log's record of it, so the timeline's entries go one vsync earlier.
+All five hashes, the tick and the EE cycle were equal at the last vsync, and no row's
+position differed. One difference remains and passes: for five ticks from tick 3090
+(vsync 3284) the replay's pad block reads the held key as released once, with the
+applied pad unchanged, and nothing of it survives to the end. Its cause is not
+established. A take that drops a pad read during play would fail its check, so a
+long playthrough goes in takes of under an hour. Not yet shown: a real controller.
+The input record holds no button pressures, so a partly pressed analog trigger may
+not replay.
 
 ### Video comparison on the fork (`ps2.py --emulator fork`)
 

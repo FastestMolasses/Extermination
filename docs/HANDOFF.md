@@ -502,9 +502,9 @@ that is a different, stale tree.
   worktrees left, nothing pushed. Not started: AREA14, 16, 17, 18, 20, 21. Awaiting the
   user: the ERCPR decision.
   2026-11-01: tools/record_original_play.py records the user's own play on the original
-  (docs/PCSX2_FORK.md "A person's play recorded on the original"), hidden checks exact.
-  Awaiting the user's first short take, which tests real input and analog triggers. Next
-  after that: drive the take for traces and compare it in the port from New Game.
+  (docs/PCSX2_FORK.md "A person's play recorded on the original"). The user's 5-minute
+  keyboard take test1 replays exact after a one-vsync shift for host pads. A controller is
+  untested. Next: drive a take for traces and compare it in the port from New Game.
   Behaviour errors the wave found in the OLD readable C (any port code copied
   from these files needs the same fix; the byte-matched C is now right):
     - func_001A6440 (collision) old C had wrong logic: bounds = ANY-axis strict, edge test inverted, returned 0 on hit

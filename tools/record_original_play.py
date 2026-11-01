@@ -9,7 +9,8 @@ scratchpad, VU data and IOP RAM hash equal, the input file alone reproduces
 the take, so it can be re-driven for traces, states and comparisons.
 
 Takes chain: a take can start from the state an earlier take ended on, so a
-long playthrough can be played over several sittings.
+long playthrough can be played over several sittings. Every take starts from a
+true state, so one that fails its check costs that take, not the takes after it.
 
 Usage (native arm64 macOS; the fork app runs x86_64 under Rosetta; use the
 decomp's .venv python):
@@ -99,10 +100,12 @@ def records(take):
 
 
 def timeline(rows):
+    """The log as a replay's entries. The game reads a host pad one vsync
+    before the log's record of it (a timeline's in that record's vsync)."""
     entries, last = [], None
     for row in rows:
         if row[2:] != last:
-            entries.append([row[0] - rows[0][0], *row[2:]])
+            entries.append([max(row[0] - rows[0][0] - 1, 0), *row[2:]])
             last = row[2:]
     return entries
 
@@ -205,7 +208,7 @@ def verify(args):
     (take / 'verify.json').write_text(json.dumps(report, indent=1) + '\n')
     print(f'{args.take}: replay {"EXACT" if same else "DIFFERS"} at vsync {got["vsync"]} (replay took {seconds:.0f} s)')
     if first:
-        print(f'  first differing row: {first}')
+        print(f'  {"a passing difference, gone by the end" if same else "first differing row"}: {first}')
     return 0 if same else 1
 
 
