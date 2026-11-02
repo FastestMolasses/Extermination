@@ -9188,15 +9188,273 @@ def l18_run_until(r: Route, points, pred, tol: float = 2.0, limit: int = 400) ->
     return pred(r.rows[-1])
 
 
+def l19_climb(r: Route, x: float, z: float, yaw: float, tries: int = 5) -> None:
+    """Push to (x, z) against a face, face `yaw`, Cross until the ledge climb (+1F0 8 / 0x10)
+    starts; then wait for control on top (0015DF10: a ledge 4.01 < dy <= 32 above the feet)."""
+    y0 = r.rows[-1]["pos"][1]
+    for _ in range(tries):
+        a19d_go_rock(r, x, z, tol=1.0, limit=200)
+        r.set_pad(0)
+        a13_settle(r, 3)
+        a13_face(r, yaw, tol=0.08)
+        r.idle(3)
+        r.press("CROSS", 2)
+        for _ in range(40):
+            if r.rows[-1]["m1F0"] in (8, 0x10):
+                break
+            r.step(1)
+        if r.rows[-1]["m1F0"] in (8, 0x10):
+            break
+    else:
+        raise TimeoutError("no ledge climb: " + summary(r.rows[-1]))
+    # A ledge above 24 is a hang (+1F0 0x10, state 9): stick forward pulls up (0x11).
+    ahead = (r.rows[-1]["pos"][0] + 40 * math.sin(yaw), r.rows[-1]["pos"][2] + 40 * math.cos(yaw))
+    for _ in range(600):
+        row = r.rows[-1]
+        if row["m1F0"] not in (8, 0x10, 0x11) and in_control(row):
+            break
+        if row["m1F0"] == 0x10:
+            r.stick_toward(*ahead, 1.0)
+        else:
+            r.set_pad(0)
+        r.step(1)
+    else:
+        raise TimeoutError("climb not finished: " + summary(r.rows[-1]))
+    r.set_pad(0)
+    a13_settle(r, 5)
+    if r.rows[-1]["pos"][1] < y0 + 3:
+        raise RuntimeError("climb did not rise: " + summary(r.rows[-1]))
+
+
+def k01_beat_item19(r: Route) -> dict:
+    # AREA14 from entry 0 (the valley, y 390): the crate 1791 (grid floor 404, x 485.5..499.5,
+    # z 1368.7..1382.7) climbed from the east (14 up), the block 1453 (x 457.9..485.9, top
+    # 431.6) from its top facing -x (27.6 up, the hang climb), the plateau floor (y 432), the ramp
+    # 1002 (x 426..455, 431 -> 447) onto the bench (1008, y 448.5) and g[1] (item 0x19: 0015D4C0
+    # starts the 0x33 climb only with it, D_00810C7D) at (394.7, 448.5, 1375.5).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(560, 1360), (520, 1375.5), (506, 1375.5)], tol=2.0, limit=300)
+    l19_climb(r, 504.2, 1375.2, -math.pi / 2)
+    l19_climb(r, 490.6, 1375.7, -math.pi / 2)
+    sixteenth_run(r, [(470, 1378), (455, 1375), (430, 1374), (405, 1375.5)], tol=2.0, limit=300)
+    a19c_until_control(r, 3000)
+    a19e_take(r, 394.7, 1375.5, (402.4, 1375.6))
+    a13_settle(r, 5)
+    if r.rows[-1]["inv64"][0x19 * 2:0x19 * 2 + 2] == "00":
+        raise RuntimeError("item 0x19 not held: " + summary(r.rows[-1]))
+    return {"what": "AREA14: the crate 1791, the block's hang climb, the ramp, g[1] (item 0x19)",
+            "hp_end": a01_hp(r)}
+
+
+AREA14_BENCH_TO_FACE = [(412, 1384), (430, 1385), (450, 1380), (458, 1366), (438, 1352), (432, 1328), (410, 1292),
+                        (390, 1282)]
+FACE_YAW = math.atan2(-0.42, -0.91)
+FACE_STICK = {"U": (0x80, 0x00), "D": (0x80, 0xFF), "L": (0x00, 0x80), "R": (0xFF, 0x80)}
+
+
+def face_move(r: Route, d: str, until=None, stall: int = 45, limit: int = 1500) -> dict:
+    """On a 0x33 face (state 0xD / 0xE): hold the stick `d` (U/D/L/R; R moves +x along the
+    face) until `until(row)` or no movement for `stall` frames.  Returns the last row."""
+    r.set_pad(0, *FACE_STICK[d])
+    last, still = r.rows[-1]["pos"], 0
+    for _ in range(limit):
+        row = r.step(1)
+        if until is not None and until(row):
+            break
+        if row["p5"] not in (0xD, 0xE):
+            break
+        if math.dist(row["pos"], last) < 0.01:
+            still += 1
+            if still >= stall:
+                break
+        else:
+            still = 0
+        last = row["pos"]
+    r.set_pad(0)
+    row = r.step(1)
+    print(f"face_move {d}: f{r.frame_index} p5={row['p5']:#x} m={row['m1F0']} pos=({row['pos'][0]:.1f},"
+          f" {row['pos'][1]:.1f}, {row['pos'][2]:.1f}) hp={row['hp']}", flush=True)
+    return row          # facing the 0x33 face (its normal (0.42, 0, 0.91))
+
+
+def face_side_jump(r: Route, d: str, tries: int = 6) -> None:
+    """At a patch's side edge: the stick toward the edge (00168050 state 0x46 / 0x50, the reach),
+    Cross (D_00810E74 & the press mask): 001809B0 finds a ledge whose top lies 9..21 above the
+    feet on the wall 10 (12 below y 560) to that side; the jump (0x5A..0x5C) ends in the hang
+    (state 9, +1F0 0x10); the stick toward the face pulls up."""
+    lx, ly = FACE_STICK[d]
+    r.set_pad(0, lx, ly)
+    r.step(40)
+    for _ in range(tries):
+        r.set_pad(PAD["CROSS"], lx, ly)
+        r.step(2)
+        r.set_pad(0, lx, ly)
+        for _ in range(40):
+            r.step(1)
+            if r.rows[-1]["p5"] not in (0xD, 0xE):
+                break
+        if r.rows[-1]["p5"] not in (0xD, 0xE):
+            break
+    else:
+        raise TimeoutError("no side jump: " + summary(r.rows[-1]))
+    r.set_pad(0)
+    r.until(lambda row: row["m1F0"] == 0x10 or in_control(row), 300)
+    yaw = r.rows[-1]["yaw"]
+    ahead = (r.rows[-1]["pos"][0] + 40 * math.sin(yaw), r.rows[-1]["pos"][2] + 40 * math.cos(yaw))
+    for _ in range(400):
+        row = r.rows[-1]
+        if row["m1F0"] not in (0x10, 0x11) and in_control(row):
+            break
+        if row["m1F0"] == 0x10:
+            r.stick_toward(*ahead, 1.0)
+        else:
+            r.set_pad(0)
+        r.step(1)
+    r.set_pad(0)
+
+
+def face_climb_lower(r: Route) -> None:
+    """The 0x33 face from the base 1618 to the top of 1470 (feet stop about 14 below a patch's
+    top): up 1618 / 1479, right along 1479 / 1474 to 1475, up, left over 1469 to 1473, up,
+    right to 1471 / 1470, up."""
+    r.until(lambda row: row["p5"] == 0xE, 300)
+    face_move(r, "U", until=lambda row: row["pos"][1] >= 478.5)
+    face_move(r, "R", until=lambda row: row["pos"][0] >= 453.5)
+    face_move(r, "U", until=lambda row: row["pos"][1] >= 542.9)
+    face_move(r, "L", until=lambda row: row["pos"][0] <= 425.5)
+    face_move(r, "U", until=lambda row: row["pos"][1] >= 551.8)
+    face_move(r, "R", until=lambda row: row["pos"][0] >= 440.0)
+    face_move(r, "U", until=lambda row: row["pos"][1] >= 572.3)
+
+
+def l19_until_control(r: Route, limit: int, need: int = 60) -> None:
+    """a19c_until_control, closing a status page (ui byte 1 = 3: an item a script gave) with
+    Triangle after 90 frames."""
+    for _ in range(limit):
+        row = r.rows[-1]
+        if row["ui"][2:4] == "03":
+            r.idle(90)
+            r.press("TRIANGLE", 2)
+            r.until(lambda x: x["ui"][2:4] != "03", 900)
+            continue
+        row = r.step(1)
+        if in_control(row) and len(r.rows) > need and all(in_control(x) for x in r.rows[-need:]):
+            return
+    raise TimeoutError("control not reached: " + summary(r.rows[-1]))
+
+
+def k01_face_climb(r: Route) -> None:
+    """From the bench to the top of the 0x33 face (00168050 is state 0xE; read with 001806E0,
+    00180850, 001809B0 and 00178080): [0]'s script on the way, the lower patches, the side jump
+    onto the y-602 shelf, the ledge climb onto the y-618.7 floor, west to the 0x33 floor 1481,
+    1468 / 1466 / 1465 to the climb-over onto 1482 (y 678.9)."""
+    sixteenth_run(r, AREA14_BENCH_TO_FACE[:-1], tol=2.0, limit=300)
+    # [0] (0x8238E0): inside its polygon below y 435, script 0x826C10 (counter 0x3D, CC3 0x16).
+    r.set_pad(0)
+    r.step(20)
+    a19c_until_control(r, 6000)
+    sixteenth_run(r, AREA14_BENCH_TO_FACE[-1:], tol=2.0, limit=300)
+    a19d_go_rock(r, 383.5, 1272.5, tol=0.8, limit=120)     # against the face 1618
+    a13_settle(r, 3)
+    a13_face(r, FACE_YAW, tol=0.08)
+    a19_press_until(r, lambda row: row["p5"] == 0xD, tries=4, wait=40)
+    face_climb_lower(r)
+    face_move(r, "R", until=lambda row: row["pos"][0] >= 453.5)
+    face_move(r, "U", until=lambda row: row["pos"][1] >= 587.0)
+    face_side_jump(r, "L")
+    a19c_until_control(r, 600, need=20)
+    if r.rows[-1]["pos"][1] < 600:
+        raise RuntimeError("not on the y-602 shelf: " + summary(r.rows[-1]))
+    l19_climb(r, 426.8, 1244.2, math.atan2(-0.91, 0.42))
+    sixteenth_run(r, [(418, 1248), (400, 1252), (380, 1262)], tol=2.5, limit=300)
+    a19d_go_rock(r, 377.0, 1261.0, tol=0.8, limit=60)
+    a13_settle(r, 3)
+    a13_face(r, FACE_YAW, tol=0.08)
+    a19_press_until(r, lambda row: row["p5"] == 0xD, tries=4, wait=40)
+    r.until(lambda row: row["p5"] == 0xE, 300)
+    face_move(r, "U", until=lambda row: row["pos"][1] >= 647.8)
+    face_move(r, "R", until=lambda row: row["pos"][0] >= 418.5)
+    face_move(r, "U")
+    r.set_pad(0)
+    r.step(20)
+    l19_until_control(r, 8000)
+    if r.rows[-1]["pos"][1] < 675:
+        raise RuntimeError("not on the top: " + summary(r.rows[-1]))
+
+
+def k01_beat_face(r: Route) -> dict:
+    # AREA14: the bench to the top of the 0x33 face (k01_face_climb), the script at the top
+    # (the climb-over onto 1482 starts it), then g[4] (item 0x1E, (479.4, 679.9, 1295.7)) used
+    # at once: health drains 2 per 240 frames at infection 100 outside scripts.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    k01_face_climb(r)
+    print("top control", summary(r.rows[-1]), flush=True)
+    sixteenth_run(r, [(452, 1212), (468, 1228), (473, 1292)], tol=2.5, limit=300)
+    a19e_take(r, 479.4, 1295.7, (474.5, 1295.7))
+    sixteenth_heal_30(r)
+    return {"what": "AREA14: the 0x33 face from the bench to the top, its script, g[4] (item 0x1E) used",
+            "hp_end": a01_hp(r)}
+
+
+def k01_beat_face_probe(r: Route) -> dict:
+    # Exploration (raises at the end so the trace lands in _failed/): the base floor 1617 at
+    # (382, 432, 1279), Use facing the 0x33 face (0015D4C0 case 0x33: state 0xD), then the
+    # stick up, right, left, down for 150 frames each.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, AREA14_BENCH_TO_FACE[:-1], tol=2.0, limit=300)
+    # [0] (0x8238E0): inside its polygon below y 435, script 0x826C10 (counter 0x3D, CC3 0x16).
+    r.set_pad(0)
+    r.step(20)
+    a19c_until_control(r, 6000)
+    sixteenth_run(r, AREA14_BENCH_TO_FACE[-1:], tol=2.0, limit=300)
+    a19d_go_rock(r, 383.5, 1272.5, tol=0.8, limit=120)     # against the face 1618
+    a13_settle(r, 3)
+    a13_face(r, FACE_YAW, tol=0.08)
+    a19_press_until(r, lambda row: row["p5"] == 0xD, tries=4, wait=40)
+    face_climb_lower(r)
+    face_move(r, "R", until=lambda row: row["pos"][0] >= 453.5)
+    face_move(r, "U", until=lambda row: row["pos"][1] >= 587.0)
+    face_side_jump(r, "L")
+    print("after jump", r.rows[-1]["p5"], summary(r.rows[-1]), flush=True)
+    a19c_until_control(r, 600, need=20)
+    print("control", r.rows[-1]["p5"], summary(r.rows[-1]), flush=True)
+    sixteenth_run(r, [(430, 1243)], tol=1.5, limit=200)
+    l19_climb(r, 425.5, 1245.0, math.atan2(-0.91, 0.42))
+    print("on 618", summary(r.rows[-1]), flush=True)
+    sixteenth_run(r, [(418, 1248), (405, 1251), (393, 1256), (384, 1261), (379, 1264)], tol=1.5, limit=300)
+    print("at 1468", summary(r.rows[-1]), flush=True)
+    a19d_go_rock(r, 377.0, 1261.0, tol=0.8, limit=80)
+    a13_settle(r, 3)
+    a13_face(r, FACE_YAW, tol=0.08)
+    a19_press_until(r, lambda row: row["p5"] == 0xD, tries=4, wait=40)
+    r.until(lambda row: row["p5"] == 0xE, 300)
+    face_move(r, "U")
+    face_move(r, "R", until=lambda row: row["pos"][0] >= 418.5)
+    face_move(r, "U")
+    print("top?", r.rows[-1]["p5"], summary(r.rows[-1]), flush=True)
+    a19c_until_control(r, 900, need=20)
+    print("control top", summary(r.rows[-1]), flush=True)
+    raise RuntimeError("probe end: " + summary(r.rows[-1]))
+
+
 K01_BEATS: list[tuple] = [
+    ("k01_s2_face", "k01_03_item19", k01_beat_face_probe),
     ("k01_00_load", "a02c_01_door22", k01_beat_load),
     ("k01_01_slab", "k01_00_load", k01_beat_slab),
     ("k01_02_item26", "k01_01_slab", k01_beat_item26),
+    ("k01_03_item19", "k01_02_item26", k01_beat_item19),
+    ("k01_04_face", "k01_03_item19", k01_beat_face),
 ]
 EIGHTEENTH_BEATS: list[tuple] = A04E_BEATS + A02C_BEATS + A01W_BEATS + K00_BEATS + K01_BEATS
 SIXTEENTH_GROUPS = SIXTEENTH_GROUPS + EIGHTEENTH_GROUPS
 SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS + A07_BEATS + SEVENTEENTH_BEATS + EIGHTEENTH_BEATS
-SIXTEENTH_SIDE_BEATS: set[str] = {"a04e_s0_console", "a04e_s1_hoist", "a01w_s0_bridge", "k00_s0_loadtest", "k00_s1_reader"}
+SIXTEENTH_SIDE_BEATS: set[str] = {"k01_s2_face", "a04e_s0_console", "a04e_s1_hoist", "a01w_s0_bridge", "k00_s0_loadtest", "k00_s1_reader"}
 
 
 def sixteenth_selected(spec: str) -> list[tuple]:
