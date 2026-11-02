@@ -8788,8 +8788,187 @@ A07B_BEATS: list[tuple] = [
     ("a07b_07_lift", "a07b_06_duct", a07b_beat_lift),
 ]
 SEVENTEENTH_BEATS: list[tuple] = A03D_BEATS + A04D_BEATS + A07B_BEATS
-SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS + A07_BEATS + SEVENTEENTH_BEATS
-SIXTEENTH_SIDE_BEATS: set[str] = set()
+# Eighteenth level (lane CAP2, 2026-11-02; port docs/EIGHTEENTH_LEVEL_ROUTE.md): from a07b_07
+# (AREA04 sub 1 entry 10) on, toward the second half (WORLD_GRAPH.md section 7 step 7).  Item
+# 0x24 (AREA19 sub 1 [53], flag 0x25) opens AREA00 sub 2's reader [19] and with it the room of
+# item 0x26; from AREA04 sub 1's hall AREA03's door [44] (the west balcony) is out of reach, so
+# the way to AREA19 is the lift [57] to AREA13.
+EIGHTEENTH_GROUPS = ("a04e", "a02c")
+
+
+def l18_use(r: Route, x: float, z: float, yaw: float, pred, tol: float = 0.6, wait: int = 30) -> None:
+    """Walk to (x, z), face `yaw`, Cross until `pred`."""
+    a19d_go_rock(r, x, z, tol=tol)
+    r.set_pad(0)
+    r.step(3)
+    a13_face(r, yaw, tol=0.08)
+    a19_press_until(r, pred, tries=4, wait=wait)
+
+
+def l18_door(r: Route, x: float, z: float, yaw: float, area: str, tol: float = 0.6) -> None:
+    """A door or slider: Use, then the area bytes `area` (a prefix of area4), then control."""
+    l18_use(r, x, z, yaw, lambda row: row["spad"][2:4] != "00", tol=tol)
+    r.until(lambda row: row["area4"].startswith(area), 3000)
+    a19c_until_control(r, 3000)
+    a13_settle(r, 5)
+
+
+def a04e_beat_hall(r: Route) -> dict:
+    # From the lift's arrival (entry 10) back round the bar to the slider [51] (001BB860
+    # model 0x16, id 5, bit 5 set) from the north room's side facing +z: entry 8.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(430, 20), (431, 34), (444, 40), (447, 60), (458, 74), (459, 92), (442, 99)],
+                  tol=1.5, limit=200)
+    l18_door(r, 440, 102.5, 0.0, "040108")
+    return {"what": "AREA04 sub 1: the north room back to the slider [51]: entry 8", "hp_end": a01_hp(r)}
+
+
+def a04e_beat_door41(r: Route) -> dict:
+    # The conveyor is closed in sub 1: a mound (attribute-8 nodes, x 418..455, z 240..293) and
+    # the player-only walls 741 / 744 (attribute 0x51, x 424 and z 245) stand on it, so the east
+    # balcony (the lift [57], door [43]) is out of reach from the hall.  South to the slider [41] (001BB860 model 9, id 8|0x80, no lock): AREA02 entry 4.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    # The hall's east side is closed south of z 217 (walls round the pocket x 502..545); the
+    # way is a04d_01's walk in reverse, down the west side (x 326..336).
+    sixteenth_run(r, [(438, 140), (420, 145), (414, 168), (409.5, 183), (400, 187), (382, 190), (365, 205),
+                      (345, 215), (332, 240), (326, 270), (326, 300), (330, 324), (366, 326), (400, 335),
+                      (430, 352), (440, 368)], tol=2.0, limit=300)
+    l18_door(r, 440, 374.5, 0.0, "02")
+    return {"what": "AREA04 sub 1: the hall's east side, the slider [41]: AREA02 entry 4", "hp_end": a01_hp(r)}
+
+
+def a04e_beat_console(r: Route) -> dict:
+    # Exploration: [69] (0x825510, cls 0x88, at (320, 29.9, 342.5)) starts script 0x82BD60 on
+    # Use (counter 0x65 = 1); [68] (0x825510 subtype 0x11, the platform at (317, 14.9 / 55,
+    # 260)) then runs 0x82C060 (up) or 0x82C120 (down).  Use it, then stand on the platform.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(438, 140), (420, 145), (414, 168), (409.5, 183), (400, 187), (382, 190), (365, 205),
+                      (345, 215), (332, 240), (326, 270), (326, 300), (328, 330)], tol=2.0, limit=300)
+    l18_use(r, 326.5, 342.5, -math.pi / 2, lambda row: row["spad"][2:4] != "00")
+    a19c_until_control(r, 3000)
+    sixteenth_run(r, [(328, 300), (318, 262)], tol=1.5, limit=300, soft=True)
+    r.set_pad(0)
+    r.step(600)
+    return {"what": "exploration: the console [69], the platform [68]", "hp_end": a01_hp(r)}
+
+
+A04E_BEATS: list[tuple] = [
+    ("a04e_00_hall", "a07b_07_lift", a04e_beat_hall),
+    ("a04e_01_door41", "a04e_00_hall", a04e_beat_door41),
+    ("a04e_s0_console", "a04e_00_hall", a04e_beat_console),
+]
+
+
+def l18_lock(row: dict, area_index: int) -> int:
+    """The lock byte D_00810840 + area_index from the row's `lk` span."""
+    return int(row["lk"][2 * area_index:2 * area_index + 2], 16)
+
+
+def l18_melee_until(r: Route, pred, presses: int = 8) -> None:
+    """Circle (the light melee) until `pred`, as a03d_00 at its seal."""
+    for _ in range(presses):
+        r.press("CIRCLE", 2)
+        for _ in range(45):
+            r.step(1)
+            if pred(r.rows[-1]):
+                return
+    raise TimeoutError("melee did not do it: " + summary(r.rows[-1]))
+
+
+A02C_OWNERS = {          # AREA02 sub 2 creatures (pool nodes of the a04e_01 end snapshot)
+    "drainA": 0x7A6DC0,  # 00147390 model 7 at (418.3, 0.1, -26.5)
+    "drainB": 0x7A70B0,  # 00147390 model 7 at (162.2, 0.1, -15.8)
+    "drainC": 0x7A6AD0,  # 00147390 model 7 at (10.9, 0.1, -107.8)
+    "pod": 0x7A8830,     # 001BECC0 model 0x11 at (265.8, 0.8, -10.5)
+    "e1546a": 0x7B9380,  # 001546C0 model 0xE at the platform's generator (361.9, 15, 62.9)
+    "e1546b": 0x7B9670,
+    "e1546c": 0x7B8DA0,  # 001546C0 at (153.9, 0, -22.4)
+    "e1546d": 0x7B9090,
+}
+
+
+def l18_owner_hp(row: dict, name: str) -> int:
+    """+0x34 of a sampled owner (its `k` span starts at +0x30)."""
+    return struct.unpack_from("<h", bytes.fromhex(row[name]["k"]), 4)[0]
+
+
+def l18_shoot(r: Route, name: str, limit: int = 40) -> int:
+    """R1 held (the lock), Circle every 14 frames until the owner's +0x34 is 0 (a19d_00)."""
+    hold = PAD["R1"]
+    r.set_pad(hold)
+    r.step(20)
+    shots = 0
+    while l18_owner_hp(r.rows[-1], name) > 0 and shots < limit:
+        r.set_pad(hold | PAD["CIRCLE"])
+        r.step(2)
+        r.set_pad(hold)
+        r.step(12)
+        shots += 1
+        if r.rows[-1]["hp"] <= 0:
+            break
+    r.set_pad(hold)
+    r.step(20)
+    r.set_pad(0)
+    r.step(20)
+    if l18_owner_hp(r.rows[-1], name) > 0:
+        raise RuntimeError(name + " not down: " + summary(r.rows[-1]))
+    return shots
+
+
+def a02c_beat_seal(r: Route) -> dict:
+    # AREA02 sub 2 from entry 4 (the platform at y 15, x 285..470): north, west, off the
+    # platform's edge at x 283 (a drop of 15) into the yard at y 0, west along the channel
+    # (z -26..46), north up the corridor x -38..40 to door [22]; the seal [21] (001582E0
+    # model 0x0E at (-38.6, 7.9, -187.2)) broken from the AREA02 side: D_00810843 bit 0 and
+    # D_00810842 bit 1 (AREA01's [11]).
+    use_sixteenth_sampler(r, owners=A02C_OWNERS)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_heal_30(r)
+    # The channel's south side burns (001E3D90 flames at (201..260, 33..39)), the platform's
+    # north part has a tendril field (001546C0 at (361.9, 15, 62.9)) and the channel's middle is
+    # blocked at x 257..262 (not identified): off the platform's north edge at x 450 (a drop of
+    # 15, -10), west along the channel's north side past the pod 001BECC0 at (265.8, -10.5)
+    # (zone radius 17: one strike), round the wall stub at x 180..192, the corridor's east side.
+    sixteenth_run(r, [(445, 62), (450, 40), (452, 22), (420, 10), (330, -8), (300, -18), (275, -23), (250, -23),
+                      (215, -12), (196, -3), (175, 0), (130, 4), (75, -10),
+                      (40, -40), (32, -70), (32, -120), (28, -170), (-10, -178), (-28, -178)],
+                  tol=2.0, limit=400)
+    a19d_go_rock(r, -34.5, -184.0, tol=0.5)
+    r.set_pad(0)
+    r.step(3)
+    px, _py, pz = r.rows[-1]["pos"]
+    a13_face(r, math.atan2(-38.6 - px, -187.2 - pz), tol=0.06)
+    l18_melee_until(r, lambda row: l18_lock(row, 3) & 1)
+    r.step(30)
+    a13_settle(r, 5)
+    return {"what": "AREA02 sub 2: the yard to door [22], the seal [21]: D_00810843 bit 0, D_00810842 bit 1",
+            "hp_end": a01_hp(r)}
+
+
+def a02c_beat_door22(r: Route) -> dict:
+    # Door [22] (001BC350 model 0x15, id 0|0x80, D_00810843 bit 0): AREA01 entry 3 (sub 1).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    l18_door(r, -30.5, -181.5, math.pi, "01")
+    return {"what": "AREA02 sub 2: door [22]: AREA01 entry 3", "hp_end": a01_hp(r)}
+
+
+A02C_BEATS: list[tuple] = [
+    ("a02c_00_seal", "a04e_01_door41", a02c_beat_seal),
+    ("a02c_01_door22", "a02c_00_seal", a02c_beat_door22),
+]
+EIGHTEENTH_BEATS: list[tuple] = A04E_BEATS + A02C_BEATS
+SIXTEENTH_GROUPS = SIXTEENTH_GROUPS + EIGHTEENTH_GROUPS
+SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS + A07_BEATS + SEVENTEENTH_BEATS + EIGHTEENTH_BEATS
+SIXTEENTH_SIDE_BEATS: set[str] = {"a04e_s0_console"}
 
 
 def sixteenth_selected(spec: str) -> list[tuple]:

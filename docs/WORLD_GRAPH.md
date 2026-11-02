@@ -15,8 +15,9 @@ measured, section 8b the ninth-level captures (port
 (port `docs/ELEVENTH_LEVEL_ROUTE.md`), section 8e the twelfth-level
 captures (port `docs/TWELFTH_LEVEL_ROUTE.md`), section 8f the thirteenth
 (port `docs/THIRTEENTH_LEVEL_ROUTE.md`), section 8g the fourteenth (port
-`docs/FOURTEENTH_LEVEL_ROUTE.md`) and section 8h the fifteenth (port
-`docs/FIFTEENTH_LEVEL_ROUTE.md`); section 7's table marks each edge
+`docs/FOURTEENTH_LEVEL_ROUTE.md`), section 8h the fifteenth (port
+`docs/FIFTEENTH_LEVEL_ROUTE.md`) and section 8i the eighteenth (port
+`docs/EIGHTEENTH_LEVEL_ROUTE.md`); section 7's table marks each edge
 played or not. Nothing here quotes disc text; the tables are addresses and
 numbers.
 
@@ -658,9 +659,9 @@ means no lock or story test was found on the site itself.
 | AREA00 | AREA01 e0 | [52] 0x823580 / [15] (sub 2) | open (measured) | played (third level, a00_10) |
 | AREA01 | AREA02 e0 | [14] / [11] model 0x15 | D_00810842 bit 1, set by AREA02's seal [21] 001582E0 (from the AREA02 side) | not played (the locked door measured, a01r_s1) |
 | AREA01 | AREA02 e1 sub 1 | [16] / [12] | open (measured, fourth level) | played (fourth level, a01r_03) |
-| AREA02 | AREA01 e3 / e5 | [22] model 0x15 (bit 0, the same seal) / sub 1 [5] | seal / open | not played |
+| AREA02 | AREA01 e3 / e5 | [22] model 0x15 (bit 0, the same seal) / sub 1 [5] | seal / open. Measured (a02c_00 / a02c_01): the sub-2 seal [21] broken by the light melee from (-34.1, -182.6) (D_00810843 0x08 -> 0x09, D_00810842 0x00 -> 0x02), then [22] facing -z: AREA01 sub 1 entry 3 | e3 played (a02c_01); e5 not played |
 | AREA02 | AREA04 e0 | [25] model 0x17 | D_00810843 bit 3: the panel [24] 00158EC0 (item 0x1B) (measured, fourth level) | played (fourth level, a02_05) |
-| AREA04 | AREA02 e4 | [35] | open | not played |
+| AREA04 | AREA02 e4 | [35] (sub 0) / [41] (sub 1) | open. Measured (a04e_01): sub 1's slider [41] from (440, 374.5) facing +z: AREA02 sub 2 entry 4 | sub 1 played (a04e_01); sub 0 not played |
 | AREA04 | AREA22 e0 | [37] | open (measured) | played (fifth level, a04_05) |
 | AREA22 | AREA04 e1 / AREA01 e6 | [6] / [8] | open (measured) | both played (a22b_01, a22_s3; a22_02) |
 | AREA01 | AREA22 e5 / AREA06 e0 | [18] / [19] | open (measured) | both played (a01v_02, a01u_s1; a01u_02) |
@@ -685,7 +686,7 @@ means no lock or story test was found on the site itself.
 | AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open. Measured (a15_00): the slider [13] (room move id 1) from entry 1 to entry 2, then [14] facing +z: AREA19 sub 1 entry 4 (the tower's y-450 landing) | e4 played (a15_00); e5 not played |
 | AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 == 0xFF (AREA15 sub 0 [0]'s script 0x826E70) and flag 0x23 != 0xFF (001BA1C0, BM: D_00810758[id] == 0xFF); counter 0x23's steps (C: 0x8239F0 starts at the player's y >= 310 inside the polygon 0x827C80, 0x823B40 ends the 900-frame count). Measured (a15b_00 / a15b_01): the mezzanine (sub 1 floor 1437, y 315.1) by the stairs 794 and 792; flag 0x23 = 1 (0x8239F0), the count, script 0x8277C0, flag 0x23 = 0xFF (measured, writer not read), the request 0F 00 00 01 (0x823C80) | played (a15b_01) |
 | AREA19 sub 1 | the truck [46] (no area change) | [46] 0x829A70 (C), model 0x21 | item 0x25 (AREA15 sub 0 [1]'s 0x824240, after the event) used from the status screen's EVENT page at the truck's Use point (its descriptor 0x82F790: (817.5, 379, 931.4)): D_00810838 = 1, the cell key 5 off. Measured (a19e_02) | played (a19e_02) |
-| AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | Use with item 0x26 (AREA00 sub 2 g[3]) | not played (inferred) |
+| AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | item 0x26 (AREA00 sub 2 g[3]) used from the EVENT page (00184D20: event 0x26, class 4 model 0x49 -> +0x0B = 5), then Use; g[3] lies behind the slider [20] (D_00810841 bit 4, the reader [19] model 0x13: item 0x24, 001576E0 BM) | not played (inferred) |
 | AREA14 / AREA18 | AREA18 e0 / AREA14 e1 | 00190F20 | in AREA14 the player inside quad D_0024A4B0 / in AREA18 the player's x (+0xA0) <= 285 (BM, section 5) | not played (inferred) |
 | AREA14 | AREA17 e0 | [6]'s script 0x828120, op09 0x825C40 | the owner's condition not read | not played (inferred) |
 | AREA17 | AREA11 e3 | [38] 0x825470 | counter 0x5D (scan) | not played (inferred) |
@@ -819,7 +820,11 @@ From there:
    behind the truck's door, whose key comes from AREA15's event. Sub 0's
    g[4] (item 0x1D, the 24-gauge pack, at (877.2, 210, 976)) is another
    source, not on this route (not reached).
-7. **The second half.** AREA00 sub 2 -> AREA14 (item 0x26 from AREA00 sub
+7. **The second half.** (item 0x24 first: AREA00 sub 2's g[3] lies behind
+   the slider [20], D_00810841 bit 4, which only the reader [19] sets, and
+   001576E0 (BM) accepts model 0x13 only with item 0x24; item 0x24 comes only
+   from AREA19 sub 1 [53] 0x827550 (C) at the tower's y-450 landing with flag
+   0x25 = 0xFF; section 8i) AREA00 sub 2 -> AREA14 (item 0x26 from AREA00 sub
    2's g[3]) -> AREA18 (item 0x28, g[1]) -> AREA17 (0x824700 takes 0x28 and
    gives 0x2B) -> AREA11 entry 3 (flag 0x30 1, then AREA11's [11] 0x823CE0
    script sets it to 0xFF) -> ... -> AREA15's room (0x824990 exists only
@@ -1258,6 +1263,33 @@ panel [24] -> door [25]) and `a03` (1 beat, AREA03 sub 0's lift) of
   AREA03 overlay; no AREA19 overlay function is new (`a15b_delta.json`,
   `a19e_delta.json`, `a03_delta.json`).
 
+## 8i. Measured (eighteenth level)
+
+The port's `docs/EIGHTEENTH_LEVEL_ROUTE.md` played groups `a04e` (2 beats and one side beat,
+AREA04 sub 1's north room and hall -> the slider [41]) and `a02c` (2 beats, AREA02 sub 2 -> the
+seal [21] -> door [22] -> AREA01 sub 1 entry 3) from the seventeenth level's a07b_07 (set
+`levels-recordings-20261102-1`). Measured and read:
+
+- **Item 0x24 gates the second half's first step** (code, section 7 step 7): the a07b_07 player
+  holds none (C64 0x24 = 0, D_00810841 = 0x04).
+- **AREA04 sub 1's hall.** The conveyor (sub 0's way to the east balcony, a04_04) is closed in
+  sub 1: a mound (attribute-8 nodes) and the player-only walls 741 / 744 (attribute 0x51) at x 424
+  and z 245 stop the walk (measured at (419.5, 31.6, 259.9)). The west balcony has no stair from the
+  floor; the beam at z 376 (attribute 0x3D, y 90.3..91.6) leads from it east into the hall (grid,
+  not played). [68] / [69] (0x825510, C) are a platform (the balcony's south part at (317, 260),
+  y 14.9 or 55) and its console at (320, 29.9, 342.5): Use at [69] (measured, side beat) set counter
+  0x65 = 1, flag 0x0D = 0xFF, then flag 0x65 = 1 (the platform up) and counter 0x65 = 2. Riding it
+  was not found. The hall's other ways out: the slider [41] (played) and the AREA07 lift.
+- **AREA02 sub 2** from entry 4: the platform's north edge (a drop of 15, -10), the channel's north
+  side past the pod 001BECC0 at (265.8, -10.5) (zone radius 17, height 2: D_00275628 through
+  001BE5F0, BM; one strike), the corridor's east side, the seal [21] in the corridor's north-west
+  corner (light melee from (-34.1, -182.6)): D_00810843 bit 0 and D_00810842 bit 1 (001582E0, BM).
+  The channel's middle was blocked at x 257..262 for z 0..21 by something in neither the grid nor
+  the movable-object table (not identified).
+- **AREA01 sub 1 entry 3** is the room x -50..50, z -320..-190; the upper floor (door [14] to
+  AREA22) showed no link from the lower level in the grid (read, not walked).
+- **Census** not run.
+
 ## 9. Open
 
 1. AREA15 sub 1's event, the return to AREA15 sub 0, the truck [46] and
@@ -1266,7 +1298,9 @@ panel [24] -> door [25]) and `a03` (1 beat, AREA03 sub 0's lift) of
    1's g[3] / [22] (flag 0x29, item 0x2A), sub 2's socket and lift to
    AREA08, or sub 1's seal [23] and door [24] to AREA04 (port
    FIFTEENTH_LEVEL_ROUTE.md section 7). Section 7 step 7 is derived, not
-   played. The conditions of AREA14's
+   played; the eighteenth level (section 8i) found that it needs item 0x24
+   first and that from AREA04 sub 1's hall the ways to AREA19 are not yet
+   known (the platform [68]'s ride, or the sub-1 conveyor's mound). The conditions of AREA14's
    [6] (the owner of script 0x828120), AREA17's counter 0x5D (written by
    boot 0016BC40, not read) and AREA21's ending were read only as far as
    the tables show.
