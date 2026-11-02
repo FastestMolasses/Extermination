@@ -686,7 +686,7 @@ means no lock or story test was found on the site itself.
 | AREA15 | AREA19 e4 / e5 sub 1 | sub 0 [14] / sub 1 [9] | open. Measured (a15_00): the slider [13] (room move id 1) from entry 1 to entry 2, then [14] facing +z: AREA19 sub 1 entry 4 (the tower's y-450 landing) | e4 played (a15_00); e5 not played |
 | AREA15 sub 1 | AREA15 sub 0 e0, and the world's subs | 0x823C80 | flag 0x22 == 0xFF (AREA15 sub 0 [0]'s script 0x826E70) and flag 0x23 != 0xFF (001BA1C0, BM: D_00810758[id] == 0xFF); counter 0x23's steps (C: 0x8239F0 starts at the player's y >= 310 inside the polygon 0x827C80, 0x823B40 ends the 900-frame count). Measured (a15b_00 / a15b_01): the mezzanine (sub 1 floor 1437, y 315.1) by the stairs 794 and 792; flag 0x23 = 1 (0x8239F0), the count, script 0x8277C0, flag 0x23 = 0xFF (measured, writer not read), the request 0F 00 00 01 (0x823C80) | played (a15b_01) |
 | AREA19 sub 1 | the truck [46] (no area change) | [46] 0x829A70 (C), model 0x21 | item 0x25 (AREA15 sub 0 [1]'s 0x824240, after the event) used from the status screen's EVENT page at the truck's Use point (its descriptor 0x82F790: (817.5, 379, 931.4)): D_00810838 = 1, the cell key 5 off. Measured (a19e_02) | played (a19e_02) |
-| AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | item 0x26 (AREA00 sub 2 g[3]) used from the EVENT page (00184D20: event 0x26, class 4 model 0x49 -> +0x0B = 5), then Use; g[3] lies behind the slider [20] (D_00810841 bit 4, the reader [19] model 0x13: item 0x24, 001576E0 BM) | not played (inferred) |
+| AREA00 sub 2 | AREA14 e0 | [28] 0x826790 | item 0x26 (AREA00 sub 2 g[3]) used from the EVENT page (00184D20: event 0x26, class 4 model 0x49 -> +0x0B = 5, which is the Use: measured, no separate press); g[3] lies behind the slider [20] (D_00810841 bit 4, the reader [19] model 0x13: item 0x24, 001576E0 BM) | played from the constructed start k01 (k01_02) |
 | AREA14 / AREA18 | AREA18 e0 / AREA14 e1 | 00190F20 | in AREA14 the player inside quad D_0024A4B0 / in AREA18 the player's x (+0xA0) <= 285 (BM, section 5) | not played (inferred) |
 | AREA14 | AREA17 e0 | [6]'s script 0x828120, op09 0x825C40 | the owner's condition not read | not played (inferred) |
 | AREA17 | AREA11 e3 | [38] 0x825470 | counter 0x5D (scan) | not played (inferred) |
@@ -1300,6 +1300,16 @@ seal [21] -> door [22] -> AREA01 sub 1 entry 3) from the seventeenth level's a07
   player who did AREA07 could reach item 0x24, or even AREA00, so one of them is likely incomplete;
   the open leads are the bridge's raised half, the hall's pillar and lift [36] (0x825B00 / console
   [37] 0x825880), and the platform.
+- **Round 3 (port EIGHTEENTH_LEVEL_ROUTE.md section 7c).** AREA01's bridge: the north half ends at
+  z -430 over a fall to y -280 (played, death). Constructed starts k00 / k01 (item 0x24, flag 0x26;
+  k01 also D_00810841 bit 4, item 0x26 and g[3]'s taken bit) loaded by the original's LOAD into
+  AREA00 sub 2 entry 0. In AREA00 sub 2 the arrival corridor is closed to the reader by player-only
+  walls 1584..1586 and a hive mound (read; walked to it). Played: the floor east of the mound to
+  [28]; item 0x26 from the EVENT page (00215870's list: id 1 for item 0x24, then i - 0x23 for held
+  items 0x25..0x3B); [28] took it, script 0x82D070, **AREA00 -> AREA14 entry 0 played**
+  (k01_02; [5]'s arrival sets flag 0x2C = 0xFF). AREA14: the stair north of entry 0 is an
+  attribute-0x05 slope; the climb face (attribute 0x33) needs item 0x19 (0015D4C0, NM:
+  D_00810C7D), AREA14's g[1].
 
 ## 9. Open
 

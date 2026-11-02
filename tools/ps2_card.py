@@ -7,7 +7,8 @@ This writes what a format leaves: the superblock, the indirect FAT, the FAT and
 a root directory holding only its "." and ".." entries, with each page's ECC.
 Every other page is erased. Nothing here comes from the disc.
 
-Usage (native arm64 macOS): python3 tools/ps2_card.py <out.ps2>
+Usage (native arm64 macOS): python3 tools/ps2_card.py <out.ps2> [<save directory>]
+(with a save directory: the card holds that one directory and its files)
 """
 import struct
 import sys
@@ -85,7 +86,79 @@ def write(path):
     Path(path).write_bytes(image())
 
 
+CLUSTER = PAGE * PAGES_PER_CLUSTER
+DIR_MODE, FILE_MODE, DOTDOT_MODE = 0x8427, 0x8497, 0xA426
+
+
+def dirent_at(mode, length, cluster, dir_entry, name):
+    when = bytes((0, 0, 0, 0, 1, 1)) + struct.pack('<H', 2001)
+    return struct.pack('<HHI8sII8sI28x32s416x', mode, 0, length, when, cluster, dir_entry, when, 0, name)
+
+
+def image_with_dir(dirname, files):
+    """A formatted card holding one directory in the root with `files`
+    ({name: bytes}, in that order): what a save to a fresh card leaves, laid
+    out by this tool (clusters allocated in order from the first free one).
+    Directory entries: the directory's own entry in the root (length = its
+    entry count, cluster = its first cluster), its "." (the parent's cluster
+    0 and this directory's index 2 in the root) and ".."; files' entries
+    carry their length and first cluster. FAT entries: 0x80000000 | next,
+    the last 0xFFFFFFFF."""
+    base = bytearray(image())
+    raw = PAGE + SPARE
+
+    def put_page(n, data):
+        base[n * raw:(n + 1) * raw] = page(data)
+
+    fat = [0x80000000 | 1, CHAIN_END] + [FREE] * (ALLOC_END - 2)   # the root grows to two clusters
+    nxt = [2]
+
+    def alloc(nbytes):
+        count = max(1, -(-nbytes // CLUSTER))
+        first = nxt[0]
+        for k in range(count):
+            c = first + k
+            fat[c] = CHAIN_END if k == count - 1 else (0x80000000 | (c + 1))
+        nxt[0] += count
+        return first, count
+
+    def put(first, data):
+        data = bytes(data)
+        for k in range(0, max(len(data), 1), PAGE):
+            put_page((ALLOC_OFFSET + first) * PAGES_PER_CLUSTER + k // PAGE, data[k:k + PAGE])
+
+    names = list(files)
+    dir_entries = 2 + len(names)
+    dir_first, _n = alloc(dir_entries * PAGE)
+    entries = [dirent_at(DIR_MODE, 0, 0, 2, b'.'), dirent_at(DOTDOT_MODE, 0, 0, 0, b'..')]
+    for name in names:
+        first, _n = alloc(len(files[name]))
+        put(first, files[name])
+        entries.append(dirent_at(FILE_MODE, len(files[name]), first, 0, name.encode()))
+    put(dir_first, b''.join(entries))
+    root = ALLOC_OFFSET * PAGES_PER_CLUSTER
+    put_page(root, dirent(0x8427, 3, b'.'))
+    put_page(root + 2, dirent_at(DIR_MODE, dir_entries, dir_first, 0, dirname.encode()))
+    words = fat + [CHAIN_END] * (FAT_CLUSTERS * 256 - len(fat))
+    blob = struct.pack(f'<{len(words)}I', *words)
+    first = (IFC_CLUSTER + 1) * PAGES_PER_CLUSTER
+    for i in range(0, len(blob), PAGE):
+        put_page(first + i // PAGE, blob[i:i + PAGE])
+    return bytes(base)
+
+
+def write_save(path, folder):
+    """A card image holding the save directory `folder` (a host card's
+    slot folder, e.g. the port's build/start_saves/<name>/slot1/<dir>)."""
+    folder = Path(folder)
+    files = {p.name: p.read_bytes() for p in sorted(folder.iterdir()) if p.is_file()}
+    Path(path).write_bytes(image_with_dir(folder.name, files))
+
+
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
+    if len(sys.argv) == 3:
+        write_save(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 2:
+        write(sys.argv[1])
+    else:
         sys.exit(__doc__)
-    write(sys.argv[1])

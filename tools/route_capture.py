@@ -565,6 +565,11 @@ class RouteSession(ForkSession):
             OriginalSession._resume_to_boundary(self, timeout=timeout or self.boundary_timeout)
 
 
+# Extra ForkSession keywords for every session a run opens (e.g. the memory-card folder of a
+# constructed start: record_level_routes.py --card).  Empty by default.
+SESSION_KW: dict = {}
+
+
 class RetrySession:
     """Context manager: start the hidden emulator, retrying start-up races
     (DebugServer not yet listening, first boundary missed)."""
@@ -577,7 +582,7 @@ class RetrySession:
         for attempt in range(self.attempts):
             if not (FORK and pcsx2_session_lane() is not None):   # a route_lanes.py lane: the parent's
                 wait_for_free_emulator(3600.0 if FORK else 600.0)  # other lanes are running emulators
-            session = RouteSession(self.state, log_dir=self.log_dir)
+            session = RouteSession(self.state, log_dir=self.log_dir, **SESSION_KW)
             try:
                 self.session = session.__enter__()
                 return self.session
@@ -8793,7 +8798,7 @@ SEVENTEENTH_BEATS: list[tuple] = A03D_BEATS + A04D_BEATS + A07B_BEATS
 # 0x24 (AREA19 sub 1 [53], flag 0x25) opens AREA00 sub 2's reader [19] and with it the room of
 # item 0x26; from AREA04 sub 1's hall AREA03's door [44] (the west balcony) is out of reach, so
 # the way to AREA19 is the lift [57] to AREA13.
-EIGHTEENTH_GROUPS = ("a04e", "a02c")
+EIGHTEENTH_GROUPS = ("a04e", "a02c", "a01w", "k00", "k01")
 
 
 def l18_use(r: Route, x: float, z: float, yaw: float, pred, tol: float = 0.6, wait: int = 30) -> None:
@@ -8983,10 +8988,215 @@ A02C_BEATS: list[tuple] = [
     ("a02c_00_seal", "a04e_01_door41", a02c_beat_seal),
     ("a02c_01_door22", "a02c_00_seal", a02c_beat_door22),
 ]
-EIGHTEENTH_BEATS: list[tuple] = A04E_BEATS + A02C_BEATS
+
+
+def a01w_beat_bridge(r: Route) -> dict:
+    # Side beat (one try): AREA01 sub 1 from entry 3 south along x 0 over the bridge's north half
+    # (0x8261A0 at (0, 3, -315)) toward the south half (0x8261A0 at (0, 3, -525)), tilted while
+    # flag 0x08 is set (0x826200, C): does the walk pass, or drop into the tunnel?
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(0, -230), (0, -300), (0, -340), (0, -380), (0, -420), (0, -470), (0, -520), (0, -560)],
+                  tol=2.0, limit=300, soft=True)
+    r.set_pad(0)
+    r.step(120)
+    return {"what": "side beat: AREA01 sub 1, entry 3 south along x 0 over the bridge", "hp_end": a01_hp(r)}
+
+
+A01W_BEATS: list[tuple] = [
+    ("a01w_s0_bridge", "a02c_01_door22", a01w_beat_bridge),
+]
+
+
+# Constructed starts (port docs/EIGHTEENTH_LEVEL_ROUTE.md "Constructed starts"): a beat loads a
+# save, made by the original save writer from a real progress block plus a listed, code-derived
+# delta (port tools/build_start_saves.py CONSTRUCTED), through the in-game options' LOAD row
+# (as opt_07, 001AF6F0 state 3 / 00225AC0).  Group k00 and on; the card is the session's slot 1
+# (record_level_routes.py --card).
+def k00_load(r: Route) -> None:
+    """SELECT, the options' load row (6), Cross; on the load screen Cross until the frame
+    machine leaves the options (the load), then control."""
+    use_opt_sampler(r)
+    marks: dict = {}
+    settle(r, 10)
+    opt_open(r, marks)
+    opt_cursor_to(r, 6, marks)
+    opt_press(r, "CROSS", lambda row: opt_menu(row, 3))
+    r.until(lambda row: row["ov"]["mc_state"] == 1 and dmg_fade(row) == 0, 900)
+    r.idle(30)
+    area0 = r.rows[-1]["area4"]
+    for _ in range(12):
+        r.press("CROSS", 2)
+        r.step(60)
+        if r.rows[-1]["ui"][10:12] == "04" or r.rows[-1]["ov"]["fn"] != 0x1ACEC0:
+            break
+    for _ in range(4):                         # a yes/no prompt with the cursor on No
+        if r.rows[-1]["ov"]["fn"] != 0x1ACEC0 or r.rows[-1]["area4"] != area0:
+            break
+        r.press("LEFT", 2)
+        r.step(20)
+        r.press("CROSS", 2)
+        r.step(90)
+    r.until(lambda row: row["area4"] != area0, 3000)
+    r.until(lambda row: row["ov"]["fstate"] != 2, 3000)
+    pos0 = r.rows[-1]["pos"]
+    use_sixteenth_sampler(r)
+    r.rows[-1] = dict(r.now(), f=r.frame_index)
+    for _ in range(12000):
+        row = r.step(1)
+        if math.dist(row["pos"], pos0) > 1.0 and in_control(row):
+            break
+    a19c_until_control(r, 6000)
+    a13_settle(r, 10)
+
+
+def k00_beat_loadtest(r: Route) -> dict:
+    # Side beat: the a02c_01 start card (an unmodified, real progress block) written to a card
+    # image (tools/ps2_card.py write_save) and loaded from AREA01's entry 3: does the original
+    # read the image and place the player at the card's load pose?
+    k00_load(r)
+    return {"what": "side beat: LOAD from the options with the a02c_01 card image", "hp_end": a01_hp(r)}
+
+
+def k00_beat_load(r: Route) -> dict:
+    # CONSTRUCTED START: from a02c_01's end (AREA01 sub 1, entry 3), LOAD the card k00 (port
+    # build_start_saves CONSTRUCTED['k00']: the a02c_01 end block with item 0x24, flag 0x26 and
+    # the AREA00 sub 2 entry-0 arrival): the original's load places the player at AREA00's e0.
+    k00_load(r)
+    if r.rows[-1]["area4"][:4] != "0002":
+        raise RuntimeError("not in AREA00 sub 2: " + summary(r.rows[-1]))
+    return {"what": "CONSTRUCTED START k00: LOAD of the k00 card: AREA00 sub 2 entry 0", "hp_end": a01_hp(r)}
+
+
+def k00_beat_reader(r: Route) -> dict:
+    # Side beat (never passed: the hive mound, attribute-8 walls at x -32..-18, z -1463..-1421,
+    # parts the floor east of the arrival from the floor of the reader; the arrival corridor's way
+    # west is closed by the player-only walls 1584..1586). AREA00 sub 2 (after the constructed start): from the arrival corridor to the floor (y -60),
+    # west along z -1470, north through the opening at x -129,
+    # z -1486, west to the reader [19] (00158810 model 0x13 at (-185, -45, -1499.1), yaw pi/2):
+    # Use facing -x with item 0x24 held: 001576E0 (BM) script 0x246C20, 001580C0 sets D_00810841
+    # bit 4.
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    # Sub 2's arrival corridor (x -45..-35) is closed to the south by the player-only walls
+    # 1584..1586 (attribute 0x51, z -1346..-1319) and to the west by wall 70 (x -45): off its east
+    # edge (x -35, a drop of 25) to the floor (y -60), south east of the mound (x -35..-7, z
+    # -1347..-1371), west along z -1470.
+    sixteenth_run(r, [(-41, -1310), (-28, -1312), (-18, -1324), (2, -1345), (4, -1378), (-10, -1405),
+                      (-14, -1441), (-24, -1441.5), (-36, -1442), (-45, -1468), (-128, -1470), (-129.5, -1480), (-129.5, -1489), (-140, -1495),
+                      (-174, -1499)], tol=2.0, limit=300)
+    l18_use(r, -178.5, -1499.1, -math.pi / 2, lambda row: row["spad"][2:4] != "00")
+    r.until(lambda row: l18_lock(row, 1) & 0x10, 1500)
+    a19c_until_control(r, 3000)
+    a13_settle(r, 5)
+    return {"what": "AREA00 sub 2: the stairs, the reader [19] with item 0x24: D_00810841 bit 4", "hp_end": a01_hp(r)}
+
+
+K00_BEATS: list[tuple] = [
+    ("k00_s0_loadtest", "a02c_01_door22", k00_beat_loadtest),
+    ("k00_00_load", "a02c_01_door22", k00_beat_load),
+    ("k00_s1_reader", "k00_00_load", k00_beat_reader),
+]
+
+
+AREA00_EAST = [(-41, -1310), (-28, -1312), (-18, -1324), (2, -1345), (4, -1378), (-10, -1405), (0, -1440),
+               (0, -1480), (0, -1520), (0, -1580), (2, -1628), (18, -1629)]
+
+
+def k01_beat_load(r: Route) -> dict:
+    # CONSTRUCTED START k01 (port build_start_saves CONSTRUCTED['k01']: k00 plus the reader [19]'s
+    # lock bit 4, item 0x26 and g[3]'s taken bit): LOAD from a02c_01's end: AREA00 sub 2 entry 0.
+    k00_load(r)
+    if r.rows[-1]["area4"][:4] != "0002":
+        raise RuntimeError("not in AREA00 sub 2: " + summary(r.rows[-1]))
+    return {"what": "CONSTRUCTED START k01: LOAD of the k01 card: AREA00 sub 2 entry 0", "hp_end": a01_hp(r)}
+
+
+def k01_beat_slab(r: Route) -> dict:
+    # AREA00 sub 2: off the arrival corridor's east edge at z -1310 (x -35, a drop of 25), south
+    # down the floor east of the hive mound (x 0), east through the opening in the 0x50 walls at
+    # x 21.5 (z -1644..-1613), onto [23] (001C4820 at (34.6, -60, -1628.9)), [28]'s Use point
+    # (descriptor 0x82CD00: (33.9, -47, -1630.4), radius 10, height 8, facing yaw ~1.92).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, AREA00_EAST, tol=2.0, limit=300)
+    sixteenth_run(r, [(30, -1630), (34, -1630.4)], tol=1.2, limit=200, soft=True)
+    r.set_pad(0)
+    a13_settle(r, 5)
+    return {"what": "AREA00 sub 2: the floor east of the mound to [28]'s Use point", "hp_end": a01_hp(r)}
+
+
+def k01_beat_item26(r: Route) -> dict:
+    # [28] (0x826790, C): item 0x26 used from the status screen's EVENT page (00215870 /
+    # 00185420 / 00184D20, BM: event 0x26 for class 4 model 0x49 sets +0x0B = 5); [28] takes item
+    # 0x26 (001C47E0), sets D_00810804 = 2, plays script 0x82D070 and at its end requests AREA14
+    # entry 0 (001B0C60(0xE, 0, 0)).
+    use_sixteenth_sampler(r)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    if r.rows[-1]["pos"][1] < -57:             # onto [23]'s top (y about -53.6): the ledge climb
+        a13_face(r, math.pi / 2, tol=0.08)
+        a19_press_until(r, lambda row: row["m1F0"] in (8, 0x10), tries=4, wait=30)
+        r.until(lambda row: row["m1F0"] not in (8, 0x10, 0x11), 300)
+        a13_settle(r, 5)
+    a19d_go_rock(r, 33.9, -1630.4, tol=1.0)
+    a13_settle(r, 3)
+    a13_face(r, 1.92, tol=0.08)
+    a15b_status_open(r)
+    a15b_status_pick(r, 0x00, 0x7F)            # hub hover 4: ITEM
+    a15b_status_pick(r, 0x00, 0x00)            # ITEM hover 4: EVENT
+    # 00215870 (BM) state 0 lists id 1 for item 0x24 (else 0 for 0x23), then (i - 0x23) for each
+    # held item 0x25..0x3B: here 0x24, 0x26, 0x27, 0x29, 0x2A, so item 0x26 is the second entry.
+    for _ in range(6):                         # the list cursor (D_00810147) to the second entry
+        if r.rows[-1]["t130"][0x17 * 2:0x17 * 2 + 2] == "01":
+            break
+        r.press("DOWN", 2)
+        r.step(20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["ui"][10:12] == "04", 200)
+    r.step(30)
+    r.press("LEFT", 2)
+    r.step(20)
+    r.press("CROSS", 2)
+    r.until(lambda row: row["area4"][:2] == "0e", 6000)
+    a19c_until_control(r, 6000)
+    a13_settle(r, 10)
+    return {"what": "AREA00 sub 2: item 0x26 at [28]: script 0x82D070, AREA14 entry 0", "hp_end": a01_hp(r)}
+
+
+def l18_run_until(r: Route, points, pred, tol: float = 2.0, limit: int = 400) -> bool:
+    """sixteenth_run through `points`; returns True as soon as `pred` holds on a row."""
+    for x, z in points:
+        for _ in range(limit):
+            row = r.rows[-1]
+            if pred(row):
+                r.set_pad(0)
+                return True
+            if row["m1F0"] in A19D_GRABS:
+                a19d_rock(r, 200)
+                continue
+            if math.hypot(row["pos"][0] - x, row["pos"][2] - z) <= tol:
+                break
+            r.stick_toward(x, z, 1.0)
+            r.step(1)
+        else:
+            raise TimeoutError(f"not reached ({x}, {z}): " + summary(r.rows[-1]))
+    r.set_pad(0)
+    return pred(r.rows[-1])
+
+
+K01_BEATS: list[tuple] = [
+    ("k01_00_load", "a02c_01_door22", k01_beat_load),
+    ("k01_01_slab", "k01_00_load", k01_beat_slab),
+    ("k01_02_item26", "k01_01_slab", k01_beat_item26),
+]
+EIGHTEENTH_BEATS: list[tuple] = A04E_BEATS + A02C_BEATS + A01W_BEATS + K00_BEATS + K01_BEATS
 SIXTEENTH_GROUPS = SIXTEENTH_GROUPS + EIGHTEENTH_GROUPS
 SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS + A07_BEATS + SEVENTEENTH_BEATS + EIGHTEENTH_BEATS
-SIXTEENTH_SIDE_BEATS: set[str] = {"a04e_s0_console", "a04e_s1_hoist"}
+SIXTEENTH_SIDE_BEATS: set[str] = {"a04e_s0_console", "a04e_s1_hoist", "a01w_s0_bridge", "k00_s0_loadtest", "k00_s1_reader"}
 
 
 def sixteenth_selected(spec: str) -> list[tuple]:

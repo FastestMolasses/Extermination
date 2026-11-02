@@ -1178,6 +1178,14 @@ own formatted card from `tools/ps2_card.py` in slot 1 and no card in slot 2. A t
 that follows another continues its `card_end.ps2`, and a replay starts from the same
 `card_start.ps2`. `start.json` names the card; a take without the key used a fresh card.
 
+**Constructed starts** (port `docs/EIGHTEENTH_LEVEL_ROUTE.md` section 7c): a save the original
+writer made from a listed progress block (port `tools/build_start_saves.py` `CONSTRUCTED`) is written
+into a card image by `tools/ps2_card.py <card.ps2> <save dir>`, and the port's
+`tools/record_level_routes.py --card <card.ps2>` copies it into a new folder under the output set's
+`_cards/` and points every session of the run at it (`Folders/MemoryCards`, slot 2 off;
+`route_capture.SESSION_KW`). The beat then loads it through the options' load row. The user's
+cards and slots are never used.
+
 Not yet shown: a real controller. The input record holds no button pressures, so a
 partly pressed analog trigger may not replay.
 
