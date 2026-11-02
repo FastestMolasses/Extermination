@@ -83,7 +83,8 @@ SPANS = [dict(name='pad', src='ee', addr='0x00810E70', len=32),
          dict(name='spad', src='ee', addr='0x70003B8C', len=4),
          dict(name='task0', src='ee', addr='0x0028A750', len=16),
          dict(name='yaw', src='ee', addr='0x00810374', len=4),
-         dict(name='rand', src='ee', addr='0x002426C8', len=4)]     # rand()'s state, *D_0024295C + 0x58
+         dict(name='rand', src='ee', addr='0x002426C8', len=4),     # rand()'s state, *D_0024295C + 0x58
+         dict(name='clock', src='ee', addr='0x70003B68', len=4)]    # the world clock
 # The movie's flag: the blocking movie runs inside one main-loop iteration.
 MOVIE_SPANS = [dict(name='movie', src='ee', addr='0x00821058', len=4)]
 SDL = {'Up': 'DPadUp', 'Right': 'DPadRight', 'Down': 'DPadDown', 'Left': 'DPadLeft', 'Triangle': 'FaceNorth',
@@ -314,9 +315,10 @@ def write_rec(take, prefix):
     if group:
         moves.append(group)
     count, n = len(rows), 0
+    clocks = 'clock' in rows.dtype.names        # a take played before the column has none
     lines = ['# EMREC 1', '# source ps2-take', '# mode recording', '# area0 world', f'# take {take.name}',
              '# tick_hz 59.94',
-             '#cols ' + ' '.join(emrec.COLS) + ' rand']
+             '#cols ' + ' '.join(emrec.COLS) + (' rand clock' if clocks else ' rand')]
     for k in range(count):
         row = rows[k]
         vsync = int(row['vsync'])
@@ -334,8 +336,9 @@ def write_rec(take, prefix):
         # Area 0 is the title and AREA00: only the game's task tells them apart.
         world = area[0] or task0[9] == 5 or task0[11] or spad[1]
         phase = emrec.phase_of(1 if world else 0, bd8, task0[9], spad[1])
+        clock = f' {struct.unpack("<i", row["clock"].tobytes())[0]}' if clocks else ''
         lines.append(f'{n} {counter} 0 {phase} 0x{btn:04x} {lx} {ly} {rx} {ry} {area[0]} {area[1]} {area[2]} {bd8} '
-                     f'{spad[1]} {task0[9]} {task0[11]} {x:.9g} {y:.9g} {z:.9g} {yaw:.9g} -1 -1 -1 -1 {rand:08x}')
+                     f'{spad[1]} {task0[9]} {task0[11]} {x:.9g} {y:.9g} {z:.9g} {yaw:.9g} -1 -1 -1 -1 {rand:08x}{clock}')
         n += 1
     (take / 'take.rec').write_text('\n'.join(lines) + '\n')
     print(f'{take.name}: take.rec, {count} ticks')
