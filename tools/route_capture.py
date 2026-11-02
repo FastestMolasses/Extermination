@@ -8858,10 +8858,28 @@ def a04e_beat_console(r: Route) -> dict:
     return {"what": "exploration: the console [69], the platform [68]", "hp_end": a01_hp(r)}
 
 
+A04E_HOIST = {"lift36": 0x7AFDB0, "box39": 0x7B0680, "cons37": 0x7B00A0}   # a04e_00 end snapshot nodes
+
+
+def a04e_beat_hoist(r: Route) -> dict:
+    # Exploration (never passed: the walk was blocked by the pillar x 390..404, z 169.5..183.5 and
+    # the creatures took the player to 30 and to 0): the console [37] (0x825880 at (368.1, 29.9,
+    # 151.8)) and the lift [36] (0x825B00 at (375.9, 14.9, 167.7), +10 when raised).
+    use_sixteenth_sampler(r, owners=A04E_HOIST)
+    next_long_frames(r)
+    a13_settle(r, 3)
+    sixteenth_run(r, [(436, 150), (420, 172), (385, 175), (358, 174), (357, 156)], tol=3.0, limit=300)
+    l18_use(r, 362.5, 151.8, math.pi / 2, lambda row: row["spad"][2:4] != "00")
+    r.set_pad(0)
+    r.step(600)
+    return {"what": "exploration: the console [37], the lift [36]", "hp_end": a01_hp(r)}
+
+
 A04E_BEATS: list[tuple] = [
     ("a04e_00_hall", "a07b_07_lift", a04e_beat_hall),
     ("a04e_01_door41", "a04e_00_hall", a04e_beat_door41),
     ("a04e_s0_console", "a04e_00_hall", a04e_beat_console),
+    ("a04e_s1_hoist", "a04e_00_hall", a04e_beat_hoist),
 ]
 
 
@@ -8968,7 +8986,7 @@ A02C_BEATS: list[tuple] = [
 EIGHTEENTH_BEATS: list[tuple] = A04E_BEATS + A02C_BEATS
 SIXTEENTH_GROUPS = SIXTEENTH_GROUPS + EIGHTEENTH_GROUPS
 SIXTEENTH_BEATS: list[tuple] = A03B_BEATS + A08_BEATS + A03C_BEATS + A04C_BEATS + A07_BEATS + SEVENTEENTH_BEATS + EIGHTEENTH_BEATS
-SIXTEENTH_SIDE_BEATS: set[str] = {"a04e_s0_console"}
+SIXTEENTH_SIDE_BEATS: set[str] = {"a04e_s0_console", "a04e_s1_hoist"}
 
 
 def sixteenth_selected(spec: str) -> list[tuple]:

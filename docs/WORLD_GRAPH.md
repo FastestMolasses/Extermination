@@ -1289,6 +1289,17 @@ seal [21] -> door [22] -> AREA01 sub 1 entry 3) from the seventeenth level's a07
 - **AREA01 sub 1 entry 3** is the room x -50..50, z -320..-190; the upper floor (door [14] to
   AREA22) showed no link from the lower level in the grid (read, not walked).
 - **Census** not run.
+- **Round 2 (read; port EIGHTEENTH_LEVEL_ROUTE.md section 7b).** Flag 0x25 is set by whichever lab
+  comes second: AREA07's [17] (0x823990, C) runs 0x823C20 (flags 0x15, 0x25) only with flag 0x18 =
+  0xFF; AREA08's sub-3 [2] (0x8245E0, C) runs 0x824870 (flags 0x18, 0x25) only with flag 0x15 =
+  0xFF. AREA07 needs AREA04 sub 1's hall (item 0x29 from [1] 0x825040; the socket [61]), entered one
+  way from AREA03's door [24]. The platform [68] (0x825510, C) moves only by its console [69], 82
+  units away, and joins only the balcony's north part; the conveyor's 0x51 walls 741..745 are in sub
+  1's static grid; AREA01's grid has no floor between y 26 and 59. AREA01's bridge half (0x826200, C)
+  is tilted 60 degrees while flag 0x08 is set and flat only once flag 0x2C is set. On these reads no
+  player who did AREA07 could reach item 0x24, or even AREA00, so one of them is likely incomplete;
+  the open leads are the bridge's raised half, the hall's pillar and lift [36] (0x825B00 / console
+  [37] 0x825880), and the platform.
 
 ## 9. Open
 
