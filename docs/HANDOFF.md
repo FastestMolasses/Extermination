@@ -8,18 +8,30 @@ Working directory: `/Users/abe/Documents/Extermination.nosync/Extermination` (po
 `../extermination-port`). **Never** the iCloud copy at `~/Documents/Extermination` —
 that is a different, stale tree.
 
-## Latest (2026-11-01): the user's own takes drive the port
+## Latest (2026-11-02): run1 plays to its end in the port
 
 The user records play on the original (`tools/record_original_play.py`, keep every
-take) and `tools/watch_takes.py` in the port plays a chain of takes as one run from the
-title and compares every tick (PCSX2_FORK.md "A person's play recorded on the
-original"). test1 is 100% to its end; run1 (50.4 min, AREA11, 01, 00, 02, 04, 22, 06) is
-exact for 45,481 ticks, then stops in AREA00 at the broken box's burst 001E4CE0 (no
-binding there). Next: the fix loop on run1 (run, read the first fault or departure,
-fix, repeat), then the card-section stuck spots the user saw. Save terminal Yes works
-(port SAVE_GAME.md, byte-equal to the original's save); new takes have a formatted card
-(`tools/ps2_card.py`). Open: a replay drops a held key for one tick about once per run
-at a random place (cause unknown; verify retries), and the ERCPR decision below.
+take; README.md) and `tools/watch_takes.py` in the port plays a chain of takes as one
+run from the title and compares every tick (PCSX2_FORK.md "A person's play recorded on
+the original"). Port main 88da6693 (local, not pushed): run1 (AREA11, 01, 00, 02, 04,
+22, 06) plays to "recording used up", 170,833 of 170,833 compared ticks on the
+recording; test1 17,212 of 17,212; the route smoke to a13_05 passes (85 live phases).
+rand() and the world clock follow the take tick by tick; takes recorded from
+2026-11-02 carry the clock (an older take needs the port's `tools/take_clock.py` once).
+The fix loop of 2026-11-01..02 (three port lanes, merged): the barrel's burst
+001E4CE0 in every area (the AREA11 spawn shot matches a scripted original run, 0
+differences in 3,307 record-ticks), boot tables in every area, AREA02's turntable,
+the pull up 0x0A and grip states 0x0D, 0x16, 0x17, the loader's region limit, AREA22's
+camera action 12, the bar grab's index pool, the nested worker's 0x70003A20, the
+water ripple 001E8B90, callback 00158130; the draw methods kinds 8, 9, 10, class 6 and
+the infected menu glow (oracles only, no pixel comparison with the original); the
+held faces of a04c_00; 00146AF0 / 00146F80; scene 27's ramp; AREA15 sub 1's snow.
+ERCPR/ERLENG of zero: the streak and kind-2 programs drop that one primitive (the
+orchestrator's choice under the user's "fix everything"; port AREA19_PORT.md item 1;
+the user may veto). Open: a round on water in AREA11 (D_00275C20 0, fail-stop); the
+AREA13 east-room VU1 fault (never reproduced); a replay drops a held key for one tick
+about once per run (cause unknown; verify retries). Next: new takes (run2 on), then
+the card-section stuck spots the user saw, where still relevant.
 
 ## Start here
 1. Read both `CLAUDE.md` files (this repo and `../extermination-port`). They hold the

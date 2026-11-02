@@ -1184,12 +1184,15 @@ partly pressed analog trigger may not replay.
 **In the port** (`tools/watch_takes.py`, port README "Watching your own recorded
 takes"): a chain of takes plays as one run from the title with no restart, and every
 tick's position and heading are compared with the recording. test1 plays to its end,
-17,212 of 17,212 ticks compared on the recording. run1 is on the recording for 45,481
-ticks, through AREA11 and AREA01 into AREA00, where it stops at a real gap: a broken
-box's burst effect 001E4CE0 has no AREA00 binding. So far the takes have found three
-things no scripted route had reached: the MAP page (the keypad's node bind had replaced
-MAP's since port 827d3c2), the cable's hit effect (an on-demand table load missing) and
-that burst.
+17,212 of 17,212 ticks compared on the recording. run1 plays to its end since port
+88da6693 (2026-11-02): 170,833 of 170,833 ticks on the recording, through AREA11, 01, 00,
+02, 04, 22 and 06. Things the takes found that no scripted route had reached: the MAP
+page (the keypad's node bind had replaced MAP's since port 827d3c2), the cable's hit
+effect (an on-demand table load missing), the box and drum bursts 001E4CE0 outside a
+few areas, boot tables gated to later areas, AREA02's turntable carry word, the pull up
+0x0A, the loader's 16-region limit, AREA22's camera action 12, the bar grab's index pool,
+a nested worker's stale 0x70003A20, the water ripple 001E8B90, callback 00158130, and a
+kind-2 particle on the camera plane (the EFU zero).
 
 rand()'s state follows the recording tick by tick in this playback. Without that, the
 stream is identical through AREA11 and into AREA01, up to counter 23480, where a face's
@@ -1199,6 +1202,12 @@ decisions differ: at counter 37976 the player took a hit from another angle. Por
 have their own length, so tick counts also part there. A take's `rand` column is the
 state at each tick's loop top, and the port's first draw of a tick starts from it
 (checked on every tick of those 36,116).
+
+The world clock 0x70003B68 (and its twin D_00810750) follows the take the same way: a
+cutscene that ended a tick early left it one behind for good, and the bugs' timers read
+it, so bug 15 turned a tick late at counter 39004. Takes recorded from 2026-11-02 carry a
+`clock` column; for test1 and run1 the port's `tools/take_clock.py` reads it once from a
+hidden replay into `build/takes/<take>/clock.txt`.
 
 ### Video comparison on the fork (`ps2.py --emulator fork`)
 

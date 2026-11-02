@@ -82,6 +82,8 @@ A take is in `build/human_play/<take>/`, derived from your disc and never commit
 recording (one row per game tick), `start.json`, `end.json` and `end.p2s` the two ends,
 `card_start.ps2` and `card_end.ps2` the card, and `verify.json` the check's result.
 `trace <take>` rebuilds `take.rec`; `run1` and `test1` need it because they predate the
-columns a take now records for itself.
+columns a take now records for itself. A take recorded from 2026-11-02 on also carries
+the world clock; for `run1` and `test1` the port's `tools/take_clock.py` reads it once
+from a hidden replay (about a third of the take's length).
 
 Details: `docs/PCSX2_FORK.md`, "A person's play recorded on the original".
