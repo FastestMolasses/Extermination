@@ -238,7 +238,7 @@ logic. Its cut-content items come from this repo's `docs/CURIOSITIES.md`.
   committed doc cites.
 - Never delete a recording (user, 2026-11-01: they want to watch them again in the
   port): `build/fork_refs/**` (every recorded beat), `build/human_play/**` (the user's
-  takes), and the port's `build/drive_replay*`, `build/rand_replay*`, `build/beat_rands`,
+  takes), `build/guided_play/**` (Claude's guided full run and its kept tries), and the port's `build/drive_replay*`, `build/rand_replay*`, `build/beat_rands`,
   `build/start_saves`, `build/boss_fight`. Disk cleanup never touches them.
 - Clean up at checkpoints: (1) before a work package's final commit — delete its
   intermediate screenshots, snapshots (state.p2s / eeMemory / gs dumps), trial
