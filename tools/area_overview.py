@@ -1436,7 +1436,13 @@ def main():
     placements, deferred = {}, {}
     for s in subs:
         t = img.u32(place_desc + 4 * s)
-        placements[s] = dict(table=t, records=place_records(img, t))
+        # a sub whose placement word names no static table (AREA07's and
+        # AREA08's sub 1): no records, not a stop
+        try:
+            records = place_records(img, t) if t else []
+        except KeyError:
+            records = []
+        placements[s] = dict(table=t, records=records)
         items = []
         if defer_desc and s < nest_base:
             q = img.u32(defer_desc + 4 * s)
