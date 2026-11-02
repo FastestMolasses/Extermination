@@ -706,6 +706,8 @@ def door_table(img: Image, area: int):
 def message_table(img: Image, area: int):
     words = [img.u32(D_MSG + 4 * i) for i in range(24)]
     base = words[area + 1]
+    if not base:                     # no area message table (AREA18, AREA22: the word is 0)
+        return dict(base=0, end=0, records=0, nonzero_records=0)
     extra = []
     try:
         extra.append(img.u32(0x275848 + 8))
