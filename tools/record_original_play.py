@@ -11,12 +11,18 @@ the take, so it can be re-driven for traces, states and comparisons.
 Takes chain: a take can start from the state an earlier take ended on, so a
 long playthrough can be played over several sittings. Every take starts from a
 true state, so one that fails its check costs that take, not the takes after it.
+A take can also start where a route beat recorded by the capture lanes ended
+(--beat; build/fork_refs/levels-recordings-*/s87/route_*/<beat>_*/state.p2s),
+to play on from a place the route recordings reached. Such a take starts from
+that beat's machine, not from the title, so the port's watch_takes.py does not
+stitch it.
 
 Usage (native arm64 macOS; the fork app runs x86_64 under Rosetta; use the
 decomp's .venv python):
 
   .venv/bin/python tools/record_original_play.py play run1
   .venv/bin/python tools/record_original_play.py play run2 --after run1
+  .venv/bin/python tools/record_original_play.py play hall1 --beat a07b_07
   .venv/bin/python tools/record_original_play.py verify run1
   .venv/bin/python tools/record_original_play.py trace run1
   .venv/bin/python tools/record_original_play.py list
@@ -176,11 +182,22 @@ def machine(c):
                 hashes=hashes['regions'])
 
 
+def beat_state(name):
+    """The end state of a route beat the capture lanes recorded (the newest set)."""
+    found = sorted(session.ROOT.glob(f'build/fork_refs/levels-recordings-*/s87/route_*/{name}_*/state.p2s'))
+    found = [path for path in found if '_failed' not in path.parts]
+    if not found:
+        sys.exit(f'no recorded route beat named {name}')
+    return found[-1]
+
+
 def play(args):
     take = OUT / args.take
     if take.exists():
         sys.exit(f'{take} already exists: choose a new take name')
-    state = OUT / args.after / 'end.p2s' if args.after else TITLE
+    if args.after and args.beat:
+        sys.exit('--after and --beat are two different starts: choose one')
+    state = OUT / args.after / 'end.p2s' if args.after else beat_state(args.beat) if args.beat else TITLE
     if not state.exists():
         sys.exit(f'{state} is missing')
     take.mkdir(parents=True)
@@ -203,7 +220,7 @@ def play(args):
         arm(c)
         start = machine(c)
         (take / 'start.json').write_text(json.dumps(dict(start, state=str(state), after=args.after,
-                                                         card='card_start.ps2'), indent=1) + '\n')
+                                                         beat=args.beat, card='card_start.ps2'), indent=1) + '\n')
         c.call('run', **{'until': {'vsyncs': 1 << 30}, 'timeout_s': 7 * 86400, 'async': True})
         if not args.hidden:
             show(inst.pid)
@@ -371,6 +388,7 @@ def main():
     p = sub.add_parser('play')
     p.add_argument('take')
     p.add_argument('--after', metavar='TAKE', help='start from the state this take ended on')
+    p.add_argument('--beat', metavar='BEAT', help='start where a recorded route beat ended (e.g. a07b_07)')
     p.add_argument('--hidden', action='store_true', help='a check of the tool: no window, muted')
     p.add_argument('--seconds', type=float, help='end after this long instead of on Enter')
     p.set_defaults(run=play)

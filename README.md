@@ -32,6 +32,16 @@ Continue from where an earlier take ended (the port stitches them into one run):
 .venv/bin/python tools/record_original_play.py play run2 --after run1
 ```
 
+Or start where a recorded route beat ended, to play on from a place the scripted
+route recordings reached (for example `a07b_07`, the lift from AREA07 back into
+"STORAGE / Lvl 1 LAB - SECURITY", where the scripted route is stuck). Such a take
+starts from that beat's machine, not the title, so the port does not stitch it with
+`run1`:
+
+```bash
+.venv/bin/python tools/record_original_play.py play hall1 --beat a07b_07
+```
+
 Play in the window that opens, with the keyboard or a controller (a controller is
 not tested yet). **Press Enter in the terminal to end the take.** Do not close the
 game window: that loses the end state. Keep each take under an hour or so; a
